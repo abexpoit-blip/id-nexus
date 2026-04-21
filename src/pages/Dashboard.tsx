@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
@@ -28,6 +28,7 @@ interface Profile {
 
 const Dashboard = () => {
   const { user, roles, signOut } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -183,7 +184,11 @@ const Dashboard = () => {
             <p className="mt-1 text-sm text-muted-foreground">
               Browse 61xxx & 1000xxx Facebook accounts and VPN plans.
             </p>
-            <Button size="sm" className="mt-4 bg-gradient-brand text-primary-foreground hover:opacity-90">
+            <Button
+              size="sm"
+              onClick={() => navigate("/browse")}
+              className="mt-4 bg-gradient-brand text-primary-foreground hover:opacity-90"
+            >
               Browse stock
             </Button>
           </Card>
@@ -196,7 +201,13 @@ const Dashboard = () => {
                 ? "Upload your .xlsx stock and track payouts."
                 : "Want to sell? Apply for a seller account — admin will review your request."}
             </p>
-            <Button size="sm" variant="outline" className="mt-4">
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-4"
+              onClick={() => navigate(isSeller || isAdmin ? "/seller" : "/dashboard")}
+              disabled={!isSeller && !isAdmin}
+            >
               {isSeller ? "Open seller dashboard" : "Apply as seller"}
             </Button>
           </Card>
