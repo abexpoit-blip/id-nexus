@@ -228,9 +228,10 @@ const SellerDashboard = () => {
         const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
         if (catId !== filterCategory) return false;
       }
+      if (filterReason !== "all" && classifyReason(r.outcome_reason) !== filterReason) return false;
       return true;
     });
-  }, [replacements, filterCategory, filterOutcome, accountCategoryMap]);
+  }, [replacements, filterCategory, filterOutcome, filterReason, accountCategoryMap]);
 
   const pendingReplacements = useMemo(
     () => replacements.filter((r) => r.outcome === "pending").length,
