@@ -88,6 +88,8 @@ const SellerDashboard = () => {
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
+  const [soldWeek, setSoldWeek] = useState(0);
+  const [soldPeriod, setSoldPeriod] = useState<"today" | "week">("today");
   const [replacements, setReplacements] = useState<ReplacementRow[]>([]);
   const [accountCategoryMap, setAccountCategoryMap] = useState<Record<string, string>>({});
   const [filterCategory, setFilterCategory] = useState<string>("all");
@@ -100,12 +102,16 @@ const SellerDashboard = () => {
     if (!user) return;
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
+    const startOfWeek = new Date();
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(startOfWeek.getDate() - 6); // last 7 days incl. today
 
     const [
       { data: cats },
       { data: myAccounts },
       { data: recentRows },
       { count: todayCount },
+      { count: weekCount },
       { data: rpItems },
     ] = await Promise.all([
       supabase
@@ -131,6 +137,12 @@ const SellerDashboard = () => {
         .eq("status", "sold")
         .gte("sold_at", startOfDay.toISOString()),
       supabase
+        .from("accounts")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", user.id)
+        .eq("status", "sold")
+        .gte("sold_at", startOfWeek.toISOString()),
+      supabase
         .from("replacement_items")
         .select("id, reported_uid, outcome, outcome_reason, in_window, created_at, account_id")
         .eq("seller_id", user.id)
@@ -139,6 +151,7 @@ const SellerDashboard = () => {
     ]);
     setCategories((cats ?? []) as Category[]);
     setSoldToday(todayCount ?? 0);
+    setSoldWeek(weekCount ?? 0);
     setReplacements((rpItems ?? []) as ReplacementRow[]);
 
     // Map account_id -> category_id for filter
