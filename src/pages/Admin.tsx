@@ -27,6 +27,9 @@ import {
 import { ArrowLeft, Loader2, AlertTriangle, RefreshCcw, DollarSign, XCircle, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { CategoriesManager } from "@/components/admin/CategoriesManager";
+import { SellerLimitsManager } from "@/components/admin/SellerLimitsManager";
+import { StockOverview } from "@/components/admin/StockOverview";
 
 interface RpItem {
   id: string;
