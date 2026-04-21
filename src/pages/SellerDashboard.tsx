@@ -436,9 +436,15 @@ const SellerDashboard = () => {
       return;
     }
     const r = data as any;
-    toast.success(
-      `Inserted ${r.inserted} new IDs. Duplicates: ${r.duplicate_count ?? 0}, invalid: ${r.invalid_count ?? 0}.`,
-    );
+    const overLimit = Number(r.over_limit_skipped ?? 0);
+    const remaining = Number(r.remaining_after ?? 0);
+    let msg = `Inserted ${r.inserted} new IDs. Duplicates: ${r.duplicate_count ?? 0}, invalid: ${r.invalid_count ?? 0}.`;
+    if (overLimit > 0) {
+      msg += ` ${overLimit} rows skipped — daily limit reached.`;
+      toast.warning(msg);
+    } else {
+      toast.success(msg + (remaining >= 0 ? ` ${remaining} uploads left today.` : ""));
+    }
     setParsed(null);
     setFileName("");
     loadAll();
