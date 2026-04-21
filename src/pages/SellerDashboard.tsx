@@ -256,7 +256,10 @@ const SellerDashboard = () => {
   };
 
   const exportReplacementsCsv = () => {
-    if (filteredReplacements.length === 0) {
+    const rows = filteredReplacements.filter((r) =>
+      exportWindow === "all" ? true : exportWindow === "in" ? r.in_window : !r.in_window,
+    );
+    if (rows.length === 0) {
       toast.error("Nothing to export with current filters");
       return;
     }
@@ -266,7 +269,7 @@ const SellerDashboard = () => {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers.join(",")];
-    filteredReplacements.forEach((r) => {
+    rows.forEach((r) => {
       const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
       const catName = (catId && categories.find((c) => c.id === catId)?.name) || "Unknown";
       lines.push(
@@ -285,12 +288,13 @@ const SellerDashboard = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `replacement-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    const suffix = exportWindow === "all" ? "" : `-${exportWindow}-window`;
+    a.download = `replacement-report${suffix}-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success(`Exported ${filteredReplacements.length} rows`);
+    toast.success(`Exported ${rows.length} rows`);
   };
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
