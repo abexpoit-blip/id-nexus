@@ -494,10 +494,20 @@ const SellerDashboard = () => {
         </div>
 
         {/* Stats */}
-        <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+        <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
           <Card className="border-border/60 bg-gradient-card p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Available stock</div>
             <div className="mt-2 font-display text-3xl font-bold text-primary">{totals.available}</div>
+          </Card>
+          <Card className="border-border/60 bg-gradient-card p-5">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Today's quota</div>
+            <div className="mt-2 font-display text-2xl font-bold">
+              <span className={usedToday >= dailyLimit ? "text-destructive" : "text-foreground"}>{usedToday}</span>
+              <span className="text-muted-foreground"> / {dailyLimit}</span>
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">
+              {Math.max(dailyLimit - usedToday, 0)} uploads left today (UTC)
+            </div>
           </Card>
           <Card className="border-border/60 bg-gradient-card p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold (all-time)</div>
