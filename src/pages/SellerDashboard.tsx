@@ -576,7 +576,11 @@ const SellerDashboard = () => {
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">No accounts yet — upload your first batch above.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div
+              className={`overflow-x-auto rounded-md transition-colors ${
+                tableHighlight ? "animate-highlight-pulse ring-2 ring-primary/40" : ""
+              }`}
+            >
               <Table>
                 <TableHeader>
                   <TableRow>
