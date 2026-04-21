@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, Download } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -95,6 +95,7 @@ const SellerDashboard = () => {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterOutcome, setFilterOutcome] = useState<string>("all");
   const fileRef = useRef<HTMLInputElement>(null);
+  const replacementsRef = useRef<HTMLDivElement>(null);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
@@ -224,17 +225,62 @@ const SellerDashboard = () => {
   );
 
   const replacementsByCategory = useMemo(() => {
-    const counts = new Map<string, number>();
+    const counts = new Map<string, { count: number; categoryId: string | null }>();
     filteredReplacements.forEach((r) => {
       const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
       const name =
         (catId && categories.find((c) => c.id === catId)?.name) || "Unknown";
-      counts.set(name, (counts.get(name) ?? 0) + 1);
+      const prev = counts.get(name);
+      counts.set(name, { count: (prev?.count ?? 0) + 1, categoryId: catId ?? null });
     });
     return Array.from(counts.entries())
-      .map(([name, count]) => ({ name, count }))
+      .map(([name, v]) => ({ name, count: v.count, categoryId: v.categoryId }))
       .sort((a, b) => b.count - a.count);
   }, [filteredReplacements, accountCategoryMap, categories]);
+
+  const handleChartBarClick = (data: any) => {
+    const payload = data?.activePayload?.[0]?.payload ?? data?.payload ?? data;
+    if (payload?.categoryId) setFilterCategory(payload.categoryId);
+    replacementsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const exportReplacementsCsv = () => {
+    if (filteredReplacements.length === 0) {
+      toast.error("Nothing to export with current filters");
+      return;
+    }
+    const headers = ["UID", "Category", "Status", "In window", "Window (h)", "Reason", "Filed at"];
+    const escape = (v: string | number | null | undefined) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [headers.join(",")];
+    filteredReplacements.forEach((r) => {
+      const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
+      const catName = (catId && categories.find((c) => c.id === catId)?.name) || "Unknown";
+      lines.push(
+        [
+          r.reported_uid,
+          catName,
+          r.outcome,
+          r.in_window ? "yes" : "no",
+          (r as any).window_hours ?? "",
+          r.outcome_reason ?? "",
+          new Date(r.created_at).toISOString(),
+        ].map(escape).join(","),
+      );
+    });
+    const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `replacement-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredReplacements.length} rows`);
+  };
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -557,7 +603,7 @@ const SellerDashboard = () => {
         </Card>
 
         {/* Replacement issues */}
-        <Card className="mt-6 border-border/60 bg-gradient-card p-6">
+        <Card ref={replacementsRef} className="mt-6 border-border/60 bg-gradient-card p-6 scroll-mt-24">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="font-display text-lg font-semibold">Replacement issues</div>
@@ -566,6 +612,14 @@ const SellerDashboard = () => {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportReplacementsCsv}
+                disabled={filteredReplacements.length === 0}
+              >
+                <Download className="mr-2 h-4 w-4" /> Export CSV
+              </Button>
               <Select value={filterCategory} onValueChange={setFilterCategory}>
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Category" />
@@ -603,7 +657,11 @@ const SellerDashboard = () => {
               </div>
               <div className="h-48 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={replacementsByCategory} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
+                  <BarChart
+                    data={replacementsByCategory}
+                    margin={{ top: 4, right: 8, bottom: 4, left: -16 }}
+                    onClick={handleChartBarClick}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis
                       dataKey="name"
@@ -627,7 +685,13 @@ const SellerDashboard = () => {
                         fontSize: 12,
                       }}
                     />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="count"
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                      cursor="pointer"
+                      onClick={handleChartBarClick}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
