@@ -18,15 +18,23 @@ const passwordSchema = z
   .min(8, "At least 8 characters")
   .max(72, "Too long");
 const nameSchema = z.string().trim().min(2, "Name too short").max(60);
+const tgSchema = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/^@/, "").toLowerCase())
+  .pipe(z.string().regex(/^[a-z0-9_]{3,32}$/, "Telegram username: 3-32 chars (a-z, 0-9, _)"));
+const sellerPasswordSchema = z.string().min(4, "At least 4 characters").max(72);
 
 const Auth = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "seller">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [tgUsername, setTgUsername] = useState("");
+  const [sellerPassword, setSellerPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -37,8 +45,30 @@ const Auth = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const cleanEmail = emailSchema.parse(email);
-      const cleanPassword = passwordSchema.parse(password);
+      if (mode === "seller") {
+        const cleanTg = tgSchema.parse(tgUsername);
+        const cleanPw = sellerPasswordSchema.parse(sellerPassword);
+        const { data, error } = await supabase.functions.invoke("seller-signup", {
+          body: { telegram_username: cleanTg, password: cleanPw, display_name: cleanTg },
+        });
+        if (error) throw new Error(error.message);
+        if ((data as any)?.error) throw new Error((data as any).error);
+        const synthEmail = (data as any).email as string;
+        const { error: siErr } = await supabase.auth.signInWithPassword({
+          email: synthEmail,
+          password: cleanPw,
+        });
+        if (siErr) throw siErr;
+        toast.success(`Seller account created — welcome @${cleanTg}`);
+        navigate("/seller", { replace: true });
+        return;
+      }
+
+      const isTgLogin = mode === "signin" && email.trim().startsWith("@");
+      const cleanEmail = isTgLogin ? "" : emailSchema.parse(email);
+      const cleanPassword = isTgLogin
+        ? sellerPasswordSchema.parse(password)
+        : passwordSchema.parse(password);
 
       if (mode === "signup") {
         const cleanName = nameSchema.parse(displayName);
@@ -55,8 +85,12 @@ const Auth = () => {
         toast.success("Account created! Welcome to Nexus X.");
         navigate("/dashboard", { replace: true });
       } else {
+        // Allow sellers to sign in with @username too (we resolve to synthetic email)
+        const loginEmail = email.trim().startsWith("@")
+          ? `${email.trim().slice(1).toLowerCase()}@seller.nexus-x.local`
+          : cleanEmail;
         const { error } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
+          email: loginEmail,
           password: cleanPassword,
         });
         if (error) throw error;
@@ -97,10 +131,11 @@ const Auth = () => {
           <Logo size="lg" showTagline />
         </div>
         <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
-          <Tabs value={mode} onValueChange={(v) => setMode(v as "signin" | "signup")}>
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs value={mode} onValueChange={(v) => setMode(v as "signin" | "signup" | "seller")}>
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="signin">Sign in</TabsTrigger>
-              <TabsTrigger value="signup">Create account</TabsTrigger>
+              <TabsTrigger value="signup">Buyer</TabsTrigger>
+              <TabsTrigger value="seller">Seller</TabsTrigger>
             </TabsList>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -119,7 +154,41 @@ const Auth = () => {
                 </div>
               </TabsContent>
 
-              <div>
+              <TabsContent value="seller" className="m-0 space-y-4">
+                <div>
+                  <Label htmlFor="tg">Telegram username</Label>
+                  <Input
+                    id="tg"
+                    value={tgUsername}
+                    onChange={(e) => setTgUsername(e.target.value)}
+                    placeholder="@yourname"
+                    required={mode === "seller"}
+                    maxLength={33}
+                    autoComplete="username"
+                    className="mt-1.5"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    No email needed — sign in with this Telegram username + password.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="seller-pw">Password</Label>
+                  <Input
+                    id="seller-pw"
+                    type="password"
+                    value={sellerPassword}
+                    onChange={(e) => setSellerPassword(e.target.value)}
+                    placeholder="At least 4 characters"
+                    required={mode === "seller"}
+                    minLength={4}
+                    maxLength={72}
+                    autoComplete="new-password"
+                    className="mt-1.5"
+                  />
+                </div>
+              </TabsContent>
+
+              <div className={mode === "seller" ? "hidden" : ""}>
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
@@ -127,12 +196,12 @@ const Auth = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  required
+                  required={mode !== "seller"}
                   autoComplete="email"
                   className="mt-1.5"
                 />
               </div>
-              <div>
+              <div className={mode === "seller" ? "hidden" : ""}>
                 <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
@@ -140,7 +209,7 @@ const Auth = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={mode === "signup" ? "Min 8 characters" : "Your password"}
-                  required
+                  required={mode !== "seller"}
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
                   minLength={8}
                   maxLength={72}
@@ -155,7 +224,11 @@ const Auth = () => {
                 size="lg"
               >
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {mode === "signup" ? "Create account" : "Sign in"}
+                {mode === "signup"
+                  ? "Create buyer account"
+                  : mode === "seller"
+                  ? "Create seller account"
+                  : "Sign in"}
               </Button>
 
               <p className="text-center text-xs text-muted-foreground">

@@ -148,6 +148,39 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          read_at: string | null
+          reference_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          read_at?: string | null
+          reference_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          read_at?: string | null
+          reference_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           account_id: string
@@ -244,6 +277,7 @@ export type Database = {
           is_banned: boolean
           telegram_chat_id: number | null
           telegram_link_code: string
+          telegram_username: string | null
           updated_at: string
         }
         Insert: {
@@ -255,6 +289,7 @@ export type Database = {
           is_banned?: boolean
           telegram_chat_id?: number | null
           telegram_link_code: string
+          telegram_username?: string | null
           updated_at?: string
         }
         Update: {
@@ -266,6 +301,105 @@ export type Database = {
           is_banned?: boolean
           telegram_chat_id?: number | null
           telegram_link_code?: string
+          telegram_username?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      replacement_items: {
+        Row: {
+          account_id: string | null
+          buyer_id: string
+          created_at: string
+          id: string
+          in_window: boolean
+          order_id: string | null
+          outcome: Database["public"]["Enums"]["replacement_item_outcome"]
+          outcome_reason: string | null
+          replacement_account_id: string | null
+          reported_uid: string
+          request_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          seller_id: string | null
+          window_hours: number | null
+        }
+        Insert: {
+          account_id?: string | null
+          buyer_id: string
+          created_at?: string
+          id?: string
+          in_window?: boolean
+          order_id?: string | null
+          outcome?: Database["public"]["Enums"]["replacement_item_outcome"]
+          outcome_reason?: string | null
+          replacement_account_id?: string | null
+          reported_uid: string
+          request_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          seller_id?: string | null
+          window_hours?: number | null
+        }
+        Update: {
+          account_id?: string | null
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          in_window?: boolean
+          order_id?: string | null
+          outcome?: Database["public"]["Enums"]["replacement_item_outcome"]
+          outcome_reason?: string | null
+          replacement_account_id?: string | null
+          reported_uid?: string
+          request_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          seller_id?: string | null
+          window_hours?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "replacement_items_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "replacement_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      replacement_requests: {
+        Row: {
+          admin_note: string | null
+          buyer_id: string
+          created_at: string
+          id: string
+          matched_count: number
+          parsed_uid_count: number
+          raw_input: string
+          status: Database["public"]["Enums"]["replacement_status"]
+          updated_at: string
+        }
+        Insert: {
+          admin_note?: string | null
+          buyer_id: string
+          created_at?: string
+          id?: string
+          matched_count?: number
+          parsed_uid_count?: number
+          raw_input: string
+          status?: Database["public"]["Enums"]["replacement_status"]
+          updated_at?: string
+        }
+        Update: {
+          admin_note?: string | null
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          matched_count?: number
+          parsed_uid_count?: number
+          raw_input?: string
+          status?: Database["public"]["Enums"]["replacement_status"]
           updated_at?: string
         }
         Relationships: []
@@ -296,6 +430,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_resolve_replacement_item: {
+        Args: { p_action: string; p_item_id: string; p_reason?: string }
+        Returns: Json
+      }
+      assign_seller_role_by_telegram: {
+        Args: { p_telegram_username: string; p_user_id: string }
+        Returns: undefined
+      }
       generate_tg_link_code: { Args: never; Returns: string }
       get_public_stock_counts: {
         Args: never
@@ -319,6 +461,10 @@ export type Database = {
         Args: { p_category_id: string; p_rows: Json }
         Returns: Json
       }
+      submit_replacement_request: {
+        Args: { p_raw_input: string }
+        Returns: Json
+      }
     }
     Enums: {
       account_status:
@@ -337,7 +483,24 @@ export type Database = {
         | "withdraw"
         | "admin_adjustment"
         | "seller_payout"
+      notification_kind:
+        | "replacement_filed"
+        | "id_replaced"
+        | "id_refunded"
+        | "id_rejected"
+        | "id_marked_bad"
+        | "order_placed"
+        | "stock_low"
+        | "system"
       order_status: "pending" | "completed" | "failed" | "refunded"
+      replacement_item_outcome:
+        | "pending"
+        | "replaced"
+        | "refunded"
+        | "rejected"
+        | "out_of_window"
+        | "not_yours"
+      replacement_status: "pending" | "processing" | "resolved" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -483,7 +646,26 @@ export const Constants = {
         "admin_adjustment",
         "seller_payout",
       ],
+      notification_kind: [
+        "replacement_filed",
+        "id_replaced",
+        "id_refunded",
+        "id_rejected",
+        "id_marked_bad",
+        "order_placed",
+        "stock_low",
+        "system",
+      ],
       order_status: ["pending", "completed", "failed", "refunded"],
+      replacement_item_outcome: [
+        "pending",
+        "replaced",
+        "refunded",
+        "rejected",
+        "out_of_window",
+        "not_yours",
+      ],
+      replacement_status: ["pending", "processing", "resolved", "rejected"],
     },
   },
 } as const

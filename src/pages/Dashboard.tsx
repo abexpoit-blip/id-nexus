@@ -17,6 +17,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { NotificationsBell } from "@/components/NotificationsBell";
 
 interface Profile {
   display_name: string | null;
@@ -73,6 +74,7 @@ const Dashboard = () => {
             <Logo size="sm" showTagline={false} />
           </Link>
           <div className="flex items-center gap-3">
+            <NotificationsBell />
             <Badge variant="outline" className="border-primary/40 capitalize text-primary">
               {primaryRole}
             </Badge>
@@ -135,11 +137,20 @@ const Dashboard = () => {
                 <RefreshCcw className="h-5 w-5" />
               </div>
               <div className="text-xs uppercase tracking-widest text-muted-foreground">
-                Active replacements
+                Replacements
               </div>
             </div>
-            <div className="mt-4 font-display text-3xl font-bold">0</div>
-            <p className="mt-1 text-xs text-muted-foreground">2h or 6h replacement window per order.</p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Report bad IDs from your orders. 2h window for ≤10 IDs, 6h for larger.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-4 w-full"
+              onClick={() => navigate("/replacements")}
+            >
+              <RefreshCcw className="mr-2 h-4 w-4" /> Open replacements
+            </Button>
           </Card>
         </div>
 

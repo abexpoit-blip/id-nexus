@@ -13,9 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Copy, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Copy, Download, Loader2, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { useNavigate } from "react-router-dom";
 
 interface OrderRow {
   id: string;
@@ -37,6 +38,7 @@ interface AccountRow {
 
 const OrderDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [order, setOrder] = useState<OrderRow | null>(null);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [categoryName, setCategoryName] = useState<string>("");
@@ -157,6 +159,13 @@ const OrderDetail = () => {
           </Button>
           <Button onClick={downloadExcel} className="bg-gradient-brand text-primary-foreground hover:opacity-90">
             <Download className="mr-2 h-4 w-4" /> Download Excel
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate("/replacements")}
+            className="border-warning/40 text-warning hover:text-warning"
+          >
+            <RefreshCcw className="mr-2 h-4 w-4" /> Report bad IDs
           </Button>
         </div>
 
