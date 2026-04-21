@@ -8,35 +8,48 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Nexus X — Basictrick MarketPlace dark theme */
+    --background: 224 47% 6%;
+    --foreground: 210 40% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 224 40% 9%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 224 40% 9%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 174 84% 50%;
+    --primary-foreground: 224 47% 6%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 265 84% 62%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 224 30% 14%;
+    --muted-foreground: 215 20% 70%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 265 84% 62%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --success: 152 76% 44%;
+    --success-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    --warning: 38 92% 55%;
+    --warning-foreground: 224 47% 6%;
+
+    --border: 224 30% 18%;
+    --input: 224 30% 14%;
+    --ring: 174 84% 50%;
+
+    --radius: 0.85rem;
+
+    --gradient-hero: radial-gradient(ellipse at top, hsl(265 84% 62% / 0.25), transparent 60%), radial-gradient(ellipse at bottom right, hsl(174 84% 50% / 0.18), transparent 55%), hsl(224 47% 6%);
+    --gradient-brand: linear-gradient(135deg, hsl(174 84% 50%), hsl(265 84% 62%));
+    --gradient-card: linear-gradient(160deg, hsl(224 40% 11%), hsl(224 40% 8%));
+    --shadow-glow: 0 0 60px -10px hsl(174 84% 50% / 0.45);
+    --shadow-card: 0 10px 40px -15px hsl(224 80% 2% / 0.6);
 
     --sidebar-background: 0 0% 98%;
 
