@@ -95,6 +95,7 @@ const SellerDashboard = () => {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterOutcome, setFilterOutcome] = useState<string>("all");
   const fileRef = useRef<HTMLInputElement>(null);
+  const replacementsRef = useRef<HTMLDivElement>(null);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
