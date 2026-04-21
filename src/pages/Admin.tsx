@@ -27,6 +27,9 @@ import {
 import { ArrowLeft, Loader2, AlertTriangle, RefreshCcw, DollarSign, XCircle, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { CategoriesManager } from "@/components/admin/CategoriesManager";
+import { SellerLimitsManager } from "@/components/admin/SellerLimitsManager";
+import { StockOverview } from "@/components/admin/StockOverview";
 
 interface RpItem {
   id: string;
@@ -61,6 +64,7 @@ const Admin = () => {
   const [items, setItems] = useState<RpItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
+  const [section, setSection] = useState<"replacements" | "stock" | "categories" | "sellers">("replacements");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
   const [action, setAction] = useState<"replace" | "refund" | "reject" | null>(null);
@@ -186,13 +190,27 @@ const Admin = () => {
 
       <main className="container py-8">
         <div className="mb-6">
-          <h1 className="font-display text-2xl font-bold md:text-3xl">Replacement queue</h1>
+          <h1 className="font-display text-2xl font-bold md:text-3xl">Admin CMS</h1>
           <p className="text-sm text-muted-foreground">
-            Resolve pending replacement requests. Replace issues a fresh ID, Refund credits the buyer's
-            balance, Reject closes without action.
+            Manage stock, pricing, categories, seller daily limits, and resolve replacement issues.
           </p>
         </div>
 
+        <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)} className="mb-6">
+          <TabsList className="flex w-full flex-wrap justify-start gap-1 sm:w-auto">
+            <TabsTrigger value="replacements">Replacements{counts.pending ? ` (${counts.pending})` : ""}</TabsTrigger>
+            <TabsTrigger value="stock">Stock</TabsTrigger>
+            <TabsTrigger value="categories">Categories & pricing</TabsTrigger>
+            <TabsTrigger value="sellers">Seller limits</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {section === "stock" && <StockOverview />}
+        {section === "categories" && <CategoriesManager />}
+        {section === "sellers" && <SellerLimitsManager />}
+
+        {section === "replacements" && (
+        <>
         <div className="mb-6 grid gap-3 sm:grid-cols-4">
           <Card className="border-border/60 bg-gradient-card p-4">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Pending</div>
@@ -320,6 +338,8 @@ const Admin = () => {
             </div>
           )}
         </Card>
+        </>
+        )}
       </main>
 
       <Dialog open={!!actingItem} onOpenChange={(o) => !o && setActingItem(null)}>

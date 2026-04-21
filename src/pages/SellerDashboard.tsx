@@ -133,6 +133,8 @@ const SellerDashboard = () => {
   const chartClickLockRef = useRef(false);
   const [tableHighlight, setTableHighlight] = useState(false);
   const [exportWindow, setExportWindow] = useState<"all" | "in" | "out">("all");
+  const [dailyLimit, setDailyLimit] = useState<number>(0);
+  const [usedToday, setUsedToday] = useState<number>(0);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
@@ -191,6 +193,14 @@ const SellerDashboard = () => {
     setSoldToday(todayCount ?? 0);
     setSoldWeek(weekCount ?? 0);
     setReplacements((rpItems ?? []) as ReplacementRow[]);
+
+    // Daily limit + uploaded-today (UTC day)
+    const [{ data: limitVal }, { data: usedVal }] = await Promise.all([
+      supabase.rpc("get_seller_daily_limit", { _seller_id: user.id }),
+      supabase.rpc("get_seller_today_uploaded", { _seller_id: user.id }),
+    ]);
+    setDailyLimit(Number(limitVal ?? 0));
+    setUsedToday(Number(usedVal ?? 0));
 
     // Map account_id -> category_id for filter
     const acctMap: Record<string, string> = {};
@@ -426,9 +436,15 @@ const SellerDashboard = () => {
       return;
     }
     const r = data as any;
-    toast.success(
-      `Inserted ${r.inserted} new IDs. Duplicates: ${r.duplicate_count ?? 0}, invalid: ${r.invalid_count ?? 0}.`,
-    );
+    const overLimit = Number(r.over_limit_skipped ?? 0);
+    const remaining = Number(r.remaining_after ?? 0);
+    let msg = `Inserted ${r.inserted} new IDs. Duplicates: ${r.duplicate_count ?? 0}, invalid: ${r.invalid_count ?? 0}.`;
+    if (overLimit > 0) {
+      msg += ` ${overLimit} rows skipped — daily limit reached.`;
+      toast.warning(msg);
+    } else {
+      toast.success(msg + (remaining >= 0 ? ` ${remaining} uploads left today.` : ""));
+    }
     setParsed(null);
     setFileName("");
     loadAll();
@@ -484,10 +500,20 @@ const SellerDashboard = () => {
         </div>
 
         {/* Stats */}
-        <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+        <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
           <Card className="border-border/60 bg-gradient-card p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Available stock</div>
             <div className="mt-2 font-display text-3xl font-bold text-primary">{totals.available}</div>
+          </Card>
+          <Card className="border-border/60 bg-gradient-card p-5">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Today's quota</div>
+            <div className="mt-2 font-display text-2xl font-bold">
+              <span className={usedToday >= dailyLimit ? "text-destructive" : "text-foreground"}>{usedToday}</span>
+              <span className="text-muted-foreground"> / {dailyLimit}</span>
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">
+              {Math.max(dailyLimit - usedToday, 0)} uploads left today (UTC)
+            </div>
           </Card>
           <Card className="border-border/60 bg-gradient-card p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold (all-time)</div>
