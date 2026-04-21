@@ -18,15 +18,23 @@ const passwordSchema = z
   .min(8, "At least 8 characters")
   .max(72, "Too long");
 const nameSchema = z.string().trim().min(2, "Name too short").max(60);
+const tgSchema = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/^@/, "").toLowerCase())
+  .pipe(z.string().regex(/^[a-z0-9_]{3,32}$/, "Telegram username: 3-32 chars (a-z, 0-9, _)"));
+const sellerPasswordSchema = z.string().min(4, "At least 4 characters").max(72);
 
 const Auth = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "seller">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [tgUsername, setTgUsername] = useState("");
+  const [sellerPassword, setSellerPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -37,6 +45,25 @@ const Auth = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
+      if (mode === "seller") {
+        const cleanTg = tgSchema.parse(tgUsername);
+        const cleanPw = sellerPasswordSchema.parse(sellerPassword);
+        const { data, error } = await supabase.functions.invoke("seller-signup", {
+          body: { telegram_username: cleanTg, password: cleanPw, display_name: cleanTg },
+        });
+        if (error) throw new Error(error.message);
+        if ((data as any)?.error) throw new Error((data as any).error);
+        const synthEmail = (data as any).email as string;
+        const { error: siErr } = await supabase.auth.signInWithPassword({
+          email: synthEmail,
+          password: cleanPw,
+        });
+        if (siErr) throw siErr;
+        toast.success(`Seller account created — welcome @${cleanTg}`);
+        navigate("/seller", { replace: true });
+        return;
+      }
+
       const cleanEmail = emailSchema.parse(email);
       const cleanPassword = passwordSchema.parse(password);
 
