@@ -194,6 +194,14 @@ const SellerDashboard = () => {
     setSoldWeek(weekCount ?? 0);
     setReplacements((rpItems ?? []) as ReplacementRow[]);
 
+    // Daily limit + uploaded-today (UTC day)
+    const [{ data: limitVal }, { data: usedVal }] = await Promise.all([
+      supabase.rpc("get_seller_daily_limit", { _seller_id: user.id }),
+      supabase.rpc("get_seller_today_uploaded", { _seller_id: user.id }),
+    ]);
+    setDailyLimit(Number(limitVal ?? 0));
+    setUsedToday(Number(usedVal ?? 0));
+
     // Map account_id -> category_id for filter
     const acctMap: Record<string, string> = {};
     (myAccounts ?? []).forEach((a: any) => { acctMap[a.id] = a.category_id; });
