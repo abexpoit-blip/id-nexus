@@ -593,6 +593,47 @@ const SellerDashboard = () => {
             </div>
           </div>
 
+          {replacementsByCategory.length > 0 && (
+            <div className="mb-6 rounded-md border border-border/60 bg-background/40 p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-sm font-medium">Issues by category</div>
+                <div className="text-xs text-muted-foreground">
+                  {filteredReplacements.length} total · current filters
+                </div>
+              </div>
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={replacementsByCategory} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
+                      tickLine={false}
+                      interval={0}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
+                      contentStyle={{
+                        background: "hsl(var(--background))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: 8,
+                        fontSize: 12,
+                      }}
+                    />
+                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
           {filteredReplacements.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               No replacement issues match these filters.
