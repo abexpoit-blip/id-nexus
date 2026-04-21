@@ -808,7 +808,14 @@ const SellerDashboard = () => {
               No replacement issues match these filters.
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <div
+              data-replacement-table
+              tabIndex={-1}
+              aria-label="Filtered replacement issues"
+              className={`overflow-x-auto rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 ${
+                tableHighlight ? "animate-highlight-pulse ring-2 ring-primary/40" : ""
+              }`}
+            >
               <Table>
                 <TableHeader>
                   <TableRow>
