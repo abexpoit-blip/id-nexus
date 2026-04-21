@@ -133,6 +133,8 @@ const SellerDashboard = () => {
   const chartClickLockRef = useRef(false);
   const [tableHighlight, setTableHighlight] = useState(false);
   const [exportWindow, setExportWindow] = useState<"all" | "in" | "out">("all");
+  const [dailyLimit, setDailyLimit] = useState<number>(0);
+  const [usedToday, setUsedToday] = useState<number>(0);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
