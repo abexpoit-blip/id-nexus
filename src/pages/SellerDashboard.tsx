@@ -603,7 +603,7 @@ const SellerDashboard = () => {
         </Card>
 
         {/* Replacement issues */}
-        <Card className="mt-6 border-border/60 bg-gradient-card p-6">
+        <Card ref={replacementsRef} className="mt-6 border-border/60 bg-gradient-card p-6 scroll-mt-24">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="font-display text-lg font-semibold">Replacement issues</div>
@@ -612,6 +612,14 @@ const SellerDashboard = () => {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportReplacementsCsv}
+                disabled={filteredReplacements.length === 0}
+              >
+                <Download className="mr-2 h-4 w-4" /> Export CSV
+              </Button>
               <Select value={filterCategory} onValueChange={setFilterCategory}>
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Category" />
