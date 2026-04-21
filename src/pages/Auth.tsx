@@ -124,10 +124,11 @@ const Auth = () => {
           <Logo size="lg" showTagline />
         </div>
         <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
-          <Tabs value={mode} onValueChange={(v) => setMode(v as "signin" | "signup")}>
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs value={mode} onValueChange={(v) => setMode(v as "signin" | "signup" | "seller")}>
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="signin">Sign in</TabsTrigger>
-              <TabsTrigger value="signup">Create account</TabsTrigger>
+              <TabsTrigger value="signup">Buyer</TabsTrigger>
+              <TabsTrigger value="seller">Seller</TabsTrigger>
             </TabsList>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -146,7 +147,41 @@ const Auth = () => {
                 </div>
               </TabsContent>
 
-              <div>
+              <TabsContent value="seller" className="m-0 space-y-4">
+                <div>
+                  <Label htmlFor="tg">Telegram username</Label>
+                  <Input
+                    id="tg"
+                    value={tgUsername}
+                    onChange={(e) => setTgUsername(e.target.value)}
+                    placeholder="@yourname"
+                    required={mode === "seller"}
+                    maxLength={33}
+                    autoComplete="username"
+                    className="mt-1.5"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    No email needed — sign in with this Telegram username + password.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="seller-pw">Password</Label>
+                  <Input
+                    id="seller-pw"
+                    type="password"
+                    value={sellerPassword}
+                    onChange={(e) => setSellerPassword(e.target.value)}
+                    placeholder="At least 4 characters"
+                    required={mode === "seller"}
+                    minLength={4}
+                    maxLength={72}
+                    autoComplete="new-password"
+                    className="mt-1.5"
+                  />
+                </div>
+              </TabsContent>
+
+              <div className={mode === "seller" ? "hidden" : ""}>
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
@@ -154,12 +189,12 @@ const Auth = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  required
+                  required={mode !== "seller"}
                   autoComplete="email"
                   className="mt-1.5"
                 />
               </div>
-              <div>
+              <div className={mode === "seller" ? "hidden" : ""}>
                 <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
@@ -167,7 +202,7 @@ const Auth = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={mode === "signup" ? "Min 8 characters" : "Your password"}
-                  required
+                  required={mode !== "seller"}
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
                   minLength={8}
                   maxLength={72}
@@ -182,7 +217,11 @@ const Auth = () => {
                 size="lg"
               >
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {mode === "signup" ? "Create account" : "Sign in"}
+                {mode === "signup"
+                  ? "Create buyer account"
+                  : mode === "seller"
+                  ? "Create seller account"
+                  : "Sign in"}
               </Button>
 
               <p className="text-center text-xs text-muted-foreground">
