@@ -82,8 +82,12 @@ const Auth = () => {
         toast.success("Account created! Welcome to Nexus X.");
         navigate("/dashboard", { replace: true });
       } else {
+        // Allow sellers to sign in with @username too (we resolve to synthetic email)
+        const loginEmail = email.trim().startsWith("@")
+          ? `${email.trim().slice(1).toLowerCase()}@seller.nexus-x.local`
+          : cleanEmail;
         const { error } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
+          email: loginEmail,
           password: cleanPassword,
         });
         if (error) throw error;
