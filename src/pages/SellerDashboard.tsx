@@ -26,6 +26,14 @@ import { ArrowLeft, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangl
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Category {
   id: string;
