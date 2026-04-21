@@ -297,6 +297,13 @@ export type Database = {
     }
     Functions: {
       generate_tg_link_code: { Args: never; Returns: string }
+      get_public_stock_counts: {
+        Args: never
+        Returns: {
+          available: number
+          category_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
