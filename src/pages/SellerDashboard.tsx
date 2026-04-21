@@ -296,19 +296,31 @@ const SellerDashboard = () => {
     }, 350);
   };
 
-  const exportReplacementsCsv = () => {
-    // Validate combo: status=out_of_window + CSV=in window is logically impossible
+  const getExportRows = () => {
+    return filteredReplacements.filter((r) => {
+      if (exportWindow === "all") return true;
+      return exportWindow === "in" ? r.in_window === true : r.in_window === false;
+    });
+  };
+
+  const openExportPreview = () => {
     if (exportWindow === "in" && filterOutcome === "out_of_window") {
       toast.error(
         "Status filter is 'Out of window' but CSV is set to 'In window' — no rows can match. Switch one of them.",
       );
       return;
     }
-    const rows = filteredReplacements.filter((r) => {
-      if (exportWindow === "all") return true;
-      // Source of truth = the same r.in_window boolean the table renders
-      return exportWindow === "in" ? r.in_window === true : r.in_window === false;
-    });
+    setPreviewOpen(true);
+  };
+
+  const exportReplacementsCsv = () => {
+    if (exportWindow === "in" && filterOutcome === "out_of_window") {
+      toast.error(
+        "Status filter is 'Out of window' but CSV is set to 'In window' — no rows can match. Switch one of them.",
+      );
+      return;
+    }
+    const rows = getExportRows();
     if (rows.length === 0) {
       toast.error("Nothing to export with current filters");
       return;
@@ -344,6 +356,7 @@ const SellerDashboard = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    setPreviewOpen(false);
     toast.success(`Exported ${rows.length} rows`);
   };
 
