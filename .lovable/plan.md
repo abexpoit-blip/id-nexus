@@ -1,69 +1,67 @@
+# Self-Hosting Plan — Contabo VPS (Full Rewrite, No Lovable Cloud)
 
-# Basictrick ID Buy Sell — Marketplace + Telegram Bot
+## 🎯 Final Goal
+- Frontend: https://buy.nexus-x.cloud → Contabo VPS (Nginx serving React build)
+- Backend API: https://api.buy.nexus-x.cloud → Node.js/Express + PostgreSQL on same VPS
+- Workflow: Lovable edits → GitHub push → VPS auto pull & rebuild
+- Lovable Cloud / Supabase: NOT USED
 
-**Brand:** Logo "Nexus X" • Tagline "Part of Basictrick MarketPlace" • Platform name "Basictrick ID Buy Sell"
-**Stack:** React + Tailwind (responsive, app-like) on Lovable → push to GitHub → you deploy to your VPS. Backend uses Lovable Cloud during build; we keep schema clean so you can migrate to self-hosted Postgres on your VPS later. No business data stays on Lovable in production.
+## Phases
 
----
+### Phase 1 — VPS Initial Setup
+- SSH login to Contabo VPS
+- Install: Node.js 20, PostgreSQL 16, Nginx, PM2, Certbot, ufw
+- Create `deploy` user, firewall rules (22, 80, 443)
+- Add VPS SSH key to GitHub
 
-## Phase 1 — Public Website (PC + Mobile, app-feel)
+### Phase 2 — Database (PostgreSQL on VPS)
+- Create `nexusx` database + `nexusx_app` user
+- Port Supabase schema → plain Postgres:
+  - Enums: app_role, account_status, order_status, category_kind, ledger_kind, notification_kind, replacement_status, replacement_item_outcome
+  - Tables: users (auth), profiles, user_roles, categories, accounts, orders, order_items, balance_ledger, replacement_requests, replacement_items, notifications
+  - Functions: place_order, submit_replacement_request, seller_upload_accounts, admin_resolve_replacement_item, has_role, get_public_stock_counts
+- RLS dropped → app-level permission checks in backend
 
-- Landing page with Nexus X branding, hero (Facebook ID marketplace + VPN), live stats (stock per category, today's price), how-it-works, FAQ, footer.
-- Smooth transitions, bottom nav on mobile, sticky top bar on desktop. Dark/light theme.
-- Auth: email + password signup/login. After signup, user gets a unique **Telegram link code**. Sending `/start <code>` to bot permanently links the account (one-time).
-- Tutorial pages with embedded video links (admin-editable) — separate buyer & seller tutorials.
+### Phase 3 — Backend API (new repo: nexusx-api)
+Stack: Node.js + Express + TypeScript + pg/Prisma + Zod
+- Auth: bcrypt + JWT (access + refresh), httpOnly cookies
+- Routes: /auth, /categories, /orders, /accounts, /replacements, /notifications, /admin/*
+- Telegram bot: express webhook + node-telegram-bot-api
+- Realtime: Socket.io
+- Middleware: auth, role-check, rate-limit, CORS
+- .env: DATABASE_URL, JWT_SECRET, TELEGRAM_BOT_TOKEN, FRONTEND_URL
 
-## Phase 2 — Buyer Experience
+### Phase 4 — Frontend Refactor (this Lovable repo)
+- Replace src/integrations/supabase/client.ts with src/lib/api.ts (axios + JWT)
+- Rewrite useAuth.tsx → JWT-based
+- Touch every page: Auth, Browse, Dashboard, OrderDetail, SellerDashboard, Replacements, Admin, NotificationsBell
+- Replace supabase.from/rpc calls with api.get/post
+- Replace realtime subscriptions with Socket.io
 
-- **Buyer dashboard:** balance, recent orders, replacement status, "old account info" panel showing purchases for last 48h.
-- **Browse & buy IDs:** two categories `61xxx` and `1000xxx`, live price + stock from admin. Choose quantity → pay from balance → instant delivery.
-- **Delivery options:** Excel download, copy-one-by-one, copy-all button. Same delivery available in Telegram bot (Excel file + copy-all button).
-- **Replacement system:**
-  - 2h window if order qty 1–2; 6h window if 3+.
-  - Buyer submits bad UID(s); system verifies UID belongs to their order (rejects mismatches).
-  - Admin reviews → on approval, fresh ID auto-pulled from same seller's stock; seller notified instantly.
-- **Wallet top-up:** manual bKash & Nagad — buyer submits trxID + screenshot → admin approves → balance credited.
-- **VPN orders:** weekly/monthly plans, pay from balance → admin manually delivers credentials in dashboard → buyer + bot notified.
+### Phase 5 — DNS + SSL
+- Hostinger DNS:
+  - A buy → <VPS_IP>
+  - A api.buy → <VPS_IP>
+- Nginx reverse proxy for both subdomains
+- Certbot Let's Encrypt SSL + auto-renewal cron
 
-## Phase 3 — Seller Experience
+### Phase 6 — GitHub Auto-Deploy
+- .github/workflows/deploy.yml (frontend)
+  - On push to main: SSH into VPS → git pull → npm ci → npm run build → copy dist/ to Nginx root
+- Secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY
+- Separate workflow in backend repo
 
-- **Seller dashboard:** today's submissions, today's sell rate, stock count, paid/unpaid balance, withdraw button, live "report not arrived for 21 days" / pending-report indicators.
-- **Excel upload to store:**
-  - Drag & drop `.xlsx`, system parses, validates schema, **dedupes UIDs globally** (no UID can exist twice across all sellers ever).
-  - Preview screen shows accepted vs duplicates → seller confirms → added to live stock.
-  - Daily submit cutoff (admin-set, default 11:50 PM Bangladesh time). After cutoff, uploads blocked; today's reports release next day (admin can delay individual sellers).
-- **Reports:** live "OK IDs" vs "Issue IDs" stats, per-day breakdown, replacement notifications when their ID gets replaced.
-- **Withdrawals:** request payout → admin marks paid → balance deducted.
-- **Tutorial videos** (admin-editable links).
+### Phase 7 — Testing & Hardening
+- End-to-end: signup → login → browse → order → replacement → admin resolve
+- Telegram bot flow test
+- ssllabs.com grade check
+- Daily pg_dump backup cron
 
-## Phase 4 — Admin Control Panel
+## Recommended order
+Phase 1 → 5 → 6 (domain live with current backend fast) → then 2 → 3 → 4 (backend migration, risk-isolated)
 
-- **Settings:** category prices (change anytime, applies to new orders), submit cutoff time, replacement windows (2h/6h configurable), withdrawal minimums, bot on/off, all tutorial video links, branding text.
-- **Users:** list all, adjust balance (logged), ban, view full history.
-- **Operations:** approve/reject replacements, mark IDs as bad, approve top-ups & withdrawals, fulfill VPN orders, send balance to any user, broadcast message to bot users.
-- **Live dashboards:** today's sales, submissions per seller, stock per category, pending reports/withdrawals/top-ups, revenue.
-
-## Phase 5 — Telegram Bot (buyers only)
-
-- Same menu structure as website: Buy IDs, My Orders, Wallet, Replacements, VPN, Tutorials, Balance.
-- Linked via one-time `/start <code>` from website.
-- Real-time sync — same balance, same orders, same stock on both sides.
-- Excel delivery + copy-all button in chat.
-- Notifications: order delivered, replacement approved/rejected, top-up approved, balance changes.
-- Admins do NOT use the bot — admin work only on website.
-
-## Phase 6 — Hardening & Handoff
-
-- Balance integrity: every balance change is a ledger row (immutable), so users never lose history. Locks on order/replace/withdraw to prevent race conditions.
-- Audit logs for all admin actions.
-- Mobile responsive QA on iPhone/Android sizes; PWA-style polish (installable feel).
-- README with VPS deploy steps (GitHub → pull → run on your VPS), environment variables, and migration notes from Lovable Cloud → self-hosted Postgres.
-
----
-
-**What I need from you after approval:**
-1. Telegram Bot token (we'll add as a secret).
-2. Cryptomus credentials — *deferred*, you confirmed bKash/Nagad manual only for MVP. We can wire Cryptomus later.
-3. Tutorial video links (or placeholders for now, you fill from admin panel).
-
-We'll build in the order above so you see something usable early (website + auth + buyer browse) before deeper admin/bot work.
+## Honest warnings
+- 3–5 days minimum work, tested per phase
+- Frontend rewrite may break existing UI — iterative bug-fix needed
+- Backend repo lives OUTSIDE Lovable; Lovable AI cannot edit it (manual maintenance)
+- Current auth users & data will be lost (user confirmed empty)
