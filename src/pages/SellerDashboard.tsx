@@ -67,6 +67,29 @@ interface ReplacementRow {
   account_id: string | null;
 }
 
+type ReasonBucket = "user_replaced" | "bot_replaced" | "refunded" | "rejected" | "out_of_window" | "unknown";
+
+const REASON_OPTIONS: { value: ReasonBucket | "all"; label: string }[] = [
+  { value: "all", label: "All reasons" },
+  { value: "user_replaced", label: "User replaced" },
+  { value: "bot_replaced", label: "Bot replaced" },
+  { value: "refunded", label: "Refunded" },
+  { value: "rejected", label: "Rejected" },
+  { value: "out_of_window", label: "Out of window" },
+  { value: "unknown", label: "Unknown / other" },
+];
+
+const classifyReason = (reason: string | null | undefined): ReasonBucket => {
+  const s = (reason ?? "").toLowerCase();
+  if (!s) return "unknown";
+  if (/\bbot\b|automated|auto[-\s]?replace/.test(s)) return "bot_replaced";
+  if (/replaced|fresh id|swap/.test(s)) return "user_replaced";
+  if (/refund/.test(s)) return "refunded";
+  if (/reject/.test(s)) return "rejected";
+  if (/window|hours after/.test(s)) return "out_of_window";
+  return "unknown";
+};
+
 const HEADER_MAP: Record<string, keyof ParsedRow> = {
   uid: "uid",
   id: "uid",
