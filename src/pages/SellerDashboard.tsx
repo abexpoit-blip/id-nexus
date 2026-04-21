@@ -627,6 +627,16 @@ const SellerDashboard = () => {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Select value={exportWindow} onValueChange={(v) => setExportWindow(v as "all" | "in" | "out")}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">CSV: all rows</SelectItem>
+                  <SelectItem value="in">CSV: in window</SelectItem>
+                  <SelectItem value="out">CSV: out of window</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
                 variant="outline"
                 size="sm"
