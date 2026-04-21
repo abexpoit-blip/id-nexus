@@ -102,6 +102,8 @@ const SellerDashboard = () => {
   const [accountCategoryMap, setAccountCategoryMap] = useState<Record<string, string>>({});
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterOutcome, setFilterOutcome] = useState<string>("all");
+  const [filterReason, setFilterReason] = useState<string>("all");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const replacementsRef = useRef<HTMLDivElement>(null);
   const chartClickLockRef = useRef(false);
