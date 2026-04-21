@@ -225,17 +225,62 @@ const SellerDashboard = () => {
   );
 
   const replacementsByCategory = useMemo(() => {
-    const counts = new Map<string, number>();
+    const counts = new Map<string, { count: number; categoryId: string | null }>();
     filteredReplacements.forEach((r) => {
       const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
       const name =
         (catId && categories.find((c) => c.id === catId)?.name) || "Unknown";
-      counts.set(name, (counts.get(name) ?? 0) + 1);
+      const prev = counts.get(name);
+      counts.set(name, { count: (prev?.count ?? 0) + 1, categoryId: catId ?? null });
     });
     return Array.from(counts.entries())
-      .map(([name, count]) => ({ name, count }))
+      .map(([name, v]) => ({ name, count: v.count, categoryId: v.categoryId }))
       .sort((a, b) => b.count - a.count);
   }, [filteredReplacements, accountCategoryMap, categories]);
+
+  const handleChartBarClick = (data: any) => {
+    const payload = data?.activePayload?.[0]?.payload ?? data?.payload ?? data;
+    if (payload?.categoryId) setFilterCategory(payload.categoryId);
+    replacementsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const exportReplacementsCsv = () => {
+    if (filteredReplacements.length === 0) {
+      toast.error("Nothing to export with current filters");
+      return;
+    }
+    const headers = ["UID", "Category", "Status", "In window", "Window (h)", "Reason", "Filed at"];
+    const escape = (v: string | number | null | undefined) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [headers.join(",")];
+    filteredReplacements.forEach((r) => {
+      const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
+      const catName = (catId && categories.find((c) => c.id === catId)?.name) || "Unknown";
+      lines.push(
+        [
+          r.reported_uid,
+          catName,
+          r.outcome,
+          r.in_window ? "yes" : "no",
+          (r as any).window_hours ?? "",
+          r.outcome_reason ?? "",
+          new Date(r.created_at).toISOString(),
+        ].map(escape).join(","),
+      );
+    });
+    const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `replacement-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredReplacements.length} rows`);
+  };
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
