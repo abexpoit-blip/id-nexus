@@ -96,6 +96,9 @@ const SellerDashboard = () => {
   const [filterOutcome, setFilterOutcome] = useState<string>("all");
   const fileRef = useRef<HTMLInputElement>(null);
   const replacementsRef = useRef<HTMLDivElement>(null);
+  const chartClickLockRef = useRef(false);
+  const [tableHighlight, setTableHighlight] = useState(false);
+  const [exportWindow, setExportWindow] = useState<"all" | "in" | "out">("all");
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
@@ -239,13 +242,24 @@ const SellerDashboard = () => {
   }, [filteredReplacements, accountCategoryMap, categories]);
 
   const handleChartBarClick = (data: any) => {
+    if (chartClickLockRef.current) return;
+    chartClickLockRef.current = true;
+    setTimeout(() => {
+      chartClickLockRef.current = false;
+    }, 400);
     const payload = data?.activePayload?.[0]?.payload ?? data?.payload ?? data;
     if (payload?.categoryId) setFilterCategory(payload.categoryId);
     replacementsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTableHighlight(false);
+    requestAnimationFrame(() => setTableHighlight(true));
+    window.setTimeout(() => setTableHighlight(false), 1600);
   };
 
   const exportReplacementsCsv = () => {
-    if (filteredReplacements.length === 0) {
+    const rows = filteredReplacements.filter((r) =>
+      exportWindow === "all" ? true : exportWindow === "in" ? r.in_window : !r.in_window,
+    );
+    if (rows.length === 0) {
       toast.error("Nothing to export with current filters");
       return;
     }
@@ -255,7 +269,7 @@ const SellerDashboard = () => {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers.join(",")];
-    filteredReplacements.forEach((r) => {
+    rows.forEach((r) => {
       const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
       const catName = (catId && categories.find((c) => c.id === catId)?.name) || "Unknown";
       lines.push(
@@ -274,12 +288,13 @@ const SellerDashboard = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `replacement-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    const suffix = exportWindow === "all" ? "" : `-${exportWindow}-window`;
+    a.download = `replacement-report${suffix}-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success(`Exported ${filteredReplacements.length} rows`);
+    toast.success(`Exported ${rows.length} rows`);
   };
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -561,7 +576,11 @@ const SellerDashboard = () => {
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">No accounts yet — upload your first batch above.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div
+              className={`overflow-x-auto rounded-md transition-colors ${
+                tableHighlight ? "animate-highlight-pulse ring-2 ring-primary/40" : ""
+              }`}
+            >
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -612,6 +631,16 @@ const SellerDashboard = () => {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Select value={exportWindow} onValueChange={(v) => setExportWindow(v as "all" | "in" | "out")}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">CSV: all rows</SelectItem>
+                  <SelectItem value="in">CSV: in window</SelectItem>
+                  <SelectItem value="out">CSV: out of window</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
                 variant="outline"
                 size="sm"

@@ -101,10 +101,21 @@ export default {
             height: "0",
           },
         },
+        "highlight-pulse": {
+          "0%, 100%": {
+            boxShadow: "0 0 0 0 hsl(var(--primary) / 0)",
+            backgroundColor: "hsl(var(--primary) / 0)",
+          },
+          "30%": {
+            boxShadow: "0 0 0 4px hsl(var(--primary) / 0.35)",
+            backgroundColor: "hsl(var(--primary) / 0.08)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "highlight-pulse": "highlight-pulse 1.6s ease-out",
       },
     },
   },
