@@ -313,6 +313,7 @@ const SellerDashboard = () => {
             <Logo size="sm" showTagline={false} />
             <Badge variant="outline" className="border-secondary/40 text-secondary">Seller</Badge>
           </div>
+          <NotificationsBell />
         </div>
       </header>
 
@@ -326,14 +327,22 @@ const SellerDashboard = () => {
         </div>
 
         {/* Stats */}
-        <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-5">
           <Card className="border-border/60 bg-gradient-card p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Available stock</div>
             <div className="mt-2 font-display text-3xl font-bold text-primary">{totals.available}</div>
           </Card>
           <Card className="border-border/60 bg-gradient-card p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold</div>
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold (all-time)</div>
             <div className="mt-2 font-display text-3xl font-bold">{totals.sold}</div>
+          </Card>
+          <Card className="border-border/60 bg-gradient-card p-5">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold today</div>
+            <div className="mt-2 font-display text-3xl font-bold text-secondary">{soldToday}</div>
+          </Card>
+          <Card className="border-border/60 bg-gradient-card p-5">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Pending replacements</div>
+            <div className="mt-2 font-display text-3xl font-bold text-warning">{pendingReplacements}</div>
           </Card>
           <Card className="border-border/60 bg-gradient-card p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Categories</div>
