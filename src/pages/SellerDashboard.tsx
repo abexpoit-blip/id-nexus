@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { ArrowLeft, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { NotificationsBell } from "@/components/NotificationsBell";
 
 interface Category {
   id: string;
@@ -45,6 +46,16 @@ interface StockSummary {
   category_name: string;
   available: number;
   sold: number;
+}
+
+interface ReplacementRow {
+  id: string;
+  reported_uid: string;
+  outcome: string;
+  outcome_reason: string | null;
+  in_window: boolean;
+  created_at: string;
+  account_id: string | null;
 }
 
 const HEADER_MAP: Record<string, keyof ParsedRow> = {
@@ -75,13 +86,27 @@ const SellerDashboard = () => {
   const [uploading, setUploading] = useState(false);
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
+  const [soldToday, setSoldToday] = useState(0);
+  const [replacements, setReplacements] = useState<ReplacementRow[]>([]);
+  const [accountCategoryMap, setAccountCategoryMap] = useState<Record<string, string>>({});
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterOutcome, setFilterOutcome] = useState<string>("all");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
   const loadAll = async () => {
     if (!user) return;
-    const [{ data: cats }, { data: myAccounts }, { data: recentRows }] = await Promise.all([
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const [
+      { data: cats },
+      { data: myAccounts },
+      { data: recentRows },
+      { count: todayCount },
+      { data: rpItems },
+    ] = await Promise.all([
       supabase
         .from("categories")
         .select("id, name, slug, price_bdt")
@@ -90,7 +115,7 @@ const SellerDashboard = () => {
         .order("sort_order"),
       supabase
         .from("accounts")
-        .select("category_id, status")
+        .select("id, category_id, status")
         .eq("seller_id", user.id),
       supabase
         .from("accounts")
@@ -98,8 +123,27 @@ const SellerDashboard = () => {
         .eq("seller_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20),
+      supabase
+        .from("accounts")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", user.id)
+        .eq("status", "sold")
+        .gte("sold_at", startOfDay.toISOString()),
+      supabase
+        .from("replacement_items")
+        .select("id, reported_uid, outcome, outcome_reason, in_window, created_at, account_id")
+        .eq("seller_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(100),
     ]);
     setCategories((cats ?? []) as Category[]);
+    setSoldToday(todayCount ?? 0);
+    setReplacements((rpItems ?? []) as ReplacementRow[]);
+
+    // Map account_id -> category_id for filter
+    const acctMap: Record<string, string> = {};
+    (myAccounts ?? []).forEach((a: any) => { acctMap[a.id] = a.category_id; });
+    setAccountCategoryMap(acctMap);
 
     // Build per-category stock summary
     const map = new Map<string, StockSummary>();
@@ -119,7 +163,7 @@ const SellerDashboard = () => {
   useEffect(() => {
     loadAll();
     if (!user) return;
-    const channel = supabase
+    const acctChannel = supabase
       .channel("seller-accounts-" + user.id)
       .on(
         "postgres_changes",
@@ -127,8 +171,17 @@ const SellerDashboard = () => {
         () => loadAll(),
       )
       .subscribe();
+    const rpChannel = supabase
+      .channel("seller-replacements-" + user.id)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "replacement_items", filter: `seller_id=eq.${user.id}` },
+        () => loadAll(),
+      )
+      .subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(acctChannel);
+      supabase.removeChannel(rpChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -139,6 +192,22 @@ const SellerDashboard = () => {
       { available: 0, sold: 0 },
     );
   }, [stock]);
+
+  const filteredReplacements = useMemo(() => {
+    return replacements.filter((r) => {
+      if (filterOutcome !== "all" && r.outcome !== filterOutcome) return false;
+      if (filterCategory !== "all") {
+        const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
+        if (catId !== filterCategory) return false;
+      }
+      return true;
+    });
+  }, [replacements, filterCategory, filterOutcome, accountCategoryMap]);
+
+  const pendingReplacements = useMemo(
+    () => replacements.filter((r) => r.outcome === "pending").length,
+    [replacements],
+  );
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -244,6 +313,7 @@ const SellerDashboard = () => {
             <Logo size="sm" showTagline={false} />
             <Badge variant="outline" className="border-secondary/40 text-secondary">Seller</Badge>
           </div>
+          <NotificationsBell />
         </div>
       </header>
 
@@ -257,14 +327,22 @@ const SellerDashboard = () => {
         </div>
 
         {/* Stats */}
-        <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-5">
           <Card className="border-border/60 bg-gradient-card p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Available stock</div>
             <div className="mt-2 font-display text-3xl font-bold text-primary">{totals.available}</div>
           </Card>
           <Card className="border-border/60 bg-gradient-card p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold</div>
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold (all-time)</div>
             <div className="mt-2 font-display text-3xl font-bold">{totals.sold}</div>
+          </Card>
+          <Card className="border-border/60 bg-gradient-card p-5">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold today</div>
+            <div className="mt-2 font-display text-3xl font-bold text-secondary">{soldToday}</div>
+          </Card>
+          <Card className="border-border/60 bg-gradient-card p-5">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Pending replacements</div>
+            <div className="mt-2 font-display text-3xl font-bold text-warning">{pendingReplacements}</div>
           </Card>
           <Card className="border-border/60 bg-gradient-card p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Categories</div>
@@ -432,6 +510,104 @@ const SellerDashboard = () => {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+        </Card>
+
+        {/* Replacement issues */}
+        <Card className="mt-6 border-border/60 bg-gradient-card p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="font-display text-lg font-semibold">Replacement issues</div>
+              <p className="text-xs text-muted-foreground">
+                Buyer-reported problems on IDs you sold. Admin resolves each item.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterOutcome} onValueChange={setFilterOutcome}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="replaced">Replaced</SelectItem>
+                  <SelectItem value="refunded">Refunded</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="out_of_window">Out of window</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {filteredReplacements.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No replacement issues match these filters.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>UID</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Window</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Filed</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredReplacements.slice(0, 50).map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-mono text-xs">{r.reported_uid}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            r.outcome === "pending"
+                              ? "bg-warning/20 text-warning hover:bg-warning/20 capitalize"
+                              : r.outcome === "replaced" || r.outcome === "refunded"
+                              ? "bg-success/20 text-success hover:bg-success/20 capitalize"
+                              : r.outcome === "rejected"
+                              ? "bg-destructive/20 text-destructive hover:bg-destructive/20 capitalize"
+                              : "bg-muted text-muted-foreground capitalize"
+                          }
+                        >
+                          {r.outcome.replace("_", " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {r.in_window ? (
+                          <span className="text-success">in window</span>
+                        ) : (
+                          <span className="text-muted-foreground">out</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[280px] truncate text-xs text-muted-foreground">
+                        {r.outcome_reason ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(r.created_at).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {filteredReplacements.length > 50 && (
+                <div className="border-t border-border/60 px-4 py-2 text-xs text-muted-foreground">
+                  Showing first 50 of {filteredReplacements.length}
+                </div>
+              )}
             </div>
           )}
         </Card>

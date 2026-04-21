@@ -223,6 +223,25 @@ const Dashboard = () => {
             </Button>
           </Card>
         </div>
+
+        {isAdmin && (
+          <Card className="mt-6 border-primary/40 bg-gradient-card p-6 shadow-card">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-display text-lg font-semibold">Admin tools</div>
+                <p className="text-sm text-muted-foreground">
+                  Resolve replacement requests, manage roles, top-ups, and more.
+                </p>
+              </div>
+              <Button
+                onClick={() => navigate("/admin")}
+                className="bg-gradient-brand text-primary-foreground hover:opacity-90"
+              >
+                Open admin panel
+              </Button>
+            </div>
+          </Card>
+        )}
       </main>
     </div>
   );
