@@ -96,6 +96,9 @@ const SellerDashboard = () => {
   const [filterOutcome, setFilterOutcome] = useState<string>("all");
   const fileRef = useRef<HTMLInputElement>(null);
   const replacementsRef = useRef<HTMLDivElement>(null);
+  const chartClickLockRef = useRef(false);
+  const [tableHighlight, setTableHighlight] = useState(false);
+  const [exportWindow, setExportWindow] = useState<"all" | "in" | "out">("all");
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
