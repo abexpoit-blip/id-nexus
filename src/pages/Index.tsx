@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -17,8 +18,8 @@ import {
   ArrowRight,
   CheckCircle2,
 } from "lucide-react";
-import logo from "@/assets/nexus-x-logo.png";
 import heroBg from "@/assets/hero-bg.jpg";
+import { Logo } from "@/components/Logo";
 
 const Index = () => {
   return (
@@ -27,13 +28,7 @@ const Index = () => {
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
           <a href="#" className="flex items-center gap-2">
-            <img src={logo} alt="Nexus X logo" width={36} height={36} className="h-9 w-9" />
-            <div className="leading-tight">
-              <div className="font-display text-lg font-bold tracking-tight">Nexus X</div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Basictrick MarketPlace
-              </div>
-            </div>
+            <Logo size="md" />
           </a>
           <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
             <a href="#categories" className="transition hover:text-foreground">Categories</a>
@@ -42,9 +37,11 @@ const Index = () => {
             <a href="#faq" className="transition hover:text-foreground">FAQ</a>
           </nav>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex">Login</Button>
-            <Button size="sm" className="bg-gradient-brand text-primary-foreground shadow-glow hover:opacity-90">
-              Get started
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+              <Link to="/auth">Login</Link>
+            </Button>
+            <Button asChild size="sm" className="bg-gradient-brand text-primary-foreground shadow-glow hover:opacity-90">
+              <Link to="/auth">Get started</Link>
             </Button>
           </div>
         </div>
@@ -345,8 +342,8 @@ const Index = () => {
       <footer className="border-t border-border/60 bg-background/80">
         <div className="container flex flex-col items-center justify-between gap-4 py-8 text-sm text-muted-foreground md:flex-row">
           <div className="flex items-center gap-2">
-            <img src={logo} alt="" width={24} height={24} className="h-6 w-6" />
-            <span>© {new Date().getFullYear()} Nexus X · Part of Basictrick MarketPlace</span>
+            <Logo size="sm" showTagline={false} />
+            <span className="ml-2">© {new Date().getFullYear()} · Part of Basictrick MarketPlace</span>
           </div>
           <div className="flex gap-6">
             <a href="#" className="hover:text-foreground">Terms</a>
