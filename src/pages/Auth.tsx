@@ -64,8 +64,11 @@ const Auth = () => {
         return;
       }
 
-      const cleanEmail = emailSchema.parse(email);
-      const cleanPassword = passwordSchema.parse(password);
+      const isTgLogin = mode === "signin" && email.trim().startsWith("@");
+      const cleanEmail = isTgLogin ? "" : emailSchema.parse(email);
+      const cleanPassword = isTgLogin
+        ? sellerPasswordSchema.parse(password)
+        : passwordSchema.parse(password);
 
       if (mode === "signup") {
         const cleanName = nameSchema.parse(displayName);
