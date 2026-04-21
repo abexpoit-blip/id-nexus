@@ -710,7 +710,7 @@ const SellerDashboard = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={exportReplacementsCsv}
+                onClick={openExportPreview}
                 disabled={filteredReplacements.length === 0}
               >
                 <Download className="mr-2 h-4 w-4" /> Export CSV
@@ -737,6 +737,16 @@ const SellerDashboard = () => {
                   <SelectItem value="refunded">Refunded</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
                   <SelectItem value="out_of_window">Out of window</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterReason} onValueChange={setFilterReason}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REASON_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
