@@ -246,7 +246,7 @@ const SellerDashboard = () => {
   }, [stock]);
 
   const filteredReplacements = useMemo(() => {
-    return replacements.filter((r) => {
+    const filtered = replacements.filter((r) => {
       if (filterOutcome !== "all" && r.outcome !== filterOutcome) return false;
       if (filterCategory !== "all") {
         const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
@@ -255,7 +255,12 @@ const SellerDashboard = () => {
       if (filterReason !== "all" && classifyReason(r.outcome_reason) !== filterReason) return false;
       return true;
     });
-  }, [replacements, filterCategory, filterOutcome, filterReason, accountCategoryMap]);
+    return filtered.sort((a, b) => {
+      const ta = new Date(a.created_at).getTime();
+      const tb = new Date(b.created_at).getTime();
+      return sortOrder === "newest" ? tb - ta : ta - tb;
+    });
+  }, [replacements, filterCategory, filterOutcome, filterReason, accountCategoryMap, sortOrder]);
 
   const pendingReplacements = useMemo(
     () => replacements.filter((r) => r.outcome === "pending").length,
