@@ -242,9 +242,17 @@ const SellerDashboard = () => {
   }, [filteredReplacements, accountCategoryMap, categories]);
 
   const handleChartBarClick = (data: any) => {
+    if (chartClickLockRef.current) return;
+    chartClickLockRef.current = true;
+    setTimeout(() => {
+      chartClickLockRef.current = false;
+    }, 400);
     const payload = data?.activePayload?.[0]?.payload ?? data?.payload ?? data;
     if (payload?.categoryId) setFilterCategory(payload.categoryId);
     replacementsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTableHighlight(false);
+    requestAnimationFrame(() => setTableHighlight(true));
+    window.setTimeout(() => setTableHighlight(false), 1600);
   };
 
   const exportReplacementsCsv = () => {
