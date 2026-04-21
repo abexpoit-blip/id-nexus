@@ -76,6 +76,27 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       balance_ledger: {
         Row: {
           amount_bdt: number
@@ -404,6 +425,33 @@ export type Database = {
         }
         Relationships: []
       }
+      seller_daily_limits: {
+        Row: {
+          created_at: string
+          daily_limit: number
+          note: string | null
+          seller_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          daily_limit: number
+          note?: string | null
+          seller_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          daily_limit?: number
+          note?: string | null
+          seller_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -430,8 +478,43 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_clear_seller_limit: { Args: { p_seller_id: string }; Returns: Json }
       admin_resolve_replacement_item: {
         Args: { p_action: string; p_item_id: string; p_reason?: string }
+        Returns: Json
+      }
+      admin_set_default_daily_limit: {
+        Args: { p_limit: number }
+        Returns: Json
+      }
+      admin_set_seller_limit: {
+        Args: { p_daily_limit: number; p_note?: string; p_seller_id: string }
+        Returns: Json
+      }
+      admin_stock_overview: {
+        Args: never
+        Returns: {
+          available: number
+          bad: number
+          category_id: string
+          category_name: string
+          is_active: boolean
+          price_bdt: number
+          sold: number
+          total: number
+        }[]
+      }
+      admin_upsert_category: {
+        Args: {
+          p_description: string
+          p_id: string
+          p_is_active: boolean
+          p_kind: Database["public"]["Enums"]["category_kind"]
+          p_name: string
+          p_price_bdt: number
+          p_slug: string
+          p_sort_order: number
+        }
         Returns: Json
       }
       assign_seller_role_by_telegram: {
@@ -446,6 +529,11 @@ export type Database = {
           category_id: string
         }[]
       }
+      get_seller_daily_limit: { Args: { _seller_id: string }; Returns: number }
+      get_seller_today_uploaded: {
+        Args: { _seller_id: string }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -456,6 +544,17 @@ export type Database = {
       place_order: {
         Args: { p_category_id: string; p_quantity: number }
         Returns: Json
+      }
+      seller_stock_overview: {
+        Args: never
+        Returns: {
+          available: number
+          bad: number
+          category_id: string
+          category_name: string
+          sold: number
+          total: number
+        }[]
       }
       seller_upload_accounts: {
         Args: { p_category_id: string; p_rows: Json }
