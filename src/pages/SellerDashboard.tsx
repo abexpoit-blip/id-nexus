@@ -25,6 +25,7 @@ import {
 import { ArrowLeft, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 interface Category {
   id: string;
@@ -87,6 +88,8 @@ const SellerDashboard = () => {
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
+  const [soldWeek, setSoldWeek] = useState(0);
+  const [soldPeriod, setSoldPeriod] = useState<"today" | "week">("today");
   const [replacements, setReplacements] = useState<ReplacementRow[]>([]);
   const [accountCategoryMap, setAccountCategoryMap] = useState<Record<string, string>>({});
   const [filterCategory, setFilterCategory] = useState<string>("all");
@@ -99,12 +102,16 @@ const SellerDashboard = () => {
     if (!user) return;
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
+    const startOfWeek = new Date();
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(startOfWeek.getDate() - 6); // last 7 days incl. today
 
     const [
       { data: cats },
       { data: myAccounts },
       { data: recentRows },
       { count: todayCount },
+      { count: weekCount },
       { data: rpItems },
     ] = await Promise.all([
       supabase
@@ -130,6 +137,12 @@ const SellerDashboard = () => {
         .eq("status", "sold")
         .gte("sold_at", startOfDay.toISOString()),
       supabase
+        .from("accounts")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", user.id)
+        .eq("status", "sold")
+        .gte("sold_at", startOfWeek.toISOString()),
+      supabase
         .from("replacement_items")
         .select("id, reported_uid, outcome, outcome_reason, in_window, created_at, account_id")
         .eq("seller_id", user.id)
@@ -138,6 +151,7 @@ const SellerDashboard = () => {
     ]);
     setCategories((cats ?? []) as Category[]);
     setSoldToday(todayCount ?? 0);
+    setSoldWeek(weekCount ?? 0);
     setReplacements((rpItems ?? []) as ReplacementRow[]);
 
     // Map account_id -> category_id for filter
@@ -208,6 +222,19 @@ const SellerDashboard = () => {
     () => replacements.filter((r) => r.outcome === "pending").length,
     [replacements],
   );
+
+  const replacementsByCategory = useMemo(() => {
+    const counts = new Map<string, number>();
+    filteredReplacements.forEach((r) => {
+      const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
+      const name =
+        (catId && categories.find((c) => c.id === catId)?.name) || "Unknown";
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [filteredReplacements, accountCategoryMap, categories]);
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -337,8 +364,23 @@ const SellerDashboard = () => {
             <div className="mt-2 font-display text-3xl font-bold">{totals.sold}</div>
           </Card>
           <Card className="border-border/60 bg-gradient-card p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold today</div>
-            <div className="mt-2 font-display text-3xl font-bold text-secondary">{soldToday}</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                Sold {soldPeriod === "today" ? "today" : "this week"}
+              </div>
+              <Select value={soldPeriod} onValueChange={(v) => setSoldPeriod(v as "today" | "week")}>
+                <SelectTrigger className="h-7 w-[92px] border-border/60 px-2 text-[11px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">This week</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="mt-2 font-display text-3xl font-bold text-secondary">
+              {soldPeriod === "today" ? soldToday : soldWeek}
+            </div>
           </Card>
           <Card className="border-border/60 bg-gradient-card p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Pending replacements</div>
@@ -550,6 +592,47 @@ const SellerDashboard = () => {
               </Select>
             </div>
           </div>
+
+          {replacementsByCategory.length > 0 && (
+            <div className="mb-6 rounded-md border border-border/60 bg-background/40 p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-sm font-medium">Issues by category</div>
+                <div className="text-xs text-muted-foreground">
+                  {filteredReplacements.length} total · current filters
+                </div>
+              </div>
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={replacementsByCategory} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
+                      tickLine={false}
+                      interval={0}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
+                      contentStyle={{
+                        background: "hsl(var(--background))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: 8,
+                        fontSize: 12,
+                      }}
+                    />
+                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
 
           {filteredReplacements.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
