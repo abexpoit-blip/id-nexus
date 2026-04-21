@@ -338,6 +338,8 @@ const Admin = () => {
             </div>
           )}
         </Card>
+        </>
+        )}
       </main>
 
       <Dialog open={!!actingItem} onOpenChange={(o) => !o && setActingItem(null)}>
