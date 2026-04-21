@@ -126,6 +126,7 @@ const SellerDashboard = () => {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterOutcome, setFilterOutcome] = useState<string>("all");
   const [filterReason, setFilterReason] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [previewOpen, setPreviewOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const replacementsRef = useRef<HTMLDivElement>(null);
