@@ -64,6 +64,7 @@ const Admin = () => {
   const [items, setItems] = useState<RpItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
+  const [section, setSection] = useState<"replacements" | "stock" | "categories" | "sellers">("replacements");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
   const [action, setAction] = useState<"replace" | "refund" | "reject" | null>(null);
