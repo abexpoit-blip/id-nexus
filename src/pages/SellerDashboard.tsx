@@ -364,8 +364,23 @@ const SellerDashboard = () => {
             <div className="mt-2 font-display text-3xl font-bold">{totals.sold}</div>
           </Card>
           <Card className="border-border/60 bg-gradient-card p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold today</div>
-            <div className="mt-2 font-display text-3xl font-bold text-secondary">{soldToday}</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                Sold {soldPeriod === "today" ? "today" : "this week"}
+              </div>
+              <Select value={soldPeriod} onValueChange={(v) => setSoldPeriod(v as "today" | "week")}>
+                <SelectTrigger className="h-7 w-[92px] border-border/60 px-2 text-[11px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">This week</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="mt-2 font-display text-3xl font-bold text-secondary">
+              {soldPeriod === "today" ? soldToday : soldWeek}
+            </div>
           </Card>
           <Card className="border-border/60 bg-gradient-card p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Pending replacements</div>
