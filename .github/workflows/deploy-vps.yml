@@ -20,6 +20,6 @@ jobs:
             set -e
             cd /var/www/nexusx-frontend
             git pull origin main
-            npm ci
+            npm install
             npm run build
             echo "✅ Deploy successful at $(date)"
