@@ -513,6 +513,104 @@ const SellerDashboard = () => {
             </div>
           )}
         </Card>
+
+        {/* Replacement issues */}
+        <Card className="mt-6 border-border/60 bg-gradient-card p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="font-display text-lg font-semibold">Replacement issues</div>
+              <p className="text-xs text-muted-foreground">
+                Buyer-reported problems on IDs you sold. Admin resolves each item.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterOutcome} onValueChange={setFilterOutcome}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="replaced">Replaced</SelectItem>
+                  <SelectItem value="refunded">Refunded</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="out_of_window">Out of window</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {filteredReplacements.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No replacement issues match these filters.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>UID</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Window</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Filed</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredReplacements.slice(0, 50).map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-mono text-xs">{r.reported_uid}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            r.outcome === "pending"
+                              ? "bg-warning/20 text-warning hover:bg-warning/20 capitalize"
+                              : r.outcome === "replaced" || r.outcome === "refunded"
+                              ? "bg-success/20 text-success hover:bg-success/20 capitalize"
+                              : r.outcome === "rejected"
+                              ? "bg-destructive/20 text-destructive hover:bg-destructive/20 capitalize"
+                              : "bg-muted text-muted-foreground capitalize"
+                          }
+                        >
+                          {r.outcome.replace("_", " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {r.in_window ? (
+                          <span className="text-success">in window</span>
+                        ) : (
+                          <span className="text-muted-foreground">out</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[280px] truncate text-xs text-muted-foreground">
+                        {r.outcome_reason ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(r.created_at).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {filteredReplacements.length > 50 && (
+                <div className="border-t border-border/60 px-4 py-2 text-xs text-muted-foreground">
+                  Showing first 50 of {filteredReplacements.length}
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
       </main>
     </div>
   );

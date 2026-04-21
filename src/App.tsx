@@ -11,6 +11,7 @@ import Browse from "./pages/Browse.tsx";
 import OrderDetail from "./pages/OrderDetail.tsx";
 import SellerDashboard from "./pages/SellerDashboard.tsx";
 import Replacements from "./pages/Replacements.tsx";
+import Admin from "./pages/Admin.tsx";
 import { AuthProvider } from "./hooks/useAuth";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -63,6 +64,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Replacements />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <Admin />
                 </ProtectedRoute>
               }
             />
