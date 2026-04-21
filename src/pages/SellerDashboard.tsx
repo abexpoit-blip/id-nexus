@@ -253,12 +253,28 @@ const SellerDashboard = () => {
     setTableHighlight(false);
     requestAnimationFrame(() => setTableHighlight(true));
     window.setTimeout(() => setTableHighlight(false), 1600);
+    // Move keyboard focus to the table region for a11y / quick review
+    window.setTimeout(() => {
+      const node = replacementsRef.current?.querySelector<HTMLElement>(
+        '[data-replacement-table]',
+      );
+      node?.focus({ preventScroll: true });
+    }, 350);
   };
 
   const exportReplacementsCsv = () => {
-    const rows = filteredReplacements.filter((r) =>
-      exportWindow === "all" ? true : exportWindow === "in" ? r.in_window : !r.in_window,
-    );
+    // Validate combo: status=out_of_window + CSV=in window is logically impossible
+    if (exportWindow === "in" && filterOutcome === "out_of_window") {
+      toast.error(
+        "Status filter is 'Out of window' but CSV is set to 'In window' — no rows can match. Switch one of them.",
+      );
+      return;
+    }
+    const rows = filteredReplacements.filter((r) => {
+      if (exportWindow === "all") return true;
+      // Source of truth = the same r.in_window boolean the table renders
+      return exportWindow === "in" ? r.in_window === true : r.in_window === false;
+    });
     if (rows.length === 0) {
       toast.error("Nothing to export with current filters");
       return;
@@ -577,7 +593,10 @@ const SellerDashboard = () => {
             <p className="text-sm text-muted-foreground">No accounts yet — upload your first batch above.</p>
           ) : (
             <div
-              className={`overflow-x-auto rounded-md transition-colors ${
+              data-replacement-table
+              tabIndex={-1}
+              aria-label="Filtered replacement issues"
+              className={`overflow-x-auto rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 ${
                 tableHighlight ? "animate-highlight-pulse ring-2 ring-primary/40" : ""
               }`}
             >
