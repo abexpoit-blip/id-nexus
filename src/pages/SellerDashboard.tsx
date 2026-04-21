@@ -657,7 +657,11 @@ const SellerDashboard = () => {
               </div>
               <div className="h-48 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={replacementsByCategory} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
+                  <BarChart
+                    data={replacementsByCategory}
+                    margin={{ top: 4, right: 8, bottom: 4, left: -16 }}
+                    onClick={handleChartBarClick}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis
                       dataKey="name"
@@ -681,7 +685,13 @@ const SellerDashboard = () => {
                         fontSize: 12,
                       }}
                     />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="count"
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                      cursor="pointer"
+                      onClick={handleChartBarClick}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
