@@ -26,6 +26,14 @@ import { ArrowLeft, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangl
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Category {
   id: string;
@@ -58,6 +66,29 @@ interface ReplacementRow {
   created_at: string;
   account_id: string | null;
 }
+
+type ReasonBucket = "user_replaced" | "bot_replaced" | "refunded" | "rejected" | "out_of_window" | "unknown";
+
+const REASON_OPTIONS: { value: ReasonBucket | "all"; label: string }[] = [
+  { value: "all", label: "All reasons" },
+  { value: "user_replaced", label: "User replaced" },
+  { value: "bot_replaced", label: "Bot replaced" },
+  { value: "refunded", label: "Refunded" },
+  { value: "rejected", label: "Rejected" },
+  { value: "out_of_window", label: "Out of window" },
+  { value: "unknown", label: "Unknown / other" },
+];
+
+const classifyReason = (reason: string | null | undefined): ReasonBucket => {
+  const s = (reason ?? "").toLowerCase();
+  if (!s) return "unknown";
+  if (/\bbot\b|automated|auto[-\s]?replace/.test(s)) return "bot_replaced";
+  if (/replaced|fresh id|swap/.test(s)) return "user_replaced";
+  if (/refund/.test(s)) return "refunded";
+  if (/reject/.test(s)) return "rejected";
+  if (/window|hours after/.test(s)) return "out_of_window";
+  return "unknown";
+};
 
 const HEADER_MAP: Record<string, keyof ParsedRow> = {
   uid: "uid",
@@ -94,6 +125,8 @@ const SellerDashboard = () => {
   const [accountCategoryMap, setAccountCategoryMap] = useState<Record<string, string>>({});
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterOutcome, setFilterOutcome] = useState<string>("all");
+  const [filterReason, setFilterReason] = useState<string>("all");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const replacementsRef = useRef<HTMLDivElement>(null);
   const chartClickLockRef = useRef(false);
@@ -218,9 +251,10 @@ const SellerDashboard = () => {
         const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
         if (catId !== filterCategory) return false;
       }
+      if (filterReason !== "all" && classifyReason(r.outcome_reason) !== filterReason) return false;
       return true;
     });
-  }, [replacements, filterCategory, filterOutcome, accountCategoryMap]);
+  }, [replacements, filterCategory, filterOutcome, filterReason, accountCategoryMap]);
 
   const pendingReplacements = useMemo(
     () => replacements.filter((r) => r.outcome === "pending").length,
@@ -262,19 +296,31 @@ const SellerDashboard = () => {
     }, 350);
   };
 
-  const exportReplacementsCsv = () => {
-    // Validate combo: status=out_of_window + CSV=in window is logically impossible
+  const getExportRows = () => {
+    return filteredReplacements.filter((r) => {
+      if (exportWindow === "all") return true;
+      return exportWindow === "in" ? r.in_window === true : r.in_window === false;
+    });
+  };
+
+  const openExportPreview = () => {
     if (exportWindow === "in" && filterOutcome === "out_of_window") {
       toast.error(
         "Status filter is 'Out of window' but CSV is set to 'In window' — no rows can match. Switch one of them.",
       );
       return;
     }
-    const rows = filteredReplacements.filter((r) => {
-      if (exportWindow === "all") return true;
-      // Source of truth = the same r.in_window boolean the table renders
-      return exportWindow === "in" ? r.in_window === true : r.in_window === false;
-    });
+    setPreviewOpen(true);
+  };
+
+  const exportReplacementsCsv = () => {
+    if (exportWindow === "in" && filterOutcome === "out_of_window") {
+      toast.error(
+        "Status filter is 'Out of window' but CSV is set to 'In window' — no rows can match. Switch one of them.",
+      );
+      return;
+    }
+    const rows = getExportRows();
     if (rows.length === 0) {
       toast.error("Nothing to export with current filters");
       return;
@@ -310,6 +356,7 @@ const SellerDashboard = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    setPreviewOpen(false);
     toast.success(`Exported ${rows.length} rows`);
   };
 
@@ -663,7 +710,7 @@ const SellerDashboard = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={exportReplacementsCsv}
+                onClick={openExportPreview}
                 disabled={filteredReplacements.length === 0}
               >
                 <Download className="mr-2 h-4 w-4" /> Export CSV
@@ -690,6 +737,16 @@ const SellerDashboard = () => {
                   <SelectItem value="refunded">Refunded</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
                   <SelectItem value="out_of_window">Out of window</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterReason} onValueChange={setFilterReason}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REASON_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -751,7 +808,14 @@ const SellerDashboard = () => {
               No replacement issues match these filters.
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <div
+              data-replacement-table
+              tabIndex={-1}
+              aria-label="Filtered replacement issues"
+              className={`overflow-x-auto rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 ${
+                tableHighlight ? "animate-highlight-pulse ring-2 ring-primary/40" : ""
+              }`}
+            >
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -805,6 +869,70 @@ const SellerDashboard = () => {
               )}
             </div>
           )}
+
+          <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Export preview</DialogTitle>
+                <DialogDescription>
+                  {(() => {
+                    const rows = getExportRows();
+                    return `${rows.length} row${rows.length === 1 ? "" : "s"} will be exported · showing first ${Math.min(20, rows.length)}`;
+                  })()}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[60vh] overflow-auto rounded-md border border-border/60">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>UID</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Window</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead>Filed</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {getExportRows().slice(0, 20).map((r) => {
+                      const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
+                      const catName =
+                        (catId && categories.find((c) => c.id === catId)?.name) || "Unknown";
+                      return (
+                        <TableRow key={r.id}>
+                          <TableCell className="font-mono text-xs">{r.reported_uid}</TableCell>
+                          <TableCell className="text-xs">{catName}</TableCell>
+                          <TableCell className="text-xs capitalize">{r.outcome.replace("_", " ")}</TableCell>
+                          <TableCell className="text-xs">{r.in_window ? "in" : "out"}</TableCell>
+                          <TableCell className="max-w-[240px] truncate text-xs text-muted-foreground">
+                            {r.outcome_reason ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(r.created_at).toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                {getExportRows().length === 0 && (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    No rows match the current filters and window option.
+                  </p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setPreviewOpen(false)}>Cancel</Button>
+                <Button
+                  onClick={exportReplacementsCsv}
+                  disabled={getExportRows().length === 0}
+                  className="bg-gradient-brand text-primary-foreground hover:opacity-90"
+                >
+                  <Download className="mr-2 h-4 w-4" /> Download CSV
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </Card>
       </main>
     </div>
