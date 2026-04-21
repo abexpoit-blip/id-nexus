@@ -14,6 +14,226 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          buyer_id: string | null
+          category_id: string
+          cost_bdt: number | null
+          created_at: string
+          email: string | null
+          email_password: string | null
+          extra: Json | null
+          id: string
+          password: string
+          seller_id: string
+          sold_at: string | null
+          status: Database["public"]["Enums"]["account_status"]
+          two_fa: string | null
+          uid: string
+          updated_at: string
+        }
+        Insert: {
+          buyer_id?: string | null
+          category_id: string
+          cost_bdt?: number | null
+          created_at?: string
+          email?: string | null
+          email_password?: string | null
+          extra?: Json | null
+          id?: string
+          password: string
+          seller_id: string
+          sold_at?: string | null
+          status?: Database["public"]["Enums"]["account_status"]
+          two_fa?: string | null
+          uid: string
+          updated_at?: string
+        }
+        Update: {
+          buyer_id?: string | null
+          category_id?: string
+          cost_bdt?: number | null
+          created_at?: string
+          email?: string | null
+          email_password?: string | null
+          extra?: Json | null
+          id?: string
+          password?: string
+          seller_id?: string
+          sold_at?: string | null
+          status?: Database["public"]["Enums"]["account_status"]
+          two_fa?: string | null
+          uid?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      balance_ledger: {
+        Row: {
+          amount_bdt: number
+          balance_after: number
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["ledger_kind"]
+          note: string | null
+          reference_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount_bdt: number
+          balance_after: number
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["ledger_kind"]
+          note?: string | null
+          reference_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount_bdt?: number
+          balance_after?: number
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["ledger_kind"]
+          note?: string | null
+          reference_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["category_kind"]
+          name: string
+          price_bdt: number
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["category_kind"]
+          name: string
+          price_bdt: number
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["category_kind"]
+          name?: string
+          price_bdt?: number
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      order_items: {
+        Row: {
+          account_id: string
+          created_at: string
+          id: string
+          order_id: string
+          seller_id: string
+          unit_price_bdt: number
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          id?: string
+          order_id: string
+          seller_id: string
+          unit_price_bdt: number
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          id?: string
+          order_id?: string
+          seller_id?: string
+          unit_price_bdt?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          buyer_id: string
+          category_id: string
+          created_at: string
+          id: string
+          quantity: number
+          status: Database["public"]["Enums"]["order_status"]
+          total_bdt: number
+          unit_price_bdt: number
+          updated_at: string
+        }
+        Insert: {
+          buyer_id: string
+          category_id: string
+          created_at?: string
+          id?: string
+          quantity: number
+          status?: Database["public"]["Enums"]["order_status"]
+          total_bdt: number
+          unit_price_bdt: number
+          updated_at?: string
+        }
+        Update: {
+          buyer_id?: string
+          category_id?: string
+          created_at?: string
+          id?: string
+          quantity?: number
+          status?: Database["public"]["Enums"]["order_status"]
+          total_bdt?: number
+          unit_price_bdt?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           balance_bdt: number
@@ -84,9 +304,33 @@ export type Database = {
         }
         Returns: boolean
       }
+      place_order: {
+        Args: { p_category_id: string; p_quantity: number }
+        Returns: Json
+      }
+      seller_upload_accounts: {
+        Args: { p_category_id: string; p_rows: Json }
+        Returns: Json
+      }
     }
     Enums: {
+      account_status:
+        | "available"
+        | "sold"
+        | "replacement_pending"
+        | "replaced"
+        | "bad"
+        | "withheld"
       app_role: "admin" | "seller" | "buyer"
+      category_kind: "fb_account" | "vpn"
+      ledger_kind:
+        | "topup"
+        | "purchase"
+        | "refund"
+        | "withdraw"
+        | "admin_adjustment"
+        | "seller_payout"
+      order_status: "pending" | "completed" | "failed" | "refunded"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -214,7 +458,25 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      account_status: [
+        "available",
+        "sold",
+        "replacement_pending",
+        "replaced",
+        "bad",
+        "withheld",
+      ],
       app_role: ["admin", "seller", "buyer"],
+      category_kind: ["fb_account", "vpn"],
+      ledger_kind: [
+        "topup",
+        "purchase",
+        "refund",
+        "withdraw",
+        "admin_adjustment",
+        "seller_payout",
+      ],
+      order_status: ["pending", "completed", "failed", "refunded"],
     },
   },
 } as const
