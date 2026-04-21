@@ -869,6 +869,70 @@ const SellerDashboard = () => {
               )}
             </div>
           )}
+
+          <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Export preview</DialogTitle>
+                <DialogDescription>
+                  {(() => {
+                    const rows = getExportRows();
+                    return `${rows.length} row${rows.length === 1 ? "" : "s"} will be exported · showing first ${Math.min(20, rows.length)}`;
+                  })()}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[60vh] overflow-auto rounded-md border border-border/60">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>UID</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Window</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead>Filed</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {getExportRows().slice(0, 20).map((r) => {
+                      const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
+                      const catName =
+                        (catId && categories.find((c) => c.id === catId)?.name) || "Unknown";
+                      return (
+                        <TableRow key={r.id}>
+                          <TableCell className="font-mono text-xs">{r.reported_uid}</TableCell>
+                          <TableCell className="text-xs">{catName}</TableCell>
+                          <TableCell className="text-xs capitalize">{r.outcome.replace("_", " ")}</TableCell>
+                          <TableCell className="text-xs">{r.in_window ? "in" : "out"}</TableCell>
+                          <TableCell className="max-w-[240px] truncate text-xs text-muted-foreground">
+                            {r.outcome_reason ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(r.created_at).toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                {getExportRows().length === 0 && (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    No rows match the current filters and window option.
+                  </p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setPreviewOpen(false)}>Cancel</Button>
+                <Button
+                  onClick={exportReplacementsCsv}
+                  disabled={getExportRows().length === 0}
+                  className="bg-gradient-brand text-primary-foreground hover:opacity-90"
+                >
+                  <Download className="mr-2 h-4 w-4" /> Download CSV
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </Card>
       </main>
     </div>
