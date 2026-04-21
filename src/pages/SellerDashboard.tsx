@@ -223,6 +223,19 @@ const SellerDashboard = () => {
     [replacements],
   );
 
+  const replacementsByCategory = useMemo(() => {
+    const counts = new Map<string, number>();
+    filteredReplacements.forEach((r) => {
+      const catId = r.account_id ? accountCategoryMap[r.account_id] : undefined;
+      const name =
+        (catId && categories.find((c) => c.id === catId)?.name) || "Unknown";
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [filteredReplacements, accountCategoryMap, categories]);
+
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
