@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { ArrowLeft, Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
 
@@ -101,6 +101,12 @@ const Wallet = () => {
     const amt = Number(tAmount);
     if (!amt || amt < 50) return toast.error("Minimum top-up ৳50");
     if (!tSender.trim() || !tTxn.trim()) return toast.error("Fill sender number and txn ID");
+    if (!isSeller) {
+      const ok = window.confirm(
+        "IMPORTANT: Wallet deposits are NON-REFUNDABLE. Buyers cannot withdraw money once deposited — funds can only be used to purchase accounts on this platform. Continue?",
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     const { error } = await supabase.rpc("submit_topup_request", {
       p_amount: amt, p_method: tMethod, p_sender_number: tSender, p_txn_id: tTxn, p_note: tNote || null,
@@ -173,6 +179,17 @@ const Wallet = () => {
                 <p className="mt-1 text-sm text-muted-foreground">
                   Send the amount to admin's bKash/Nagad number, then submit your sender number + transaction ID. Admin will approve within 30 minutes (typically).
                 </p>
+                {!isSeller && (
+                  <div className="mt-3 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <div>
+                      <div className="font-semibold">Deposits are non-refundable</div>
+                      <div className="mt-1 text-xs text-destructive/90">
+                        Once you deposit money into your wallet, it <strong>cannot be withdrawn</strong>. Buyers can only spend the balance on accounts available in this marketplace. Please deposit only what you intend to spend.
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
                   <div className="font-medium">Send Money to:</div>
                   <div className="mt-1 font-mono text-base">bKash / Nagad: <span className="text-primary">01XXXXXXXXX</span> (Personal)</div>

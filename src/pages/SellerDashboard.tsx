@@ -52,6 +52,11 @@ interface ParsedRow {
   email_password?: string;
 }
 
+interface DuplicateInfo {
+  duplicatesInFile: string[]; // duplicate within uploaded file
+  duplicatesInStock: string[]; // already in seller's existing accounts
+}
+
 interface StockSummary {
   category_id: string;
   category_name: string;
@@ -153,6 +158,7 @@ const SellerDashboard = () => {
   const [uploadStep, setUploadStep] = useState<UploadStep>("idle");
   const [uploadProgress, setUploadProgress] = useState(0); // 0..100, used for parsing read
   const [lastFile, setLastFile] = useState<File | null>(null);
+  const [duplicates, setDuplicates] = useState<DuplicateInfo | null>(null);
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
@@ -482,6 +488,7 @@ const SellerDashboard = () => {
   const processFile = async (file: File) => {
     setParseError(null);
     setUploadError(null);
+    setDuplicates(null);
     setLastFile(file);
     if (file.size > 5 * 1024 * 1024) {
       const msg = "File too large (max 5 MB)";
@@ -514,7 +521,10 @@ const SellerDashboard = () => {
       for (const c of chunks) { merged.set(c, offset); offset += c.byteLength; }
       setUploadProgress(100);
       setUploadStep("validating");
-      const wb = XLSX.read(merged, { type: "array" });
+      const isCsv = /\.csv$/i.test(file.name) || file.type === "text/csv";
+      const wb = isCsv
+        ? XLSX.read(new TextDecoder("utf-8").decode(merged), { type: "string" })
+        : XLSX.read(merged, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
 
       // Header validation BEFORE row parsing
@@ -565,10 +575,55 @@ const SellerDashboard = () => {
         setParsed(null);
         return;
       }
+
+      // Duplicate detection — within file
+      const seen = new Set<string>();
+      const dupInFile = new Set<string>();
+      for (const r of normalized) {
+        if (seen.has(r.uid)) dupInFile.add(r.uid);
+        else seen.add(r.uid);
+      }
+
+      // Duplicate detection — against seller's existing stock
+      let dupInStock: string[] = [];
+      if (user) {
+        const uidList = Array.from(seen);
+        // Chunk to avoid very large IN() filters
+        const CHUNK = 500;
+        for (let i = 0; i < uidList.length; i += CHUNK) {
+          const slice = uidList.slice(i, i + CHUNK);
+          const { data: existing, error: dupErr } = await supabase
+            .from("accounts")
+            .select("uid")
+            .eq("seller_id", user.id)
+            .in("uid", slice);
+          if (dupErr) {
+            const msg = "Could not verify duplicates: " + dupErr.message;
+            setParseError(msg);
+            setUploadStep("error");
+            toast.error(msg);
+            setParsed(null);
+            return;
+          }
+          dupInStock.push(...(existing ?? []).map((e: any) => String(e.uid)));
+        }
+      }
+
+      setDuplicates({
+        duplicatesInFile: Array.from(dupInFile),
+        duplicatesInStock: dupInStock,
+      });
       setParsed(normalized);
       persistParsed(normalized, file.name, categoryId);
       setUploadStep("idle");
-      toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
+      const dupTotal = dupInFile.size + dupInStock.length;
+      if (dupTotal > 0) {
+        toast.warning(
+          `Parsed ${normalized.length} rows. ${dupTotal} duplicate UID${dupTotal > 1 ? "s" : ""} detected — review before confirm.`,
+        );
+      } else {
+        toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
+      }
     } catch (err: any) {
       const msg = "Could not read file: " + (err?.message || "unknown");
       setParseError(msg);
@@ -637,6 +692,7 @@ const SellerDashboard = () => {
     setFileName("");
     clearPersistedParsed();
     setLastFile(null);
+    setDuplicates(null);
     setUploadStep("done");
     window.setTimeout(() => setUploadStep("idle"), 1500);
     loadAll();
@@ -747,7 +803,7 @@ const SellerDashboard = () => {
         <Card className="mb-6 border-border/60 bg-gradient-card p-6">
           <div className="font-display text-lg font-semibold">Upload stock</div>
           <p className="text-xs text-muted-foreground">
-            Excel columns expected: <code>UID</code>, <code>Password</code>,{" "}
+            Excel or CSV columns expected: <code>UID</code>, <code>Password</code>,{" "}
             <code>2FA</code> (optional), <code>Email</code> (optional),{" "}
             <code>Email Password</code> (optional).
           </p>
@@ -934,6 +990,36 @@ const SellerDashboard = () => {
                   <span className="text-muted-foreground">— {parsed.length} rows ready</span>
                 </div>
               </div>
+              {duplicates && (duplicates.duplicatesInFile.length > 0 || duplicates.duplicatesInStock.length > 0) && (
+                <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
+                  <div className="mb-2 flex items-center gap-2 font-medium text-warning">
+                    <AlertTriangle className="h-4 w-4" />
+                    Duplicate UID warning — server will skip these on insert
+                  </div>
+                  {duplicates.duplicatesInStock.length > 0 && (
+                    <div className="mb-2">
+                      <div className="mb-1 text-muted-foreground">
+                        Already in your stock ({duplicates.duplicatesInStock.length}):
+                      </div>
+                      <div className="max-h-24 overflow-auto rounded border border-border/60 bg-background/40 p-2 font-mono">
+                        {duplicates.duplicatesInStock.slice(0, 50).join(", ")}
+                        {duplicates.duplicatesInStock.length > 50 && ` … +${duplicates.duplicatesInStock.length - 50} more`}
+                      </div>
+                    </div>
+                  )}
+                  {duplicates.duplicatesInFile.length > 0 && (
+                    <div>
+                      <div className="mb-1 text-muted-foreground">
+                        Repeated within this file ({duplicates.duplicatesInFile.length}):
+                      </div>
+                      <div className="max-h-24 overflow-auto rounded border border-border/60 bg-background/40 p-2 font-mono">
+                        {duplicates.duplicatesInFile.slice(0, 50).join(", ")}
+                        {duplicates.duplicatesInFile.length > 50 && ` … +${duplicates.duplicatesInFile.length - 50} more`}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="max-h-64 overflow-auto rounded-md border border-border/60">
                 <Table>
                   <TableHeader>
@@ -968,6 +1054,7 @@ const SellerDashboard = () => {
                     setParsed(null);
                     setFileName("");
                     clearPersistedParsed();
+                    setDuplicates(null);
                   }}
                   disabled={uploading}
                 >
@@ -975,7 +1062,14 @@ const SellerDashboard = () => {
                 </Button>
                 <Button
                   onClick={confirmUpload}
-                  disabled={uploading || !categoryId}
+                  disabled={
+                    uploading ||
+                    !categoryId ||
+                    uploadStep === "parsing" ||
+                    uploadStep === "validating" ||
+                    uploadStep === "uploading" ||
+                    uploadStep === "confirming"
+                  }
                   className="bg-gradient-brand text-primary-foreground hover:opacity-90"
                 >
                   {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
