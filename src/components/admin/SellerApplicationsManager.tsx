@@ -151,6 +151,7 @@ export const SellerApplicationsManager = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Applicant</TableHead>
                 <TableHead>Telegram</TableHead>
                 <TableHead>Reason</TableHead>
@@ -160,8 +161,20 @@ export const SellerApplicationsManager = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((a) => (
-                <TableRow key={a.id}>
+              {filtered.map((a) => {
+                const isOpen = expanded === a.id;
+                return (
+                <>
+                <TableRow
+                  key={a.id}
+                  className="cursor-pointer"
+                  onClick={() => setExpanded(isOpen ? null : a.id)}
+                >
+                  <TableCell>
+                    <ChevronRight
+                      className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium">{a.display_name ?? a.email.split("@")[0]}</div>
                     <div className="text-xs text-muted-foreground">{a.email}</div>
@@ -170,7 +183,7 @@ export const SellerApplicationsManager = () => {
                     {a.telegram_username ? `@${a.telegram_username}` : "—"}
                   </TableCell>
                   <TableCell className="max-w-xs">
-                    <p className="line-clamp-3 text-sm text-muted-foreground">
+                    <p className="line-clamp-2 text-sm text-muted-foreground">
                       {a.reason ?? "—"}
                     </p>
                   </TableCell>
@@ -183,7 +196,7 @@ export const SellerApplicationsManager = () => {
                   <TableCell className="text-xs text-muted-foreground">
                     {new Date(a.created_at).toLocaleString()}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     {a.status === "pending" ? (
                       <div className="inline-flex gap-1">
                         <Button
@@ -210,7 +223,53 @@ export const SellerApplicationsManager = () => {
                     )}
                   </TableCell>
                 </TableRow>
-              ))}
+                {isOpen && (
+                  <TableRow key={a.id + "-details"} className="bg-muted/30 hover:bg-muted/30">
+                    <TableCell colSpan={7} className="p-0">
+                      <div className="grid gap-4 p-5 sm:grid-cols-2">
+                        <div>
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">Applicant</div>
+                          <div className="mt-1 font-medium">{a.display_name ?? "—"}</div>
+                          <div className="text-sm text-muted-foreground">{a.email}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">Telegram</div>
+                          <div className="mt-1 font-mono text-sm">
+                            {a.telegram_username ? `@${a.telegram_username}` : "—"}
+                          </div>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">Reason</div>
+                          <p className="mt-1 whitespace-pre-wrap text-sm">
+                            {a.reason?.trim() ? a.reason : <span className="text-muted-foreground">— No reason provided —</span>}
+                          </p>
+                        </div>
+                        <div>
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">User ID</div>
+                          <div className="mt-1 font-mono text-xs text-muted-foreground">{a.user_id}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">Application ID</div>
+                          <div className="mt-1 font-mono text-xs text-muted-foreground">{a.id}</div>
+                        </div>
+                        {a.admin_note && (
+                          <div className="sm:col-span-2">
+                            <div className="text-xs uppercase tracking-widest text-muted-foreground">Admin note</div>
+                            <p className="mt-1 text-sm">{a.admin_note}</p>
+                          </div>
+                        )}
+                        {a.reviewed_at && (
+                          <div className="sm:col-span-2 text-xs text-muted-foreground">
+                            Reviewed {new Date(a.reviewed_at).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                </>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
