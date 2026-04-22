@@ -575,10 +575,55 @@ const SellerDashboard = () => {
         setParsed(null);
         return;
       }
+
+      // Duplicate detection — within file
+      const seen = new Set<string>();
+      const dupInFile = new Set<string>();
+      for (const r of normalized) {
+        if (seen.has(r.uid)) dupInFile.add(r.uid);
+        else seen.add(r.uid);
+      }
+
+      // Duplicate detection — against seller's existing stock
+      let dupInStock: string[] = [];
+      if (user) {
+        const uidList = Array.from(seen);
+        // Chunk to avoid very large IN() filters
+        const CHUNK = 500;
+        for (let i = 0; i < uidList.length; i += CHUNK) {
+          const slice = uidList.slice(i, i + CHUNK);
+          const { data: existing, error: dupErr } = await supabase
+            .from("accounts")
+            .select("uid")
+            .eq("seller_id", user.id)
+            .in("uid", slice);
+          if (dupErr) {
+            const msg = "Could not verify duplicates: " + dupErr.message;
+            setParseError(msg);
+            setUploadStep("error");
+            toast.error(msg);
+            setParsed(null);
+            return;
+          }
+          dupInStock.push(...(existing ?? []).map((e: any) => String(e.uid)));
+        }
+      }
+
+      setDuplicates({
+        duplicatesInFile: Array.from(dupInFile),
+        duplicatesInStock: dupInStock,
+      });
       setParsed(normalized);
       persistParsed(normalized, file.name, categoryId);
       setUploadStep("idle");
-      toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
+      const dupTotal = dupInFile.size + dupInStock.length;
+      if (dupTotal > 0) {
+        toast.warning(
+          `Parsed ${normalized.length} rows. ${dupTotal} duplicate UID${dupTotal > 1 ? "s" : ""} detected — review before confirm.`,
+        );
+      } else {
+        toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
+      }
     } catch (err: any) {
       const msg = "Could not read file: " + (err?.message || "unknown");
       setParseError(msg);
