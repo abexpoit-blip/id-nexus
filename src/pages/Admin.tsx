@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
@@ -69,9 +70,12 @@ const Admin = () => {
   const [section, setSection] = useState<"replacements" | "stock" | "categories" | "sellers" | "applications" | "payments">("replacements");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
-  const [action, setAction] = useState<"replace" | "refund" | "reject" | null>(null);
+  const [action, setAction] = useState<"replace" | "refund" | "reject" | "replace_category" | null>(null);
+  const [targetCategoryId, setTargetCategoryId] = useState<string>("");
   const [reason, setReason] = useState("");
+  const [customMessage, setCustomMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
   const load = async () => {
     if (!isAdmin) return;
@@ -95,6 +99,14 @@ const Admin = () => {
       .channel("admin-replacement-items")
       .on("postgres_changes", { event: "*", schema: "public", table: "replacement_items" }, () => load())
       .subscribe();
+    // Load fb_account categories for quick-replace buttons
+    supabase
+      .from("categories")
+      .select("id, name")
+      .eq("is_active", true)
+      .eq("kind", "fb_account")
+      .order("sort_order")
+      .then(({ data }) => setCategories((data ?? []) as { id: string; name: string }[]));
     return () => {
       supabase.removeChannel(ch);
     };
