@@ -803,7 +803,7 @@ const SellerDashboard = () => {
         <Card className="mb-6 border-border/60 bg-gradient-card p-6">
           <div className="font-display text-lg font-semibold">Upload stock</div>
           <p className="text-xs text-muted-foreground">
-            Excel columns expected: <code>UID</code>, <code>Password</code>,{" "}
+            Excel or CSV columns expected: <code>UID</code>, <code>Password</code>,{" "}
             <code>2FA</code> (optional), <code>Email</code> (optional),{" "}
             <code>Email Password</code> (optional).
           </p>
