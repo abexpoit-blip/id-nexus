@@ -684,8 +684,8 @@ const SellerDashboard = () => {
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,auto]">
             <Select
               value={categoryId}
-              onValueChange={setCategoryId}
-              disabled={categoriesLoading || categories.length === 0}
+              onValueChange={handleCategoryChange}
+              disabled={categoriesLoading || categories.length === 0 || uploading || !!parsed}
             >
               <SelectTrigger aria-label="Choose category">
                 <SelectValue
