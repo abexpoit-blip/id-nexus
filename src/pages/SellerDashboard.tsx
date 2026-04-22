@@ -1122,10 +1122,12 @@ const SellerDashboard = () => {
               {duplicates && (() => {
                 const dupStockCount = duplicates.duplicatesInStock.length;
                 const dupFileCount = duplicates.duplicatesInFile.length;
-                const totalDup = dupStockCount + dupFileCount;
+                const dupReplacedCount = duplicates.duplicatesReplaced.length;
+                const totalDup = dupStockCount + dupFileCount + dupReplacedCount;
                 const uniqueDupSet = new Set<string>([
                   ...duplicates.duplicatesInStock,
                   ...duplicates.duplicatesInFile,
+                  ...duplicates.duplicatesReplaced,
                 ]);
                 // rows that survive client-side skip (also dedup intra-file)
                 const seenLocal = new Set<string>();
@@ -1144,20 +1146,38 @@ const SellerDashboard = () => {
                         <AlertTriangle className="h-4 w-4" />
                         Duplicate UID warning
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 gap-1 px-2 text-xs"
-                        onClick={() => {
-                          setDupModalTab(dupStockCount > 0 ? "stock" : "file");
-                          setDupModalPage(1);
-                          setDupModalOpen(true);
-                        }}
-                      >
-                        <Eye className="h-3 w-3" /> View full duplicates
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 px-2 text-xs"
+                          onClick={recheckDuplicates}
+                          disabled={recheckLoading || uploading}
+                        >
+                          {recheckLoading ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3" />
+                          )}
+                          Recheck duplicates
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 px-2 text-xs"
+                          onClick={() => {
+                            setDupModalTab(
+                              dupStockCount > 0 ? "stock" : dupFileCount > 0 ? "file" : "replaced",
+                            );
+                            setDupModalPage(1);
+                            setDupModalOpen(true);
+                          }}
+                        >
+                          <Eye className="h-3 w-3" /> View full duplicates
+                        </Button>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
                       <div className="rounded border border-border/60 bg-background/40 p-2">
                         <div className="text-muted-foreground">Already in your stock</div>
                         <div className="font-display text-base font-semibold">{dupStockCount}</div>
@@ -1166,6 +1186,14 @@ const SellerDashboard = () => {
                         <div className="text-muted-foreground">Repeated in file</div>
                         <div className="font-display text-base font-semibold">{dupFileCount}</div>
                       </div>
+                      <div className="rounded border border-border/60 bg-background/40 p-2">
+                        <div className="text-muted-foreground">Already replaced</div>
+                        <div className="font-display text-base font-semibold">{dupReplacedCount}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-[10px] text-muted-foreground">
+                      Last checked: {new Date(duplicates.checkedAt).toLocaleTimeString()} ·
+                      Click <strong>Recheck duplicates</strong> right before Confirm to re-query latest stock.
                     </div>
                     <div className="mt-3 flex items-start justify-between gap-3 rounded-md border border-border/60 bg-background/40 p-2">
                       <div className="flex-1">
