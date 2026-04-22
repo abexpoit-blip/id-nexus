@@ -401,25 +401,43 @@ const Admin = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="capitalize">
-              {action} replacement
+              {action === "replace_category"
+                ? `Replace with ${categories.find((c) => c.id === targetCategoryId)?.name ?? "selected category"}`
+                : `${action} replacement`}
             </DialogTitle>
             <DialogDescription>
               UID <span className="font-mono">{actingItem?.reported_uid}</span> ·
-              {action === "replace"
+              {action === "replace_category"
+                ? ` Picks the oldest available ID from the chosen category and assigns it to the buyer.`
+                : action === "replace"
                 ? " Issues a fresh available ID from the same category to the buyer."
                 : action === "refund"
                 ? " Credits the buyer's balance with the original unit price."
                 : " Closes without action — buyer will be notified."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Reason / note (optional)</label>
-            <Input
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Visible to buyer & seller"
-              maxLength={500}
-            />
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Internal reason (optional)</label>
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Short note — visible to buyer & seller"
+                maxLength={500}
+              />
+            </div>
+            {(action === "replace" || action === "replace_category") && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Custom message to buyer (optional)</label>
+                <Textarea
+                  value={customMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  placeholder="If empty, a default replacement message will be sent."
+                  maxLength={1000}
+                  rows={3}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setActingItem(null)} disabled={submitting}>
@@ -431,7 +449,7 @@ const Admin = () => {
               className="bg-gradient-brand text-primary-foreground hover:opacity-90"
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirm {action}
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
