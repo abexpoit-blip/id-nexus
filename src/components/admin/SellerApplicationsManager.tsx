@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, CheckCircle2, XCircle, UserPlus } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, UserPlus, ChevronRight, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 interface Application {
@@ -50,6 +50,8 @@ export const SellerApplicationsManager = () => {
   const [action, setAction] = useState<"approve" | "reject" | null>(null);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [confirmText, setConfirmText] = useState("");
 
   const load = async () => {
     setLoading(true);
