@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Auth from "./pages/Auth.tsx";
+import AdminLogin from "./pages/AdminLogin.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import Browse from "./pages/Browse.tsx";
 import OrderDetail from "./pages/OrderDetail.tsx";
@@ -30,6 +31,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/admin-login" element={<AdminLogin />} />
             <Route
               path="/dashboard"
               element={
