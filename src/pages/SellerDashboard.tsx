@@ -485,6 +485,9 @@ const SellerDashboard = () => {
             </Link>
             <Logo size="sm" showTagline={false} />
             <Badge variant="outline" className="border-secondary/40 text-secondary">Seller</Badge>
+            <Link to="/wallet" className="ml-2 text-sm text-muted-foreground hover:text-foreground">
+              Wallet
+            </Link>
           </div>
           <NotificationsBell />
         </div>
