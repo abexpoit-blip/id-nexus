@@ -757,6 +757,16 @@ const SellerDashboard = () => {
               Choose a category above to enable file picker.
             </p>
           )}
+          {parsed && !uploading && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Category locked while a parsed file is pending — discard it to switch.
+            </p>
+          )}
+          {uploading && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Upload in progress — category change disabled.
+            </p>
+          )}
           {!categoriesLoading && !categoriesError && categories.length === 0 && (
             <p className="mt-2 text-xs text-destructive">
               No active categories yet. Ask admin to create one in Admin → Categories.
