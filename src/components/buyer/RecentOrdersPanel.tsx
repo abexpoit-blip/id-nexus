@@ -176,9 +176,10 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
         })),
       );
       setLoading(false);
+      await fetchStatuses((data ?? []).map((o: any) => o.id));
     };
     load();
-  }, [userId]);
+  }, [userId, fetchStatuses]);
 
   const fetchAccounts = async (orderId: string): Promise<AccountRow[] | null> => {
     const { data, error } = await supabase
