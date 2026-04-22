@@ -477,21 +477,42 @@ const SellerDashboard = () => {
     toast.success(`Exported ${rows.length} rows`);
   };
 
-  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processFile = async (file: File) => {
     setParseError(null);
     setUploadError(null);
+    setLastFile(file);
     if (file.size > 5 * 1024 * 1024) {
       const msg = "File too large (max 5 MB)";
       setParseError(msg);
+      setUploadStep("error");
       toast.error(msg);
       return;
     }
     setFileName(file.name);
+    setUploadStep("parsing");
+    setUploadProgress(0);
     try {
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
+      // Stream read with progress
+      const reader = file.stream().getReader();
+      const total = file.size || 1;
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          received += value.byteLength;
+          setUploadProgress(Math.min(99, Math.round((received / total) * 100)));
+        }
+      }
+      const merged = new Uint8Array(received);
+      let offset = 0;
+      for (const c of chunks) { merged.set(c, offset); offset += c.byteLength; }
+      setUploadProgress(100);
+      setUploadStep("validating");
+      const wb = XLSX.read(merged, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
 
       // Header validation BEFORE row parsing
@@ -508,6 +529,7 @@ const SellerDashboard = () => {
           .map((m) => `${m.label} (accepts: ${m.aliases.join(", ")})`)
           .join("; ")}`;
         setParseError(msg);
+        setUploadStep("error");
         toast.error(msg);
         setParsed(null);
         return;
@@ -528,6 +550,7 @@ const SellerDashboard = () => {
       if (normalized.length === 0) {
         const msg = "No valid rows. Need columns: UID, Password (2FA, Email optional).";
         setParseError(msg);
+        setUploadStep("error");
         toast.error(msg);
         setParsed(null);
         return;
@@ -535,21 +558,38 @@ const SellerDashboard = () => {
       if (normalized.length > 5000) {
         const msg = "Max 5000 rows per upload";
         setParseError(msg);
+        setUploadStep("error");
         toast.error(msg);
         setParsed(null);
         return;
       }
       setParsed(normalized);
       persistParsed(normalized, file.name, categoryId);
+      setUploadStep("idle");
       toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
     } catch (err: any) {
       const msg = "Could not read file: " + (err?.message || "unknown");
       setParseError(msg);
+      setUploadStep("error");
       toast.error(msg);
       setParsed(null);
     } finally {
       if (fileRef.current) fileRef.current.value = "";
     }
+  };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  };
+
+  const retryParsing = async () => {
+    if (!lastFile) {
+      toast.error("No previous file to retry — pick a file again.");
+      return;
+    }
+    await processFile(lastFile);
   };
 
   const confirmUpload = async () => {
