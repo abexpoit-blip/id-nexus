@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Copy, FileSpreadsheet, ShoppingBag, Loader2, Send } from "lucide-react";
+import { Download, Copy, FileSpreadsheet, ShoppingBag, Loader2, Send, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface OrderRow {
@@ -56,10 +56,44 @@ const downloadFile = (content: string, filename: string, mime: string) => {
   URL.revokeObjectURL(url);
 };
 
+type DeliveryStatus = "idle" | "sending" | "sent" | "failed";
+type StatusMap = Record<string, { status: DeliveryStatus; at?: number; error?: string }>;
+
+const storageKey = (userId: string) => `tg-delivery-status:${userId}`;
+
+const loadStatuses = (userId: string): StatusMap => {
+  try {
+    const raw = localStorage.getItem(storageKey(userId));
+    return raw ? (JSON.parse(raw) as StatusMap) : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveStatuses = (userId: string, map: StatusMap) => {
+  try {
+    localStorage.setItem(storageKey(userId), JSON.stringify(map));
+  } catch {
+    /* ignore quota errors */
+  }
+};
+
 export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [statuses, setStatuses] = useState<StatusMap>(() => loadStatuses(userId));
+
+  const updateStatus = (orderId: string, patch: { status: DeliveryStatus; error?: string }) => {
+    setStatuses((prev) => {
+      const next: StatusMap = {
+        ...prev,
+        [orderId]: { ...patch, at: Date.now() },
+      };
+      saveStatuses(userId, next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -135,27 +169,33 @@ export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
 
   const handleTelegram = async (order: OrderRow) => {
     setBusyId(order.id);
+    updateStatus(order.id, { status: "sending" });
     const rows = await fetchAccounts(order.id);
     if (!rows || rows.length === 0) {
       setBusyId(null);
+      updateStatus(order.id, { status: "failed", error: "No accounts found" });
       toast.error("No accounts found");
       return;
     }
+    // Compact, mobile-copy-friendly: only UID:PASS lines inside a code block.
+    // <pre> renders monospace; tap-and-hold "Copy" in Telegram grabs the whole block cleanly.
     const lines = rows.map((r) => `${r.uid}:${r.password}`).join("\n");
-    const header = `<b>${order.category_name}</b> — ${rows.length} account${rows.length === 1 ? "" : "s"}\n#${order.id.slice(0, 8)} · ৳${order.total_bdt.toFixed(2)}`;
-    const text = `${header}\n\n<pre>${lines}</pre>`;
+    const text = `<pre>${lines}</pre>`;
     const { data, error } = await supabase.functions.invoke("notify-telegram", {
       body: { user_id: userId, text },
     });
     setBusyId(null);
     if (error) {
+      updateStatus(order.id, { status: "failed", error: error.message });
       toast.error(error.message || "Telegram send failed");
       return;
     }
     if (data && (data as any).ok === false) {
+      updateStatus(order.id, { status: "failed", error: "Telegram not linked" });
       toast.error("Link your Telegram account first (see Dashboard).");
       return;
     }
+    updateStatus(order.id, { status: "sent" });
     toast.success(`Sent ${rows.length} credentials to your Telegram`);
   };
 
@@ -205,8 +245,32 @@ export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
                     ৳{o.total_bdt.toFixed(2)}
                   </Badge>
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {formatTime(o.created_at)} · #{o.id.slice(0, 8)}
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>{formatTime(o.created_at)} · #{o.id.slice(0, 8)}</span>
+                  {(() => {
+                    const s = statuses[o.id];
+                    if (!s) return null;
+                    if (s.status === "sending")
+                      return (
+                        <Badge variant="outline" className="border-primary/40 text-primary">
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Sending…
+                        </Badge>
+                      );
+                    if (s.status === "sent")
+                      return (
+                        <Badge className="bg-success/20 text-success hover:bg-success/20">
+                          <CheckCircle2 className="mr-1 h-3 w-3" /> Sent to Telegram
+                          {s.at ? ` · ${new Date(s.at).toLocaleTimeString()}` : ""}
+                        </Badge>
+                      );
+                    if (s.status === "failed")
+                      return (
+                        <Badge variant="destructive" title={s.error}>
+                          <XCircle className="mr-1 h-3 w-3" /> Failed
+                        </Badge>
+                      );
+                    return null;
+                  })()}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -224,7 +288,16 @@ export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
                   onClick={() => handleTelegram(o)}
                   disabled={busyId === o.id}
                 >
-                  <Send className="mr-2 h-3.5 w-3.5" /> Send to Telegram
+                  {busyId === o.id && statuses[o.id]?.status === "sending" ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="mr-2 h-3.5 w-3.5" />
+                  )}
+                  {statuses[o.id]?.status === "sent"
+                    ? "Resend to Telegram"
+                    : statuses[o.id]?.status === "failed"
+                    ? "Retry Telegram"
+                    : "Send to Telegram"}
                 </Button>
                 <Button
                   size="sm"
