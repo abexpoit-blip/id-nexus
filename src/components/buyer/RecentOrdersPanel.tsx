@@ -224,34 +224,35 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
   };
 
   const handleTelegram = async (order: OrderRow) => {
+    if (!telegramLinked) {
+      toast.error("Link your Telegram account first (see Telegram card above).");
+      return;
+    }
     setBusyId(order.id);
-    updateStatus(order.id, { status: "sending" });
+    await upsertStatus(order.id, { status: "sending", bumpAttempt: true });
     const rows = await fetchAccounts(order.id);
     if (!rows || rows.length === 0) {
       setBusyId(null);
-      updateStatus(order.id, { status: "failed", error: "No accounts found" });
+      await upsertStatus(order.id, { status: "failed", last_error: "No accounts found" });
       toast.error("No accounts found");
       return;
     }
-    // Compact, mobile-copy-friendly: only UID:PASS lines inside a code block.
-    // <pre> renders monospace; tap-and-hold "Copy" in Telegram grabs the whole block cleanly.
-    const lines = rows.map((r) => `${r.uid}:${r.password}`).join("\n");
-    const text = `<pre>${lines}</pre>`;
+    const text = buildTelegramText(template, order, rows);
     const { data, error } = await supabase.functions.invoke("notify-telegram", {
       body: { user_id: userId, text },
     });
     setBusyId(null);
     if (error) {
-      updateStatus(order.id, { status: "failed", error: error.message });
+      await upsertStatus(order.id, { status: "failed", last_error: error.message });
       toast.error(error.message || "Telegram send failed");
       return;
     }
     if (data && (data as any).ok === false) {
-      updateStatus(order.id, { status: "failed", error: "Telegram not linked" });
+      await upsertStatus(order.id, { status: "failed", last_error: "Telegram not linked" });
       toast.error("Link your Telegram account first (see Dashboard).");
       return;
     }
-    updateStatus(order.id, { status: "sent" });
+    await upsertStatus(order.id, { status: "sent" });
     toast.success(`Sent ${rows.length} credentials to your Telegram`);
   };
 
