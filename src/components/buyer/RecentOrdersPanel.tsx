@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Copy, FileSpreadsheet, ShoppingBag, Loader2 } from "lucide-react";
+import { Download, Copy, FileSpreadsheet, ShoppingBag, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 
 interface OrderRow {
