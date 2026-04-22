@@ -352,17 +352,19 @@ const Wallet = () => {
                       className="hidden"
                       onChange={(e) => {
                         const f = e.target.files?.[0] ?? null;
-                        setTFile(f);
-                        if (tPreview) URL.revokeObjectURL(tPreview);
-                        setTPreview(f ? URL.createObjectURL(f) : null);
-                        setTUploadedUrl(null);
-                        setTUploadError(null);
+                        handleFilePick(f);
+                        e.target.value = ""; // allow re-selecting same file after fix
                       }}
                     />
                     <label htmlFor="topup-screenshot" className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
                       <Upload className="h-4 w-4" />
                       {tFile ? tFile.name : "Click to choose screenshot (jpg/png, max 5MB)"}
                     </label>
+                    {tFileMeta && (
+                      <div className="text-xs text-muted-foreground">
+                        ✓ {tFileMeta.width}×{tFileMeta.height}px · {tFileMeta.sizeKB} KB · {tFile?.type}
+                      </div>
+                    )}
                     {tPreview && (
                       <img src={tPreview} alt="Screenshot preview" className="max-h-48 w-auto self-start rounded border border-border/60" />
                     )}
