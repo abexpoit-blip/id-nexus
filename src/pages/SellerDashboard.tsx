@@ -1614,9 +1614,9 @@ const SellerDashboard = () => {
         <Card ref={replacementsRef} className="mt-6 border-border/60 bg-gradient-card p-6 scroll-mt-24">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="font-display text-lg font-semibold">Replacement issues</div>
+              <div className="font-display text-lg font-semibold">Replacement issues <span className="ml-2 rounded-md bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">View only</span></div>
               <p className="text-xs text-muted-foreground">
-                Buyer-reported problems on IDs you sold. Admin resolves each item.
+                Buyer-reported problems on IDs you sold. Only admin can resolve — you cannot accept or reject.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
