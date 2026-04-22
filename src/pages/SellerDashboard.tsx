@@ -853,13 +853,75 @@ const SellerDashboard = () => {
             </p>
           )}
           {parseError && (
-            <div className="mt-2 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              <AlertTriangle className="h-3 w-3" /> {parseError}
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-3 w-3" /> {parseError}
+              </span>
+              {lastFile && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 gap-1 px-2 text-xs text-destructive hover:bg-destructive/20"
+                  onClick={retryParsing}
+                  disabled={uploading || uploadStep === "parsing" || uploadStep === "validating"}
+                >
+                  <RefreshCw className="h-3 w-3" /> Retry parsing
+                </Button>
+              )}
             </div>
           )}
           {uploadError && (
-            <div className="mt-2 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              <AlertTriangle className="h-3 w-3" /> Upload failed: {uploadError}
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-3 w-3" /> Upload failed: {uploadError}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 gap-1 px-2 text-xs text-destructive hover:bg-destructive/20"
+                onClick={confirmUpload}
+                disabled={uploading || !parsed}
+              >
+                <RefreshCw className="h-3 w-3" /> Retry upload
+              </Button>
+            </div>
+          )}
+
+          {(uploadStep !== "idle" || uploadProgress > 0) && (
+            <div className="mt-4 rounded-md border border-border/60 bg-background/40 p-3">
+              <div className="mb-2 flex items-center justify-between text-xs">
+                <span className="font-medium">
+                  {uploadStep === "error" ? (
+                    <span className="text-destructive">Failed at: {parseError ? "validation" : "upload"}</span>
+                  ) : (
+                    <span>Step: {STEP_LABELS[uploadStep]}</span>
+                  )}
+                </span>
+                <span className="text-muted-foreground">{uploadProgress}%</span>
+              </div>
+              <Progress value={uploadProgress} className="h-1.5" />
+              <ol className="mt-3 grid grid-cols-4 gap-1 text-[10px]">
+                {STEP_ORDER.filter((s) => s !== "done").map((s) => {
+                  const idx = STEP_ORDER.indexOf(s);
+                  const currentIdx = STEP_ORDER.indexOf(uploadStep);
+                  const reached = uploadStep === "done" || (currentIdx >= idx && uploadStep !== "error");
+                  const active = uploadStep === s;
+                  return (
+                    <li
+                      key={s}
+                      className={`rounded border px-1.5 py-1 text-center transition-colors ${
+                        active
+                          ? "border-primary/60 bg-primary/10 text-primary"
+                          : reached
+                            ? "border-success/40 bg-success/5 text-success"
+                            : "border-border/60 text-muted-foreground"
+                      }`}
+                    >
+                      {STEP_LABELS[s]}
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
           )}
 
