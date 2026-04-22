@@ -24,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Loader2, AlertTriangle, RefreshCcw, DollarSign, XCircle, CheckCheck } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, RefreshCcw, DollarSign, XCircle, CheckCheck, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { CategoriesManager } from "@/components/admin/CategoriesManager";
@@ -185,7 +185,14 @@ const Admin = () => {
             <Logo size="sm" showTagline={false} />
             <Badge variant="outline" className="border-primary/40 text-primary">Admin</Badge>
           </div>
-          <NotificationsBell />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/admin/audit">
+                <ScrollText className="mr-2 h-4 w-4" /> Audit log
+              </Link>
+            </Button>
+            <NotificationsBell />
+          </div>
         </div>
       </header>
 

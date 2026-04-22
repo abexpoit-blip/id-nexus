@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { RecentOrdersPanel } from "@/components/buyer/RecentOrdersPanel";
 
 interface Profile {
   display_name: string | null;
@@ -237,15 +238,22 @@ const Dashboard = () => {
                   Resolve replacement requests, manage roles, top-ups, and more.
                 </p>
               </div>
-              <Button
-                onClick={() => navigate("/admin")}
-                className="bg-gradient-brand text-primary-foreground hover:opacity-90"
-              >
-                Open admin panel
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => navigate("/admin/audit")}>
+                  Audit log
+                </Button>
+                <Button
+                  onClick={() => navigate("/admin")}
+                  className="bg-gradient-brand text-primary-foreground hover:opacity-90"
+                >
+                  Open admin panel
+                </Button>
+              </div>
             </div>
           </Card>
         )}
+
+        {user && <RecentOrdersPanel userId={user.id} />}
       </main>
     </div>
   );
