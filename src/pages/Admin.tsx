@@ -344,7 +344,18 @@ const Admin = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         {it.outcome === "pending" ? (
-                          <div className="inline-flex gap-1">
+                          <div className="inline-flex flex-wrap justify-end gap-1">
+                            {categories.map((c) => (
+                              <Button
+                                key={c.id}
+                                size="sm"
+                                variant="outline"
+                                className="border-primary/40 text-primary hover:text-primary"
+                                onClick={() => openAction(it, "replace_category", c.id)}
+                              >
+                                <RefreshCcw className="mr-1 h-3 w-3" /> {c.name}
+                              </Button>
+                            ))}
                             <Button
                               size="sm"
                               variant="outline"
@@ -352,7 +363,7 @@ const Admin = () => {
                               onClick={() => openAction(it, "replace")}
                               disabled={!it.account_id}
                             >
-                              <RefreshCcw className="mr-1 h-3 w-3" /> Replace
+                              <RefreshCcw className="mr-1 h-3 w-3" /> Same cat.
                             </Button>
                             <Button
                               size="sm"
