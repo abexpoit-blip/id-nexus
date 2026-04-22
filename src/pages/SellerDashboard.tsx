@@ -1493,6 +1493,111 @@ const SellerDashboard = () => {
             </DialogContent>
           </Dialog>
         </Card>
+
+        {/* Duplicate UID inspection modal */}
+        <Dialog
+          open={dupModalOpen}
+          onOpenChange={(o) => {
+            setDupModalOpen(o);
+            if (!o) setDupModalPage(1);
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Duplicate UIDs</DialogTitle>
+              <DialogDescription>
+                Review every duplicate before confirming. Use Copy to paste into a sheet for cleanup.
+              </DialogDescription>
+            </DialogHeader>
+            {duplicates && (() => {
+              const list = dupModalTab === "stock"
+                ? duplicates.duplicatesInStock
+                : duplicates.duplicatesInFile;
+              const PAGE_SIZE = 50;
+              const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+              const page = Math.min(Math.max(1, dupModalPage), totalPages);
+              const start = (page - 1) * PAGE_SIZE;
+              const slice = list.slice(start, start + PAGE_SIZE);
+              const copyAll = async () => {
+                try {
+                  await navigator.clipboard.writeText(list.join("\n"));
+                  toast.success(`Copied ${list.length} UID${list.length === 1 ? "" : "s"} to clipboard`);
+                } catch {
+                  toast.error("Clipboard blocked — select text manually");
+                }
+              };
+              return (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={dupModalTab === "stock" ? "default" : "outline"}
+                      onClick={() => { setDupModalTab("stock"); setDupModalPage(1); }}
+                    >
+                      In your stock ({duplicates.duplicatesInStock.length})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={dupModalTab === "file" ? "default" : "outline"}
+                      onClick={() => { setDupModalTab("file"); setDupModalPage(1); }}
+                    >
+                      Repeated in file ({duplicates.duplicatesInFile.length})
+                    </Button>
+                    <div className="ml-auto">
+                      <Button size="sm" variant="outline" className="gap-1" onClick={copyAll} disabled={list.length === 0}>
+                        <Copy className="h-3 w-3" /> Copy {list.length}
+                      </Button>
+                    </div>
+                  </div>
+                  {list.length === 0 ? (
+                    <div className="rounded-md border border-border/60 bg-background/40 p-6 text-center text-sm text-muted-foreground">
+                      No duplicates in this category.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="max-h-72 overflow-auto rounded-md border border-border/60 bg-background/40 p-3 font-mono text-xs">
+                        {slice.map((u) => (
+                          <div key={u} className="border-b border-border/40 py-1 last:border-0">
+                            {u}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                          Showing {start + 1}–{Math.min(start + PAGE_SIZE, list.length)} of {list.length}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={page <= 1}
+                            onClick={() => setDupModalPage(page - 1)}
+                          >
+                            Prev
+                          </Button>
+                          <span className="px-2">
+                            Page {page} / {totalPages}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={page >= totalPages}
+                            onClick={() => setDupModalPage(page + 1)}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setDupModalOpen(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
