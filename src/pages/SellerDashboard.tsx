@@ -1366,6 +1366,80 @@ const SellerDashboard = () => {
           )}
         </Card>
 
+        {/* Upload audit history */}
+        <Card className="mt-6 border-border/60 bg-gradient-card p-6">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div>
+              <div className="font-display text-lg font-semibold">Upload history</div>
+              <p className="text-xs text-muted-foreground">
+                Per Confirm Upload: how many rows were sent, inserted, and skipped (with reason).
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={loadAudits} disabled={auditsLoading}>
+              {auditsLoading ? (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1 h-3 w-3" />
+              )}
+              Refresh
+            </Button>
+          </div>
+          {audits.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              No uploads recorded yet.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>When</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>File</TableHead>
+                    <TableHead className="text-right">In file</TableHead>
+                    <TableHead className="text-right">Sent</TableHead>
+                    <TableHead className="text-right">Inserted</TableHead>
+                    <TableHead className="text-right">Dup (stock)</TableHead>
+                    <TableHead className="text-right">Dup (file)</TableHead>
+                    <TableHead className="text-right">Dup (replaced)</TableHead>
+                    <TableHead className="text-right">Invalid</TableHead>
+                    <TableHead className="text-right">Over limit</TableHead>
+                    <TableHead>Skip mode</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {audits.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        {new Date(a.created_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-xs">{a.category_name ?? "—"}</TableCell>
+                      <TableCell className="max-w-[180px] truncate font-mono text-xs">
+                        {a.file_name ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">{a.rows_in_file}</TableCell>
+                      <TableCell className="text-right text-xs">{a.rows_sent}</TableCell>
+                      <TableCell className="text-right text-xs font-semibold text-success">
+                        {a.rows_inserted}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">{a.duplicates_in_stock}</TableCell>
+                      <TableCell className="text-right text-xs">{a.duplicates_in_file}</TableCell>
+                      <TableCell className="text-right text-xs">{a.duplicates_already_replaced}</TableCell>
+                      <TableCell className="text-right text-xs">{a.invalid_rows}</TableCell>
+                      <TableCell className="text-right text-xs">{a.over_limit_skipped}</TableCell>
+                      <TableCell className="text-xs">
+                        <Badge variant="outline" className="text-[10px]">
+                          {a.skip_duplicates_setting ? "skip on" : "skip off"}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </Card>
+
         {/* Replacement issues */}
         <Card ref={replacementsRef} className="mt-6 border-border/60 bg-gradient-card p-6 scroll-mt-24">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
