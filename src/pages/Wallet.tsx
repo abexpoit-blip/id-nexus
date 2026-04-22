@@ -284,6 +284,8 @@ const Wallet = () => {
                         setTFile(f);
                         if (tPreview) URL.revokeObjectURL(tPreview);
                         setTPreview(f ? URL.createObjectURL(f) : null);
+                        setTUploadedUrl(null);
+                        setTUploadError(null);
                       }}
                     />
                     <label htmlFor="topup-screenshot" className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
@@ -292,6 +294,31 @@ const Wallet = () => {
                     </label>
                     {tPreview && (
                       <img src={tPreview} alt="Screenshot preview" className="max-h-48 w-auto self-start rounded border border-border/60" />
+                    )}
+                    {tFile && !tUploadedUrl && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={uploadScreenshot}
+                        disabled={tUploading}
+                        className="self-start"
+                      >
+                        {tUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading…</> : <><Upload className="mr-2 h-4 w-4" />Upload now (test)</>}
+                      </Button>
+                    )}
+                    {tUploadedUrl && (
+                      <div className="rounded-md border border-success/40 bg-success/10 p-2 text-xs">
+                        <div className="font-medium text-success">✓ Uploaded successfully</div>
+                        <a href={tUploadedUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-primary underline">
+                          {tUploadedUrl}
+                        </a>
+                      </div>
+                    )}
+                    {tUploadError && (
+                      <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+                        ✗ {tUploadError}
+                      </div>
                     )}
                     <p className="text-xs text-muted-foreground">
                       Required for proof. Auto-deleted 6 hours after admin approval.
