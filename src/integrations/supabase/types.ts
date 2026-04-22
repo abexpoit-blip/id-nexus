@@ -464,6 +464,51 @@ export type Database = {
         }
         Relationships: []
       }
+      seller_applications: {
+        Row: {
+          admin_note: string | null
+          created_at: string
+          display_name: string | null
+          email: string
+          id: string
+          reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["seller_application_status"]
+          telegram_username: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          created_at?: string
+          display_name?: string | null
+          email: string
+          id?: string
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["seller_application_status"]
+          telegram_username?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string
+          id?: string
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["seller_application_status"]
+          telegram_username?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       seller_daily_limits: {
         Row: {
           created_at: string
@@ -757,6 +802,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_approve_seller_application: {
+        Args: { p_id: string; p_note?: string }
+        Returns: Json
+      }
       admin_approve_topup: {
         Args: { p_id: string; p_note?: string }
         Returns: Json
@@ -764,6 +813,10 @@ export type Database = {
       admin_clear_seller_limit: { Args: { p_seller_id: string }; Returns: Json }
       admin_pay_withdraw: {
         Args: { p_id: string; p_note?: string; p_payout_txn: string }
+        Returns: Json
+      }
+      admin_reject_seller_application: {
+        Args: { p_id: string; p_note?: string }
         Returns: Json
       }
       admin_reject_topup: {
@@ -852,6 +905,29 @@ export type Database = {
         Returns: undefined
       }
       generate_tg_link_code: { Args: never; Returns: string }
+      get_my_seller_application: {
+        Args: never
+        Returns: {
+          admin_note: string | null
+          created_at: string
+          display_name: string | null
+          email: string
+          id: string
+          reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["seller_application_status"]
+          telegram_username: string | null
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "seller_applications"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_public_stock_counts: {
         Args: never
         Returns: {
@@ -916,6 +992,10 @@ export type Database = {
       }
       submit_replacement_request: {
         Args: { p_raw_input: string }
+        Returns: Json
+      }
+      submit_seller_application: {
+        Args: { p_reason: string; p_telegram_username: string }
         Returns: Json
       }
       submit_topup_request:
@@ -997,6 +1077,7 @@ export type Database = {
         | "out_of_window"
         | "not_yours"
       replacement_status: "pending" | "processing" | "resolved" | "rejected"
+      seller_application_status: "pending" | "approved" | "rejected"
       telegram_delivery_status: "pending" | "sending" | "sent" | "failed"
       topup_status: "pending" | "approved" | "rejected"
       withdraw_status: "pending" | "approved" | "paid" | "rejected"
@@ -1166,6 +1247,7 @@ export const Constants = {
         "not_yours",
       ],
       replacement_status: ["pending", "processing", "resolved", "rejected"],
+      seller_application_status: ["pending", "approved", "rejected"],
       telegram_delivery_status: ["pending", "sending", "sent", "failed"],
       topup_status: ["pending", "approved", "rejected"],
       withdraw_status: ["pending", "approved", "paid", "rejected"],

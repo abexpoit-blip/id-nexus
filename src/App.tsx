@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard.tsx";
 import Browse from "./pages/Browse.tsx";
 import OrderDetail from "./pages/OrderDetail.tsx";
 import SellerDashboard from "./pages/SellerDashboard.tsx";
+import SellerApply from "./pages/SellerApply.tsx";
 import Replacements from "./pages/Replacements.tsx";
 import Admin from "./pages/Admin.tsx";
 import Wallet from "./pages/Wallet.tsx";
@@ -58,6 +59,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <SellerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/apply-seller"
+              element={
+                <ProtectedRoute>
+                  <SellerApply />
                 </ProtectedRoute>
               }
             />
