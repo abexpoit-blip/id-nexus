@@ -97,6 +97,42 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          actor_email: string | null
+          actor_id: string | null
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          entity_type: string | null
+          event_type: string
+          id: string
+          summary: string
+        }
+        Insert: {
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type: string
+          id?: string
+          summary: string
+        }
+        Update: {
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type?: string
+          id?: string
+          summary?: string
+        }
+        Relationships: []
+      }
       balance_ledger: {
         Row: {
           amount_bdt: number
@@ -709,6 +745,16 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      log_audit_event: {
+        Args: {
+          p_details?: Json
+          p_entity_id: string
+          p_entity_type: string
+          p_event_type: string
+          p_summary: string
+        }
+        Returns: undefined
       }
       place_order: {
         Args: { p_category_id: string; p_quantity: number }
