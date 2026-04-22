@@ -885,11 +885,16 @@ const SellerDashboard = () => {
           <AlertTriangle className="mx-auto h-10 w-10 text-warning" />
           <h2 className="mt-4 font-display text-xl font-semibold">Seller access required</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Your account doesn't have seller permissions yet. Contact admin to apply as a seller.
+            Your account doesn't have seller permissions yet. Submit an application — admin approval takes a few hours.
           </p>
-          <Button asChild className="mt-6">
-            <Link to="/dashboard">Back to dashboard</Link>
-          </Button>
+          <div className="mt-6 flex flex-col gap-2">
+            <Button asChild className="bg-gradient-brand text-primary-foreground shadow-glow" size="lg">
+              <Link to="/apply-seller">Apply to become a seller</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/dashboard">Back to dashboard</Link>
+            </Button>
+          </div>
         </Card>
       </div>
     );
