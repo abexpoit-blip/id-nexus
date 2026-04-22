@@ -288,7 +288,16 @@ export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
                   onClick={() => handleTelegram(o)}
                   disabled={busyId === o.id}
                 >
-                  <Send className="mr-2 h-3.5 w-3.5" /> Send to Telegram
+                  {busyId === o.id && statuses[o.id]?.status === "sending" ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="mr-2 h-3.5 w-3.5" />
+                  )}
+                  {statuses[o.id]?.status === "sent"
+                    ? "Resend to Telegram"
+                    : statuses[o.id]?.status === "failed"
+                    ? "Retry Telegram"
+                    : "Send to Telegram"}
                 </Button>
                 <Button
                   size="sm"
