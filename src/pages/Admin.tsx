@@ -137,26 +137,45 @@ const Admin = () => {
     };
   }, [items]);
 
-  const openAction = (item: RpItem, act: "replace" | "refund" | "reject") => {
+  const openAction = (item: RpItem, act: "replace" | "refund" | "reject" | "replace_category", catId?: string) => {
     setActingItem(item);
     setAction(act);
     setReason("");
+    setCustomMessage("");
+    setTargetCategoryId(catId ?? "");
   };
 
   const submit = async () => {
     if (!actingItem || !action) return;
     setSubmitting(true);
-    const { error } = await supabase.rpc("admin_resolve_replacement_item", {
-      p_item_id: actingItem.id,
-      p_action: action,
-      p_reason: reason.trim() || null,
-    });
+    let error: any = null;
+    if (action === "replace_category") {
+      if (!targetCategoryId) {
+        toast.error("Pick a category");
+        setSubmitting(false);
+        return;
+      }
+      const res = await supabase.rpc("admin_replace_with_category", {
+        p_item_id: actingItem.id,
+        p_category_id: targetCategoryId,
+        p_reason: reason.trim() || null,
+        p_message: customMessage.trim() || null,
+      });
+      error = res.error;
+    } else {
+      const res = await supabase.rpc("admin_resolve_replacement_item", {
+        p_item_id: actingItem.id,
+        p_action: action,
+        p_reason: reason.trim() || null,
+      });
+      error = res.error;
+    }
     setSubmitting(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success(`Marked as ${action}`);
+    toast.success(action === "replace_category" ? "Replaced from chosen category" : `Marked as ${action}`);
     setActingItem(null);
     setAction(null);
     load();
