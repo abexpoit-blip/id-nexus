@@ -206,6 +206,25 @@ const Dashboard = () => {
                   <Copy className="mr-2 h-3.5 w-3.5" /> Copy
                 </Button>
               </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/40 pt-4">
+                <span className="text-xs uppercase tracking-widest text-muted-foreground">Message template</span>
+                <Button
+                  size="sm"
+                  variant={template === "compact" ? "default" : "outline"}
+                  onClick={() => setTemplate("compact")}
+                  className={template === "compact" ? "bg-gradient-brand text-primary-foreground hover:opacity-90" : ""}
+                >
+                  Compact (UID:PASS only)
+                </Button>
+                <Button
+                  size="sm"
+                  variant={template === "detailed" ? "default" : "outline"}
+                  onClick={() => setTemplate("detailed")}
+                  className={template === "detailed" ? "bg-gradient-brand text-primary-foreground hover:opacity-90" : ""}
+                >
+                  Detailed (with header & 2FA)
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
@@ -271,7 +290,13 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {user && <RecentOrdersPanel userId={user.id} />}
+        {user && (
+          <RecentOrdersPanel
+            userId={user.id}
+            telegramLinked={!!profile?.telegram_chat_id}
+            template={template}
+          />
+        )}
       </main>
     </div>
   );
