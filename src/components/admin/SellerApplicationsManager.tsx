@@ -276,33 +276,82 @@ export const SellerApplicationsManager = () => {
       )}
 
       <Dialog open={!!acting} onOpenChange={(o) => !o && setActing(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="capitalize">{action} seller application</DialogTitle>
-            <DialogDescription>
-              {acting?.display_name ?? acting?.email} · @{acting?.telegram_username}
-              <br />
-              {action === "approve"
-                ? "This will grant the seller role and revoke buyer access."
-                : "Application will be rejected. Applicant can re-apply later."}
+            <DialogTitle className="flex items-center gap-2 capitalize">
+              <AlertTriangle className={action === "approve" ? "h-5 w-5 text-warning" : "h-5 w-5 text-destructive"} />
+              {action} seller application
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-1 pt-1">
+                <div className="font-medium text-foreground">
+                  {acting?.display_name ?? acting?.email}
+                  {acting?.telegram_username ? ` · @${acting.telegram_username}` : ""}
+                </div>
+                <div className="text-xs">{acting?.email}</div>
+              </div>
             </DialogDescription>
           </DialogHeader>
+
+          <div
+            className={`rounded-md border p-3 text-sm ${
+              action === "approve"
+                ? "border-warning/40 bg-warning/10 text-warning-foreground"
+                : "border-destructive/40 bg-destructive/10"
+            }`}
+          >
+            <div className="mb-1 flex items-center gap-2 font-semibold">
+              <AlertTriangle className="h-4 w-4" />
+              {action === "approve" ? "Before you approve" : "Before you reject"}
+            </div>
+            {action === "approve" ? (
+              <ul className="ml-5 list-disc space-y-1 text-xs">
+                <li>Buyer role will be <b>removed</b> and Seller role granted.</li>
+                <li>Applicant will <b>lose access</b> to buyer-only features (browsing, ordering).</li>
+                <li>They will be able to upload stock and request withdrawals immediately.</li>
+                <li>This action is logged and cannot be auto-reversed.</li>
+              </ul>
+            ) : (
+              <ul className="ml-5 list-disc space-y-1 text-xs">
+                <li>Applicant will be notified with your note (if provided).</li>
+                <li>They will <b>keep buyer access</b> and can re-apply later.</li>
+                <li>No roles or balances are changed.</li>
+              </ul>
+            )}
+          </div>
+
           <div className="space-y-2">
-            <label className="text-sm font-medium">Note (optional)</label>
+            <label className="text-sm font-medium">
+              Note {action === "reject" ? <span className="text-destructive">(recommended — shown to applicant)</span> : "(optional)"}
+            </label>
             <Input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Visible to applicant"
+              placeholder={action === "approve" ? "Welcome message (optional)" : "Why are you rejecting?"}
               maxLength={500}
             />
           </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Type <span className="font-mono font-bold">{requiredConfirm}</span> to confirm
+            </label>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={requiredConfirm}
+              autoComplete="off"
+              className={confirmOk ? "border-success/60" : ""}
+            />
+          </div>
+
           <DialogFooter>
             <Button variant="ghost" onClick={() => setActing(null)} disabled={submitting}>
               Cancel
             </Button>
             <Button
               onClick={submit}
-              disabled={submitting}
+              disabled={submitting || !confirmOk}
               className={
                 action === "approve"
                   ? "bg-gradient-brand text-primary-foreground hover:opacity-90"
