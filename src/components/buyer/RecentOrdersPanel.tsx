@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -56,43 +56,98 @@ const downloadFile = (content: string, filename: string, mime: string) => {
   URL.revokeObjectURL(url);
 };
 
-type DeliveryStatus = "idle" | "sending" | "sent" | "failed";
-type StatusMap = Record<string, { status: DeliveryStatus; at?: number; error?: string }>;
+type DeliveryStatus = "pending" | "sending" | "sent" | "failed";
+interface DeliveryRow {
+  status: DeliveryStatus;
+  attempt_count: number;
+  last_error: string | null;
+  sent_at: string | null;
+  last_attempt_at: string | null;
+}
+type StatusMap = Record<string, DeliveryRow>;
 
-const storageKey = (userId: string) => `tg-delivery-status:${userId}`;
+interface Props {
+  userId: string;
+  telegramLinked: boolean;
+  template: "compact" | "detailed";
+}
 
-const loadStatuses = (userId: string): StatusMap => {
-  try {
-    const raw = localStorage.getItem(storageKey(userId));
-    return raw ? (JSON.parse(raw) as StatusMap) : {};
-  } catch {
-    return {};
+const buildTelegramText = (
+  template: "compact" | "detailed",
+  order: OrderRow,
+  rows: AccountRow[],
+) => {
+  const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  if (template === "compact") {
+    const lines = rows.map((r) => `${r.uid}:${r.password}`).join("\n");
+    return `<pre>${escape(lines)}</pre>`;
   }
+  // detailed
+  const header =
+    `<b>${escape(order.category_name)}</b> — ${rows.length} account${rows.length === 1 ? "" : "s"}\n` +
+    `#${order.id.slice(0, 8)} · ৳${order.total_bdt.toFixed(2)}`;
+  const body = rows
+    .map((r) => {
+      const parts = [`${r.uid}:${r.password}`];
+      if (r.two_fa) parts.push(`2FA: ${r.two_fa}`);
+      if (r.email) parts.push(`Email: ${r.email}${r.email_password ? ` | ${r.email_password}` : ""}`);
+      return parts.join("\n");
+    })
+    .join("\n\n");
+  return `${header}\n\n<pre>${escape(body)}</pre>`;
 };
 
-const saveStatuses = (userId: string, map: StatusMap) => {
-  try {
-    localStorage.setItem(storageKey(userId), JSON.stringify(map));
-  } catch {
-    /* ignore quota errors */
-  }
-};
-
-export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
+export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) => {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [statuses, setStatuses] = useState<StatusMap>(() => loadStatuses(userId));
+  const [statuses, setStatuses] = useState<StatusMap>({});
 
-  const updateStatus = (orderId: string, patch: { status: DeliveryStatus; error?: string }) => {
-    setStatuses((prev) => {
-      const next: StatusMap = {
-        ...prev,
-        [orderId]: { ...patch, at: Date.now() },
+  const fetchStatuses = useCallback(async (orderIds: string[]) => {
+    if (orderIds.length === 0) return;
+    const { data } = await supabase
+      .from("telegram_deliveries")
+      .select("order_id, status, attempt_count, last_error, sent_at, last_attempt_at")
+      .in("order_id", orderIds);
+    const map: StatusMap = {};
+    (data ?? []).forEach((r: any) => {
+      map[r.order_id] = {
+        status: r.status,
+        attempt_count: r.attempt_count,
+        last_error: r.last_error,
+        sent_at: r.sent_at,
+        last_attempt_at: r.last_attempt_at,
       };
-      saveStatuses(userId, next);
-      return next;
     });
+    setStatuses(map);
+  }, []);
+
+  const upsertStatus = async (
+    orderId: string,
+    patch: Partial<DeliveryRow> & { status: DeliveryStatus; bumpAttempt?: boolean },
+  ) => {
+    const prev = statuses[orderId];
+    const nextAttempt = (prev?.attempt_count ?? 0) + (patch.bumpAttempt ? 1 : 0);
+    const row: DeliveryRow = {
+      status: patch.status,
+      attempt_count: nextAttempt,
+      last_error: patch.last_error ?? null,
+      sent_at: patch.status === "sent" ? new Date().toISOString() : prev?.sent_at ?? null,
+      last_attempt_at: new Date().toISOString(),
+    };
+    setStatuses((s) => ({ ...s, [orderId]: row }));
+    await supabase.from("telegram_deliveries").upsert(
+      {
+        order_id: orderId,
+        buyer_id: userId,
+        status: row.status,
+        attempt_count: row.attempt_count,
+        last_error: row.last_error,
+        sent_at: row.sent_at,
+        last_attempt_at: row.last_attempt_at,
+      },
+      { onConflict: "order_id" },
+    );
   };
 
   useEffect(() => {
