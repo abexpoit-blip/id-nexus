@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, ShoppingBag, Store } from "lucide-react";
 
 const emailSchema = z.string().trim().email("Enter a valid email").max(255);
 const passwordSchema = z
@@ -18,23 +18,18 @@ const passwordSchema = z
   .min(8, "At least 8 characters")
   .max(72, "Too long");
 const nameSchema = z.string().trim().min(2, "Name too short").max(60);
-const tgSchema = z
-  .string()
-  .trim()
-  .transform((v) => v.replace(/^@/, "").toLowerCase())
-  .pipe(z.string().regex(/^[a-z0-9_]{3,32}$/, "Telegram username: 3-32 chars (a-z, 0-9, _)"));
-const sellerPasswordSchema = z.string().min(4, "At least 4 characters").max(72);
+
+type RoleChoice = "buyer" | "seller";
 
 const Auth = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState<"signin" | "signup" | "seller">("signin");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [roleChoice, setRoleChoice] = useState<RoleChoice>("buyer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [tgUsername, setTgUsername] = useState("");
-  const [sellerPassword, setSellerPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -45,30 +40,8 @@ const Auth = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      if (mode === "seller") {
-        const cleanTg = tgSchema.parse(tgUsername);
-        const cleanPw = sellerPasswordSchema.parse(sellerPassword);
-        const { data, error } = await supabase.functions.invoke("seller-signup", {
-          body: { telegram_username: cleanTg, password: cleanPw, display_name: cleanTg },
-        });
-        if (error) throw new Error(error.message);
-        if ((data as any)?.error) throw new Error((data as any).error);
-        const synthEmail = (data as any).email as string;
-        const { error: siErr } = await supabase.auth.signInWithPassword({
-          email: synthEmail,
-          password: cleanPw,
-        });
-        if (siErr) throw siErr;
-        toast.success(`Seller account created — welcome @${cleanTg}`);
-        navigate("/seller", { replace: true });
-        return;
-      }
-
-      const isTgLogin = mode === "signin" && email.trim().startsWith("@");
-      const cleanEmail = isTgLogin ? "" : emailSchema.parse(email);
-      const cleanPassword = isTgLogin
-        ? sellerPasswordSchema.parse(password)
-        : passwordSchema.parse(password);
+      const cleanEmail = emailSchema.parse(email);
+      const cleanPassword = passwordSchema.parse(password);
 
       if (mode === "signup") {
         const cleanName = nameSchema.parse(displayName);
@@ -82,20 +55,37 @@ const Auth = () => {
           },
         });
         if (error) throw error;
-        toast.success("Account created! Welcome to Nexus X.");
+        toast.success("Buyer account created — welcome to Nexus X!");
         navigate("/dashboard", { replace: true });
       } else {
-        // Allow sellers to sign in with @username too (we resolve to synthetic email)
-        const loginEmail = email.trim().startsWith("@")
-          ? `${email.trim().slice(1).toLowerCase()}@seller.nexus-x.local`
-          : cleanEmail;
+        // Sign in: enforce that the account holds the chosen role
         const { error } = await supabase.auth.signInWithPassword({
-          email: loginEmail,
+          email: cleanEmail,
           password: cleanPassword,
         });
         if (error) throw error;
-        toast.success("Signed in.");
-        navigate("/dashboard", { replace: true });
+
+        // Verify role matches selection
+        const { data: { user: signedIn } } = await supabase.auth.getUser();
+        if (!signedIn) throw new Error("Sign-in failed");
+        const { data: rolesRows } = await supabase
+          .from("user_roles").select("role").eq("user_id", signedIn.id);
+        const userRoles = (rolesRows ?? []).map((r) => r.role as string);
+        const isAdmin = userRoles.includes("admin");
+        const hasSeller = userRoles.includes("seller");
+        const hasBuyer = userRoles.includes("buyer");
+
+        if (roleChoice === "seller" && !hasSeller && !isAdmin) {
+          await supabase.auth.signOut();
+          throw new Error("This account is not a Seller. Apply to become one after signing in as Buyer.");
+        }
+        if (roleChoice === "buyer" && !hasBuyer && !isAdmin) {
+          await supabase.auth.signOut();
+          throw new Error("This account is a Seller, not a Buyer. Switch to the Seller tab to sign in.");
+        }
+
+        toast.success(`Signed in as ${roleChoice}`);
+        navigate(roleChoice === "seller" ? "/seller" : "/dashboard", { replace: true });
       }
     } catch (err: any) {
       if (err?.issues?.[0]?.message) {
@@ -131,14 +121,52 @@ const Auth = () => {
           <Logo size="lg" showTagline />
         </div>
         <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
-          <Tabs value={mode} onValueChange={(v) => setMode(v as "signin" | "signup" | "seller")}>
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs value={mode} onValueChange={(v) => setMode(v as "signin" | "signup")}>
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign in</TabsTrigger>
-              <TabsTrigger value="signup">Buyer</TabsTrigger>
-              <TabsTrigger value="seller">Seller</TabsTrigger>
+              <TabsTrigger value="signup">Create account</TabsTrigger>
             </TabsList>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+              {/* Role selector — premium pill toggle, mandatory on sign-in */}
+              <div>
+                <Label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {mode === "signin" ? "Sign in as" : "I want to register as"}
+                </Label>
+                <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/60 bg-background/40 p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setRoleChoice("buyer")}
+                    className={`group flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-all ${
+                      roleChoice === "buyer"
+                        ? "bg-gradient-brand text-primary-foreground shadow-glow"
+                        : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                    }`}
+                  >
+                    <ShoppingBag className="h-4 w-4" />
+                    Buyer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRoleChoice("seller")}
+                    disabled={mode === "signup"}
+                    className={`group flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-all ${
+                      roleChoice === "seller"
+                        ? "bg-gradient-brand text-primary-foreground shadow-glow"
+                        : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                    } ${mode === "signup" ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    <Store className="h-4 w-4" />
+                    Seller
+                  </button>
+                </div>
+                {mode === "signup" && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    All new accounts start as <strong>Buyer</strong>. After signing in you can apply to become a Seller (admin approval required).
+                  </p>
+                )}
+              </div>
+
               <TabsContent value="signup" className="m-0 space-y-4">
                 <div>
                   <Label htmlFor="name">Display name</Label>
@@ -154,41 +182,7 @@ const Auth = () => {
                 </div>
               </TabsContent>
 
-              <TabsContent value="seller" className="m-0 space-y-4">
-                <div>
-                  <Label htmlFor="tg">Telegram username</Label>
-                  <Input
-                    id="tg"
-                    value={tgUsername}
-                    onChange={(e) => setTgUsername(e.target.value)}
-                    placeholder="@yourname"
-                    required={mode === "seller"}
-                    maxLength={33}
-                    autoComplete="username"
-                    className="mt-1.5"
-                  />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    No email needed — sign in with this Telegram username + password.
-                  </p>
-                </div>
-                <div>
-                  <Label htmlFor="seller-pw">Password</Label>
-                  <Input
-                    id="seller-pw"
-                    type="password"
-                    value={sellerPassword}
-                    onChange={(e) => setSellerPassword(e.target.value)}
-                    placeholder="At least 4 characters"
-                    required={mode === "seller"}
-                    minLength={4}
-                    maxLength={72}
-                    autoComplete="new-password"
-                    className="mt-1.5"
-                  />
-                </div>
-              </TabsContent>
-
-              <div className={mode === "seller" ? "hidden" : ""}>
+              <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
@@ -196,12 +190,12 @@ const Auth = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  required={mode !== "seller"}
+                  required
                   autoComplete="email"
                   className="mt-1.5"
                 />
               </div>
-              <div className={mode === "seller" ? "hidden" : ""}>
+              <div>
                 <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
@@ -209,7 +203,7 @@ const Auth = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={mode === "signup" ? "Min 8 characters" : "Your password"}
-                  required={mode !== "seller"}
+                  required
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
                   minLength={8}
                   maxLength={72}
@@ -226,13 +220,18 @@ const Auth = () => {
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {mode === "signup"
                   ? "Create buyer account"
-                  : mode === "seller"
-                  ? "Create seller account"
-                  : "Sign in"}
+                  : `Sign in as ${roleChoice}`}
               </Button>
 
               <p className="text-center text-xs text-muted-foreground">
                 By continuing you agree to our Terms & Privacy.
+                {mode === "signin" && (
+                  <> · Want to sell?{" "}
+                    <Link to="/apply-seller" className="text-primary underline-offset-2 hover:underline">
+                      Apply here
+                    </Link>
+                  </>
+                )}
               </p>
             </form>
           </Tabs>
