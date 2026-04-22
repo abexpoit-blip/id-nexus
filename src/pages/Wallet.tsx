@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Upload, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
 
@@ -63,6 +63,8 @@ const Wallet = () => {
   const [tSender, setTSender] = useState("");
   const [tTxn, setTTxn] = useState("");
   const [tNote, setTNote] = useState("");
+  const [tFile, setTFile] = useState<File | null>(null);
+  const [tPreview, setTPreview] = useState<string | null>(null);
 
   // Withdraw form
   const [wAmount, setWAmount] = useState("");
@@ -101,6 +103,8 @@ const Wallet = () => {
     const amt = Number(tAmount);
     if (!amt || amt < 50) return toast.error("Minimum top-up ৳50");
     if (!tSender.trim() || !tTxn.trim()) return toast.error("Fill sender number and txn ID");
+    if (!tFile) return toast.error("Screenshot of payment is required");
+    if (tFile.size > 5 * 1024 * 1024) return toast.error("Screenshot must be under 5MB");
     if (!isSeller) {
       const ok = window.confirm(
         "IMPORTANT: Wallet deposits are NON-REFUNDABLE. Buyers cannot withdraw money once deposited — funds can only be used to purchase accounts on this platform. Continue?",
@@ -108,14 +112,32 @@ const Wallet = () => {
       if (!ok) return;
     }
     setBusy(true);
-    const { error } = await supabase.rpc("submit_topup_request", {
-      p_amount: amt, p_method: tMethod, p_sender_number: tSender, p_txn_id: tTxn, p_note: tNote || null,
-    });
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("Top-up submitted — admin will review.");
-    setTAmount(""); setTSender(""); setTTxn(""); setTNote("");
-    loadAll();
+    try {
+      // 1) Upload screenshot via edge function -> VPS
+      const fd = new FormData();
+      fd.append("file", tFile);
+      const { data: up, error: upErr } = await supabase.functions.invoke("upload-screenshot", {
+        body: fd,
+      });
+      if (upErr) throw new Error(upErr.message);
+      const url = (up as any)?.url;
+      if (!url) throw new Error("Upload failed (no URL returned)");
+
+      // 2) Submit top-up request
+      const { error } = await supabase.rpc("submit_topup_request", {
+        p_amount: amt, p_method: tMethod, p_sender_number: tSender,
+        p_txn_id: tTxn, p_screenshot_url: url, p_note: tNote || null,
+      });
+      if (error) throw new Error(error.message);
+      toast.success("Top-up submitted — admin will review.");
+      setTAmount(""); setTSender(""); setTTxn(""); setTNote("");
+      setTFile(null); setTPreview(null);
+      loadAll();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to submit");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const submitWithdraw = async () => {
@@ -222,6 +244,33 @@ const Wallet = () => {
                 <div className="md:col-span-2">
                   <Label>Note (optional)</Label>
                   <Textarea value={tNote} onChange={(e) => setTNote(e.target.value)} placeholder="anything admin should know" rows={2} />
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Payment screenshot <span className="text-destructive">*</span></Label>
+                  <div className="mt-1 flex flex-col gap-2 rounded-md border border-dashed border-border/60 p-3">
+                    <input
+                      id="topup-screenshot"
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        setTFile(f);
+                        if (tPreview) URL.revokeObjectURL(tPreview);
+                        setTPreview(f ? URL.createObjectURL(f) : null);
+                      }}
+                    />
+                    <label htmlFor="topup-screenshot" className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                      <Upload className="h-4 w-4" />
+                      {tFile ? tFile.name : "Click to choose screenshot (jpg/png, max 5MB)"}
+                    </label>
+                    {tPreview && (
+                      <img src={tPreview} alt="Screenshot preview" className="max-h-48 w-auto self-start rounded border border-border/60" />
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Required for proof. Auto-deleted 6 hours after admin approval.
+                    </p>
+                  </div>
                 </div>
               </div>
               <div className="mt-4 flex justify-end">
