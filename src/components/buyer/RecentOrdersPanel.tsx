@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Copy, FileSpreadsheet, ShoppingBag, Loader2, Send } from "lucide-react";
+import { Download, Copy, FileSpreadsheet, ShoppingBag, Loader2, Send, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface OrderRow {
@@ -56,10 +56,44 @@ const downloadFile = (content: string, filename: string, mime: string) => {
   URL.revokeObjectURL(url);
 };
 
+type DeliveryStatus = "idle" | "sending" | "sent" | "failed";
+type StatusMap = Record<string, { status: DeliveryStatus; at?: number; error?: string }>;
+
+const storageKey = (userId: string) => `tg-delivery-status:${userId}`;
+
+const loadStatuses = (userId: string): StatusMap => {
+  try {
+    const raw = localStorage.getItem(storageKey(userId));
+    return raw ? (JSON.parse(raw) as StatusMap) : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveStatuses = (userId: string, map: StatusMap) => {
+  try {
+    localStorage.setItem(storageKey(userId), JSON.stringify(map));
+  } catch {
+    /* ignore quota errors */
+  }
+};
+
 export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [statuses, setStatuses] = useState<StatusMap>(() => loadStatuses(userId));
+
+  const updateStatus = (orderId: string, patch: { status: DeliveryStatus; error?: string }) => {
+    setStatuses((prev) => {
+      const next: StatusMap = {
+        ...prev,
+        [orderId]: { ...patch, at: Date.now() },
+      };
+      saveStatuses(userId, next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const load = async () => {
