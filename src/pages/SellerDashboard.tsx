@@ -477,6 +477,26 @@ const SellerDashboard = () => {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
+
+      // Header validation BEFORE row parsing
+      const headerRows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
+      const headerRow = (headerRows[0] ?? []).map((h) => String(h ?? "").trim().toLowerCase().replace(/[\s\-]/g, "_"));
+      const presentTargets = new Set<string>();
+      headerRow.forEach((h) => {
+        const t = HEADER_MAP[h];
+        if (t) presentTargets.add(t);
+      });
+      const missing = REQUIRED_HEADER_TARGETS.filter((r) => !presentTargets.has(r.target));
+      if (missing.length > 0) {
+        const msg = `Missing required column${missing.length > 1 ? "s" : ""}: ${missing
+          .map((m) => `${m.label} (accepts: ${m.aliases.join(", ")})`)
+          .join("; ")}`;
+        setParseError(msg);
+        toast.error(msg);
+        setParsed(null);
+        return;
+      }
+
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
       const normalized: ParsedRow[] = [];
@@ -504,6 +524,7 @@ const SellerDashboard = () => {
         return;
       }
       setParsed(normalized);
+      persistParsed(normalized, file.name, categoryId);
       toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
     } catch (err: any) {
       const msg = "Could not read file: " + (err?.message || "unknown");
