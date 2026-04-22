@@ -157,6 +157,57 @@ const SellerDashboard = () => {
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
+  const storageKey = user ? `${PARSED_STORAGE_PREFIX}${user.id}` : null;
+
+  // Restore last parsed upload on mount (per-user, 24h TTL)
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as PersistedParse;
+      if (!saved?.rows?.length) return;
+      if (Date.now() - (saved.savedAt ?? 0) > PARSED_STORAGE_TTL_MS) {
+        localStorage.removeItem(storageKey);
+        return;
+      }
+      setParsed(saved.rows);
+      setFileName(saved.fileName ?? "");
+      if (saved.categoryId) setCategoryId(saved.categoryId);
+      toast.info("Restored your last parsed upload — confirm or discard.");
+    } catch {
+      // ignore corrupt storage
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+
+  const persistParsed = (rows: ParsedRow[], name: string, catId: string) => {
+    if (!storageKey) return;
+    try {
+      const payload: PersistedParse = { fileName: name, categoryId: catId, rows, savedAt: Date.now() };
+      localStorage.setItem(storageKey, JSON.stringify(payload));
+    } catch {
+      // quota / serialization failure — non-fatal
+    }
+  };
+
+  const clearPersistedParsed = () => {
+    if (!storageKey) return;
+    try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+  };
+
+  const handleCategoryChange = (next: string) => {
+    if (uploading) {
+      toast.error("Upload in progress — wait for it to finish before switching category.");
+      return;
+    }
+    if (parsed && next !== categoryId) {
+      toast.error("Discard the parsed file first to switch category.");
+      return;
+    }
+    setCategoryId(next);
+  };
+
   const loadAll = async () => {
     if (!user) return;
     setCategoriesLoading(true);
