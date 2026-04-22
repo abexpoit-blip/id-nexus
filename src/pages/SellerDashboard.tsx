@@ -148,6 +148,9 @@ const SellerDashboard = () => {
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadStep, setUploadStep] = useState<UploadStep>("idle");
+  const [uploadProgress, setUploadProgress] = useState(0); // 0..100, used for parsing read
+  const [lastFile, setLastFile] = useState<File | null>(null);
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
