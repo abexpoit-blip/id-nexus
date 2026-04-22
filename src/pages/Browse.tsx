@@ -149,7 +149,7 @@ const Browse = () => {
 
       <main className="container py-8">
         <div className="mb-8">
-          <h1 className="font-display text-2xl font-bold md:text-3xl">Browse stock</h1>
+          <h1 className="font-display text-3xl font-bold md:text-4xl">Browse stock</h1>
           <p className="text-sm text-muted-foreground">
             Live prices set by admin. Stock updates in real-time as sellers upload.
           </p>
