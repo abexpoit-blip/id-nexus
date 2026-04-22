@@ -159,6 +159,10 @@ const SellerDashboard = () => {
   const [uploadProgress, setUploadProgress] = useState(0); // 0..100, used for parsing read
   const [lastFile, setLastFile] = useState<File | null>(null);
   const [duplicates, setDuplicates] = useState<DuplicateInfo | null>(null);
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [dupModalOpen, setDupModalOpen] = useState(false);
+  const [dupModalPage, setDupModalPage] = useState(1);
+  const [dupModalTab, setDupModalTab] = useState<"stock" | "file">("stock");
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
