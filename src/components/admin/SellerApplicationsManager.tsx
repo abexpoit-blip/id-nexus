@@ -80,6 +80,7 @@ export const SellerApplicationsManager = () => {
     setActing(app);
     setAction(act);
     setNote("");
+    setConfirmText("");
   };
 
   const submit = async () => {
@@ -103,6 +104,8 @@ export const SellerApplicationsManager = () => {
 
   const filtered = tab === "pending" ? apps.filter((a) => a.status === "pending") : apps;
   const pendingCount = apps.filter((a) => a.status === "pending").length;
+  const requiredConfirm = action === "approve" ? "APPROVE" : "REJECT";
+  const confirmOk = confirmText.trim().toUpperCase() === requiredConfirm;
 
   return (
     <Card className="border-border/60 bg-gradient-card p-6">
