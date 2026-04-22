@@ -133,6 +133,32 @@ export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
     toast.success(`Copied ${rows.length} UID:PASS lines`);
   };
 
+  const handleTelegram = async (order: OrderRow) => {
+    setBusyId(order.id);
+    const rows = await fetchAccounts(order.id);
+    if (!rows || rows.length === 0) {
+      setBusyId(null);
+      toast.error("No accounts found");
+      return;
+    }
+    const lines = rows.map((r) => `${r.uid}:${r.password}`).join("\n");
+    const header = `<b>${order.category_name}</b> — ${rows.length} account${rows.length === 1 ? "" : "s"}\n#${order.id.slice(0, 8)} · ৳${order.total_bdt.toFixed(2)}`;
+    const text = `${header}\n\n<pre>${lines}</pre>`;
+    const { data, error } = await supabase.functions.invoke("notify-telegram", {
+      body: { user_id: userId, text },
+    });
+    setBusyId(null);
+    if (error) {
+      toast.error(error.message || "Telegram send failed");
+      return;
+    }
+    if (data && (data as any).ok === false) {
+      toast.error("Link your Telegram account first (see Dashboard).");
+      return;
+    }
+    toast.success(`Sent ${rows.length} credentials to your Telegram`);
+  };
+
   return (
     <Card className="mt-6 border-border/60 bg-gradient-card p-6 shadow-card">
       <div className="mb-4 flex items-center justify-between gap-3">
