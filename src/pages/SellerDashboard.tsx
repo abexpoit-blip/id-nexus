@@ -497,6 +497,103 @@ const SellerDashboard = () => {
     toast.success(`Exported ${rows.length} rows`);
   };
 
+  // Inspect normalized rows and classify each colliding UID against latest DB state.
+  // Returns null on DB error (after surfacing toast / parseError).
+  const detectDuplicates = async (rows: ParsedRow[]): Promise<DuplicateInfo | null> => {
+    const seen = new Set<string>();
+    const dupInFile = new Set<string>();
+    for (const r of rows) {
+      if (seen.has(r.uid)) dupInFile.add(r.uid);
+      else seen.add(r.uid);
+    }
+    const dupInStock = new Set<string>();
+    const dupReplaced = new Set<string>();
+    if (user) {
+      const uidList = Array.from(seen);
+      const CHUNK = 500;
+      for (let i = 0; i < uidList.length; i += CHUNK) {
+        const slice = uidList.slice(i, i + CHUNK);
+        // Check across ALL sellers for "replaced" status (UID was already swapped out
+        // somewhere in the system — must never re-enter live stock).
+        const { data: existing, error: dupErr } = await supabase
+          .from("accounts")
+          .select("uid, status, seller_id")
+          .in("uid", slice);
+        if (dupErr) {
+          const msg = "Could not verify duplicates: " + dupErr.message;
+          setParseError(msg);
+          setUploadStep("error");
+          toast.error(msg);
+          return null;
+        }
+        for (const row of existing ?? []) {
+          const uid = String(row.uid);
+          if (row.status === "replaced") {
+            dupReplaced.add(uid);
+          } else if (row.seller_id === user.id) {
+            // Counts only seller's own active rows for the "in stock" rule.
+            dupInStock.add(uid);
+          } else {
+            // Another seller already owns this UID — treat as in-stock collision so it's blocked.
+            dupInStock.add(uid);
+          }
+        }
+      }
+    }
+    // Build rule map. Priority: already_replaced > in_stock > in_file
+    const ruleByUid: Record<string, "in_stock" | "in_file" | "already_replaced"> = {};
+    dupInFile.forEach((u) => { ruleByUid[u] = "in_file"; });
+    dupInStock.forEach((u) => { ruleByUid[u] = "in_stock"; });
+    dupReplaced.forEach((u) => { ruleByUid[u] = "already_replaced"; });
+    return {
+      duplicatesInFile: Array.from(dupInFile),
+      duplicatesInStock: Array.from(dupInStock),
+      duplicatesReplaced: Array.from(dupReplaced),
+      ruleByUid,
+      checkedAt: Date.now(),
+    };
+  };
+
+  const recheckDuplicates = async () => {
+    if (!parsed) return;
+    setRecheckLoading(true);
+    const info = await detectDuplicates(parsed);
+    setRecheckLoading(false);
+    if (!info) return;
+    setDuplicates(info);
+    const total =
+      info.duplicatesInFile.length +
+      info.duplicatesInStock.length +
+      info.duplicatesReplaced.length;
+    toast.success(
+      total === 0
+        ? "Recheck complete — no duplicates left."
+        : `Recheck complete — ${total} duplicate UID${total > 1 ? "s" : ""} flagged with latest stock state.`,
+    );
+  };
+
+  const loadAudits = async () => {
+    if (!user) return;
+    setAuditsLoading(true);
+    const { data, error } = await supabase
+      .from("seller_upload_audits")
+      .select("*")
+      .eq("seller_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setAuditsLoading(false);
+    if (error) {
+      toast.error("Failed to load upload history: " + error.message);
+      return;
+    }
+    setAudits(data ?? []);
+  };
+
+  useEffect(() => {
+    if (user) loadAudits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   const processFile = async (file: File) => {
     setParseError(null);
     setUploadError(null);
