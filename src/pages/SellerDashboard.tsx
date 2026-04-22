@@ -52,6 +52,11 @@ interface ParsedRow {
   email_password?: string;
 }
 
+interface DuplicateInfo {
+  duplicatesInFile: string[]; // duplicate within uploaded file
+  duplicatesInStock: string[]; // already in seller's existing accounts
+}
+
 interface StockSummary {
   category_id: string;
   category_name: string;
