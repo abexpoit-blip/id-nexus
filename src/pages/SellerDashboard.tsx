@@ -1018,36 +1018,84 @@ const SellerDashboard = () => {
                   <span className="text-muted-foreground">— {parsed.length} rows ready</span>
                 </div>
               </div>
-              {duplicates && (duplicates.duplicatesInFile.length > 0 || duplicates.duplicatesInStock.length > 0) && (
-                <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
-                  <div className="mb-2 flex items-center gap-2 font-medium text-warning">
-                    <AlertTriangle className="h-4 w-4" />
-                    Duplicate UID warning — server will skip these on insert
+              {duplicates && (() => {
+                const dupStockCount = duplicates.duplicatesInStock.length;
+                const dupFileCount = duplicates.duplicatesInFile.length;
+                const totalDup = dupStockCount + dupFileCount;
+                const uniqueDupSet = new Set<string>([
+                  ...duplicates.duplicatesInStock,
+                  ...duplicates.duplicatesInFile,
+                ]);
+                // rows that survive client-side skip (also dedup intra-file)
+                const seenLocal = new Set<string>();
+                const willInsert = parsed.filter((r) => {
+                  if (uniqueDupSet.has(r.uid)) return false;
+                  if (seenLocal.has(r.uid)) return false;
+                  seenLocal.add(r.uid);
+                  return true;
+                }).length;
+                const willSend = skipDuplicates ? willInsert : parsed.length;
+                if (totalDup === 0) return null;
+                return (
+                  <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 font-medium text-warning">
+                        <AlertTriangle className="h-4 w-4" />
+                        Duplicate UID warning
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1 px-2 text-xs"
+                        onClick={() => {
+                          setDupModalTab(dupStockCount > 0 ? "stock" : "file");
+                          setDupModalPage(1);
+                          setDupModalOpen(true);
+                        }}
+                      >
+                        <Eye className="h-3 w-3" /> View full duplicates
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="rounded border border-border/60 bg-background/40 p-2">
+                        <div className="text-muted-foreground">Already in your stock</div>
+                        <div className="font-display text-base font-semibold">{dupStockCount}</div>
+                      </div>
+                      <div className="rounded border border-border/60 bg-background/40 p-2">
+                        <div className="text-muted-foreground">Repeated in file</div>
+                        <div className="font-display text-base font-semibold">{dupFileCount}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-start justify-between gap-3 rounded-md border border-border/60 bg-background/40 p-2">
+                      <div className="flex-1">
+                        <Label htmlFor="skip-dup" className="text-[11px] font-medium">
+                          Skip duplicates automatically
+                        </Label>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          ON: client filters duplicates before sending — safer & faster.
+                          OFF: send everything; server will still skip — useful for full server-side audit.
+                          Overwriting existing UIDs is not supported (they may already be sold).
+                        </p>
+                      </div>
+                      <Switch
+                        id="skip-dup"
+                        checked={skipDuplicates}
+                        onCheckedChange={setSkipDuplicates}
+                        disabled={uploading}
+                      />
+                    </div>
+                    <div className="mt-2 rounded border border-primary/30 bg-primary/5 p-2 text-[11px]">
+                      <span className="font-medium text-primary">Upload summary:</span>{" "}
+                      Will send <strong>{willSend}</strong> row{willSend === 1 ? "" : "s"} ·
+                      Estimated insert: <strong>{willInsert}</strong> ·
+                      Skipped: <strong>{parsed.length - willSend}</strong>
+                      {!skipDuplicates && totalDup > 0 && (
+                        <span className="text-muted-foreground"> (server will reject {totalDup} duplicates)</span>
+                      )}
+                    </div>
                   </div>
-                  {duplicates.duplicatesInStock.length > 0 && (
-                    <div className="mb-2">
-                      <div className="mb-1 text-muted-foreground">
-                        Already in your stock ({duplicates.duplicatesInStock.length}):
-                      </div>
-                      <div className="max-h-24 overflow-auto rounded border border-border/60 bg-background/40 p-2 font-mono">
-                        {duplicates.duplicatesInStock.slice(0, 50).join(", ")}
-                        {duplicates.duplicatesInStock.length > 50 && ` … +${duplicates.duplicatesInStock.length - 50} more`}
-                      </div>
-                    </div>
-                  )}
-                  {duplicates.duplicatesInFile.length > 0 && (
-                    <div>
-                      <div className="mb-1 text-muted-foreground">
-                        Repeated within this file ({duplicates.duplicatesInFile.length}):
-                      </div>
-                      <div className="max-h-24 overflow-auto rounded border border-border/60 bg-background/40 p-2 font-mono">
-                        {duplicates.duplicatesInFile.slice(0, 50).join(", ")}
-                        {duplicates.duplicatesInFile.length > 50 && ` … +${duplicates.duplicatesInFile.length - 50} more`}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                );
+              })()}
               <div className="max-h-64 overflow-auto rounded-md border border-border/60">
                 <Table>
                   <TableHeader>
