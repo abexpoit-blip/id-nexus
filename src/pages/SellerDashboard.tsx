@@ -124,6 +124,19 @@ interface PersistedParse {
   savedAt: number;
 }
 
+type UploadStep = "idle" | "parsing" | "validating" | "uploading" | "confirming" | "done" | "error";
+
+const STEP_ORDER: UploadStep[] = ["parsing", "validating", "uploading", "confirming", "done"];
+const STEP_LABELS: Record<UploadStep, string> = {
+  idle: "Idle",
+  parsing: "Reading file",
+  validating: "Validating headers & rows",
+  uploading: "Sending to server",
+  confirming: "Confirming insert",
+  done: "Done",
+  error: "Error",
+};
+
 const SellerDashboard = () => {
   const { user, roles, loading: authLoading } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
