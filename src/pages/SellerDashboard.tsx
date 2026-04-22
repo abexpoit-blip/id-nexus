@@ -109,6 +109,21 @@ const HEADER_MAP: Record<string, keyof ParsedRow> = {
   mailpass: "email_password",
 };
 
+const REQUIRED_HEADER_TARGETS: Array<{ target: keyof ParsedRow; label: string; aliases: string[] }> = [
+  { target: "uid", label: "UID", aliases: ["uid", "id", "account"] },
+  { target: "password", label: "Password", aliases: ["password", "pass", "pwd"] },
+];
+
+const PARSED_STORAGE_PREFIX = "seller:lastParsedUpload:";
+const PARSED_STORAGE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+interface PersistedParse {
+  fileName: string;
+  categoryId: string;
+  rows: ParsedRow[];
+  savedAt: number;
+}
+
 const SellerDashboard = () => {
   const { user, roles, loading: authLoading } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
