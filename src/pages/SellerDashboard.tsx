@@ -810,7 +810,15 @@ const SellerDashboard = () => {
                 )}
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="ghost" onClick={() => setParsed(null)} disabled={uploading}>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setParsed(null);
+                    setFileName("");
+                    clearPersistedParsed();
+                  }}
+                  disabled={uploading}
+                >
                   Discard
                 </Button>
                 <Button
