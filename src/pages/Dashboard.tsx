@@ -113,7 +113,11 @@ const Dashboard = () => {
             <div className="mt-4 font-display text-3xl font-bold">
               ৳ {Number(profile?.balance_bdt ?? 0).toFixed(2)}
             </div>
-            <Button size="sm" className="mt-4 w-full bg-gradient-brand text-primary-foreground hover:opacity-90">
+            <Button
+              size="sm"
+              onClick={() => navigate("/wallet")}
+              className="mt-4 w-full bg-gradient-brand text-primary-foreground hover:opacity-90"
+            >
               Top up via bKash / Nagad
             </Button>
           </Card>
