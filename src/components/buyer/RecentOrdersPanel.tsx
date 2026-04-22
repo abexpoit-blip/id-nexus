@@ -169,27 +169,33 @@ export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
 
   const handleTelegram = async (order: OrderRow) => {
     setBusyId(order.id);
+    updateStatus(order.id, { status: "sending" });
     const rows = await fetchAccounts(order.id);
     if (!rows || rows.length === 0) {
       setBusyId(null);
+      updateStatus(order.id, { status: "failed", error: "No accounts found" });
       toast.error("No accounts found");
       return;
     }
+    // Compact, mobile-copy-friendly: only UID:PASS lines inside a code block.
+    // <pre> renders monospace; tap-and-hold "Copy" in Telegram grabs the whole block cleanly.
     const lines = rows.map((r) => `${r.uid}:${r.password}`).join("\n");
-    const header = `<b>${order.category_name}</b> — ${rows.length} account${rows.length === 1 ? "" : "s"}\n#${order.id.slice(0, 8)} · ৳${order.total_bdt.toFixed(2)}`;
-    const text = `${header}\n\n<pre>${lines}</pre>`;
+    const text = `<pre>${lines}</pre>`;
     const { data, error } = await supabase.functions.invoke("notify-telegram", {
       body: { user_id: userId, text },
     });
     setBusyId(null);
     if (error) {
+      updateStatus(order.id, { status: "failed", error: error.message });
       toast.error(error.message || "Telegram send failed");
       return;
     }
     if (data && (data as any).ok === false) {
+      updateStatus(order.id, { status: "failed", error: "Telegram not linked" });
       toast.error("Link your Telegram account first (see Dashboard).");
       return;
     }
+    updateStatus(order.id, { status: "sent" });
     toast.success(`Sent ${rows.length} credentials to your Telegram`);
   };
 
