@@ -398,8 +398,12 @@ const SellerDashboard = () => {
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setParseError(null);
+    setUploadError(null);
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large (max 5 MB)");
+      const msg = "File too large (max 5 MB)";
+      setParseError(msg);
+      toast.error(msg);
       return;
     }
     setFileName(file.name);
@@ -420,19 +424,25 @@ const SellerDashboard = () => {
         if (out.uid && out.password) normalized.push(out as ParsedRow);
       }
       if (normalized.length === 0) {
-        toast.error("No valid rows. Need columns: UID, Password (2FA, Email optional).");
+        const msg = "No valid rows. Need columns: UID, Password (2FA, Email optional).";
+        setParseError(msg);
+        toast.error(msg);
         setParsed(null);
         return;
       }
       if (normalized.length > 5000) {
-        toast.error("Max 5000 rows per upload");
+        const msg = "Max 5000 rows per upload";
+        setParseError(msg);
+        toast.error(msg);
         setParsed(null);
         return;
       }
       setParsed(normalized);
       toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
     } catch (err: any) {
-      toast.error("Could not read file: " + (err?.message || "unknown"));
+      const msg = "Could not read file: " + (err?.message || "unknown");
+      setParseError(msg);
+      toast.error(msg);
       setParsed(null);
     } finally {
       if (fileRef.current) fileRef.current.value = "";
@@ -441,9 +451,12 @@ const SellerDashboard = () => {
 
   const confirmUpload = async () => {
     if (!parsed || !categoryId) {
-      toast.error("Pick a category first");
+      const msg = "Pick a category first";
+      setUploadError(msg);
+      toast.error(msg);
       return;
     }
+    setUploadError(null);
     setUploading(true);
     const { data, error } = await supabase.rpc("seller_upload_accounts", {
       p_category_id: categoryId,
@@ -451,6 +464,7 @@ const SellerDashboard = () => {
     });
     setUploading(false);
     if (error) {
+      setUploadError(error.message);
       toast.error(error.message);
       return;
     }
