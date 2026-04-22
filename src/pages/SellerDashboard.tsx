@@ -741,6 +741,7 @@ const SellerDashboard = () => {
     const dupSet = new Set<string>([
       ...(duplicates?.duplicatesInStock ?? []),
       ...(duplicates?.duplicatesInFile ?? []),
+      ...(duplicates?.duplicatesReplaced ?? []),
     ]);
     let rowsToSend = parsed;
     if (skipDuplicates && dupSet.size > 0) {
@@ -790,6 +791,31 @@ const SellerDashboard = () => {
     } else {
       toast.success(msg + (remaining >= 0 ? ` ${remaining} uploads left today.` : ""));
     }
+
+    // Persist audit log row (best-effort — failure shouldn't block UX)
+    try {
+      const catName = categories.find((c) => c.id === categoryId)?.name ?? null;
+      await supabase.from("seller_upload_audits").insert({
+        seller_id: user!.id,
+        category_id: categoryId,
+        category_name: catName,
+        file_name: fileName || null,
+        rows_in_file: parsed.length,
+        rows_sent: rowsToSend.length,
+        rows_inserted: Number(r.inserted ?? 0),
+        duplicates_in_stock: duplicates?.duplicatesInStock.length ?? 0,
+        duplicates_in_file: duplicates?.duplicatesInFile.length ?? 0,
+        duplicates_already_replaced: duplicates?.duplicatesReplaced.length ?? 0,
+        invalid_rows: Number(r.invalid_count ?? 0),
+        over_limit_skipped: overLimit,
+        skip_duplicates_setting: skipDuplicates,
+        server_response: r,
+      });
+      loadAudits();
+    } catch (auditErr) {
+      console.warn("audit insert failed", auditErr);
+    }
+
     setParsed(null);
     setFileName("");
     clearPersistedParsed();
