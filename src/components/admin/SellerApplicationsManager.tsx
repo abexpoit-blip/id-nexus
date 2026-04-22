@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, CheckCircle2, XCircle, UserPlus } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, UserPlus, ChevronRight, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 interface Application {
@@ -50,6 +50,8 @@ export const SellerApplicationsManager = () => {
   const [action, setAction] = useState<"approve" | "reject" | null>(null);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [confirmText, setConfirmText] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -78,6 +80,7 @@ export const SellerApplicationsManager = () => {
     setActing(app);
     setAction(act);
     setNote("");
+    setConfirmText("");
   };
 
   const submit = async () => {
@@ -101,6 +104,8 @@ export const SellerApplicationsManager = () => {
 
   const filtered = tab === "pending" ? apps.filter((a) => a.status === "pending") : apps;
   const pendingCount = apps.filter((a) => a.status === "pending").length;
+  const requiredConfirm = action === "approve" ? "APPROVE" : "REJECT";
+  const confirmOk = confirmText.trim().toUpperCase() === requiredConfirm;
 
   return (
     <Card className="border-border/60 bg-gradient-card p-6">
@@ -146,6 +151,7 @@ export const SellerApplicationsManager = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Applicant</TableHead>
                 <TableHead>Telegram</TableHead>
                 <TableHead>Reason</TableHead>
@@ -155,8 +161,20 @@ export const SellerApplicationsManager = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((a) => (
-                <TableRow key={a.id}>
+              {filtered.map((a) => {
+                const isOpen = expanded === a.id;
+                return (
+                <>
+                <TableRow
+                  key={a.id}
+                  className="cursor-pointer"
+                  onClick={() => setExpanded(isOpen ? null : a.id)}
+                >
+                  <TableCell>
+                    <ChevronRight
+                      className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium">{a.display_name ?? a.email.split("@")[0]}</div>
                     <div className="text-xs text-muted-foreground">{a.email}</div>
@@ -165,7 +183,7 @@ export const SellerApplicationsManager = () => {
                     {a.telegram_username ? `@${a.telegram_username}` : "—"}
                   </TableCell>
                   <TableCell className="max-w-xs">
-                    <p className="line-clamp-3 text-sm text-muted-foreground">
+                    <p className="line-clamp-2 text-sm text-muted-foreground">
                       {a.reason ?? "—"}
                     </p>
                   </TableCell>
@@ -178,7 +196,7 @@ export const SellerApplicationsManager = () => {
                   <TableCell className="text-xs text-muted-foreground">
                     {new Date(a.created_at).toLocaleString()}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     {a.status === "pending" ? (
                       <div className="inline-flex gap-1">
                         <Button
@@ -205,40 +223,135 @@ export const SellerApplicationsManager = () => {
                     )}
                   </TableCell>
                 </TableRow>
-              ))}
+                {isOpen && (
+                  <TableRow key={a.id + "-details"} className="bg-muted/30 hover:bg-muted/30">
+                    <TableCell colSpan={7} className="p-0">
+                      <div className="grid gap-4 p-5 sm:grid-cols-2">
+                        <div>
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">Applicant</div>
+                          <div className="mt-1 font-medium">{a.display_name ?? "—"}</div>
+                          <div className="text-sm text-muted-foreground">{a.email}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">Telegram</div>
+                          <div className="mt-1 font-mono text-sm">
+                            {a.telegram_username ? `@${a.telegram_username}` : "—"}
+                          </div>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">Reason</div>
+                          <p className="mt-1 whitespace-pre-wrap text-sm">
+                            {a.reason?.trim() ? a.reason : <span className="text-muted-foreground">— No reason provided —</span>}
+                          </p>
+                        </div>
+                        <div>
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">User ID</div>
+                          <div className="mt-1 font-mono text-xs text-muted-foreground">{a.user_id}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">Application ID</div>
+                          <div className="mt-1 font-mono text-xs text-muted-foreground">{a.id}</div>
+                        </div>
+                        {a.admin_note && (
+                          <div className="sm:col-span-2">
+                            <div className="text-xs uppercase tracking-widest text-muted-foreground">Admin note</div>
+                            <p className="mt-1 text-sm">{a.admin_note}</p>
+                          </div>
+                        )}
+                        {a.reviewed_at && (
+                          <div className="sm:col-span-2 text-xs text-muted-foreground">
+                            Reviewed {new Date(a.reviewed_at).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                </>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
       )}
 
       <Dialog open={!!acting} onOpenChange={(o) => !o && setActing(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="capitalize">{action} seller application</DialogTitle>
-            <DialogDescription>
-              {acting?.display_name ?? acting?.email} · @{acting?.telegram_username}
-              <br />
-              {action === "approve"
-                ? "This will grant the seller role and revoke buyer access."
-                : "Application will be rejected. Applicant can re-apply later."}
+            <DialogTitle className="flex items-center gap-2 capitalize">
+              <AlertTriangle className={action === "approve" ? "h-5 w-5 text-warning" : "h-5 w-5 text-destructive"} />
+              {action} seller application
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-1 pt-1">
+                <div className="font-medium text-foreground">
+                  {acting?.display_name ?? acting?.email}
+                  {acting?.telegram_username ? ` · @${acting.telegram_username}` : ""}
+                </div>
+                <div className="text-xs">{acting?.email}</div>
+              </div>
             </DialogDescription>
           </DialogHeader>
+
+          <div
+            className={`rounded-md border p-3 text-sm ${
+              action === "approve"
+                ? "border-warning/40 bg-warning/10 text-warning-foreground"
+                : "border-destructive/40 bg-destructive/10"
+            }`}
+          >
+            <div className="mb-1 flex items-center gap-2 font-semibold">
+              <AlertTriangle className="h-4 w-4" />
+              {action === "approve" ? "Before you approve" : "Before you reject"}
+            </div>
+            {action === "approve" ? (
+              <ul className="ml-5 list-disc space-y-1 text-xs">
+                <li>Buyer role will be <b>removed</b> and Seller role granted.</li>
+                <li>Applicant will <b>lose access</b> to buyer-only features (browsing, ordering).</li>
+                <li>They will be able to upload stock and request withdrawals immediately.</li>
+                <li>This action is logged and cannot be auto-reversed.</li>
+              </ul>
+            ) : (
+              <ul className="ml-5 list-disc space-y-1 text-xs">
+                <li>Applicant will be notified with your note (if provided).</li>
+                <li>They will <b>keep buyer access</b> and can re-apply later.</li>
+                <li>No roles or balances are changed.</li>
+              </ul>
+            )}
+          </div>
+
           <div className="space-y-2">
-            <label className="text-sm font-medium">Note (optional)</label>
+            <label className="text-sm font-medium">
+              Note {action === "reject" ? <span className="text-destructive">(recommended — shown to applicant)</span> : "(optional)"}
+            </label>
             <Input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Visible to applicant"
+              placeholder={action === "approve" ? "Welcome message (optional)" : "Why are you rejecting?"}
               maxLength={500}
             />
           </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Type <span className="font-mono font-bold">{requiredConfirm}</span> to confirm
+            </label>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={requiredConfirm}
+              autoComplete="off"
+              className={confirmOk ? "border-success/60" : ""}
+            />
+          </div>
+
           <DialogFooter>
             <Button variant="ghost" onClick={() => setActing(null)} disabled={submitting}>
               Cancel
             </Button>
             <Button
               onClick={submit}
-              disabled={submitting}
+              disabled={submitting || !confirmOk}
               className={
                 action === "approve"
                   ? "bg-gradient-brand text-primary-foreground hover:opacity-90"
