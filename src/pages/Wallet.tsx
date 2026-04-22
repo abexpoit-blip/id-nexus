@@ -368,13 +368,13 @@ const Wallet = () => {
                     {tPreview && (
                       <img src={tPreview} alt="Screenshot preview" className="max-h-48 w-auto self-start rounded border border-border/60" />
                     )}
-                    {tFile && !tUploadedUrl && (
+                    {tFile && tFileMeta && !tUploadedUrl && (
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
                         onClick={uploadScreenshot}
-                        disabled={tUploading}
+                        disabled={tUploading || !tFileMeta}
                         className="self-start"
                       >
                         {tUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading…</> : <><Upload className="mr-2 h-4 w-4" />Upload now (test)</>}
