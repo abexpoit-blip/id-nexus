@@ -65,6 +65,9 @@ const Wallet = () => {
   const [tNote, setTNote] = useState("");
   const [tFile, setTFile] = useState<File | null>(null);
   const [tPreview, setTPreview] = useState<string | null>(null);
+  const [tUploading, setTUploading] = useState(false);
+  const [tUploadedUrl, setTUploadedUrl] = useState<string | null>(null);
+  const [tUploadError, setTUploadError] = useState<string | null>(null);
 
   // Withdraw form
   const [wAmount, setWAmount] = useState("");
@@ -113,15 +116,12 @@ const Wallet = () => {
     }
     setBusy(true);
     try {
-      // 1) Upload screenshot via edge function -> VPS
-      const fd = new FormData();
-      fd.append("file", tFile);
-      const { data: up, error: upErr } = await supabase.functions.invoke("upload-screenshot", {
-        body: fd,
-      });
-      if (upErr) throw new Error(upErr.message);
-      const url = (up as any)?.url;
-      if (!url) throw new Error("Upload failed (no URL returned)");
+      // 1) Upload screenshot via edge function -> VPS (reuse if already uploaded)
+      let url = tUploadedUrl;
+      if (!url) {
+        url = await uploadScreenshot();
+        if (!url) throw new Error("Upload failed");
+      }
 
       // 2) Submit top-up request
       const { error } = await supabase.rpc("submit_topup_request", {
@@ -132,11 +132,37 @@ const Wallet = () => {
       toast.success("Top-up submitted — admin will review.");
       setTAmount(""); setTSender(""); setTTxn(""); setTNote("");
       setTFile(null); setTPreview(null);
+      setTUploadedUrl(null); setTUploadError(null);
       loadAll();
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to submit");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const uploadScreenshot = async (): Promise<string | null> => {
+    if (!tFile) return null;
+    setTUploading(true);
+    setTUploadError(null);
+    setTUploadedUrl(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", tFile);
+      const { data, error } = await supabase.functions.invoke("upload-screenshot", { body: fd });
+      if (error) throw new Error(error.message);
+      const url = (data as any)?.url;
+      if (!url) throw new Error("Server did not return a URL");
+      setTUploadedUrl(url);
+      toast.success("Screenshot uploaded ✓");
+      return url;
+    } catch (e: any) {
+      const msg = e?.message ?? "Upload failed";
+      setTUploadError(msg);
+      toast.error(`Upload failed: ${msg}`);
+      return null;
+    } finally {
+      setTUploading(false);
     }
   };
 
@@ -258,6 +284,8 @@ const Wallet = () => {
                         setTFile(f);
                         if (tPreview) URL.revokeObjectURL(tPreview);
                         setTPreview(f ? URL.createObjectURL(f) : null);
+                        setTUploadedUrl(null);
+                        setTUploadError(null);
                       }}
                     />
                     <label htmlFor="topup-screenshot" className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
@@ -266,6 +294,31 @@ const Wallet = () => {
                     </label>
                     {tPreview && (
                       <img src={tPreview} alt="Screenshot preview" className="max-h-48 w-auto self-start rounded border border-border/60" />
+                    )}
+                    {tFile && !tUploadedUrl && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={uploadScreenshot}
+                        disabled={tUploading}
+                        className="self-start"
+                      >
+                        {tUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading…</> : <><Upload className="mr-2 h-4 w-4" />Upload now (test)</>}
+                      </Button>
+                    )}
+                    {tUploadedUrl && (
+                      <div className="rounded-md border border-success/40 bg-success/10 p-2 text-xs">
+                        <div className="font-medium text-success">✓ Uploaded successfully</div>
+                        <a href={tUploadedUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-primary underline">
+                          {tUploadedUrl}
+                        </a>
+                      </div>
+                    )}
+                    {tUploadError && (
+                      <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+                        ✗ {tUploadError}
+                      </div>
                     )}
                     <p className="text-xs text-muted-foreground">
                       Required for proof. Auto-deleted 6 hours after admin approval.
