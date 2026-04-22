@@ -65,6 +65,9 @@ const Wallet = () => {
   const [tNote, setTNote] = useState("");
   const [tFile, setTFile] = useState<File | null>(null);
   const [tPreview, setTPreview] = useState<string | null>(null);
+  const [tUploading, setTUploading] = useState(false);
+  const [tUploadedUrl, setTUploadedUrl] = useState<string | null>(null);
+  const [tUploadError, setTUploadError] = useState<string | null>(null);
 
   // Withdraw form
   const [wAmount, setWAmount] = useState("");
@@ -113,15 +116,12 @@ const Wallet = () => {
     }
     setBusy(true);
     try {
-      // 1) Upload screenshot via edge function -> VPS
-      const fd = new FormData();
-      fd.append("file", tFile);
-      const { data: up, error: upErr } = await supabase.functions.invoke("upload-screenshot", {
-        body: fd,
-      });
-      if (upErr) throw new Error(upErr.message);
-      const url = (up as any)?.url;
-      if (!url) throw new Error("Upload failed (no URL returned)");
+      // 1) Upload screenshot via edge function -> VPS (reuse if already uploaded)
+      let url = tUploadedUrl;
+      if (!url) {
+        url = await uploadScreenshot();
+        if (!url) throw new Error("Upload failed");
+      }
 
       // 2) Submit top-up request
       const { error } = await supabase.rpc("submit_topup_request", {
@@ -132,11 +132,37 @@ const Wallet = () => {
       toast.success("Top-up submitted — admin will review.");
       setTAmount(""); setTSender(""); setTTxn(""); setTNote("");
       setTFile(null); setTPreview(null);
+      setTUploadedUrl(null); setTUploadError(null);
       loadAll();
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to submit");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const uploadScreenshot = async (): Promise<string | null> => {
+    if (!tFile) return null;
+    setTUploading(true);
+    setTUploadError(null);
+    setTUploadedUrl(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", tFile);
+      const { data, error } = await supabase.functions.invoke("upload-screenshot", { body: fd });
+      if (error) throw new Error(error.message);
+      const url = (data as any)?.url;
+      if (!url) throw new Error("Server did not return a URL");
+      setTUploadedUrl(url);
+      toast.success("Screenshot uploaded ✓");
+      return url;
+    } catch (e: any) {
+      const msg = e?.message ?? "Upload failed";
+      setTUploadError(msg);
+      toast.error(`Upload failed: ${msg}`);
+      return null;
+    } finally {
+      setTUploading(false);
     }
   };
 
