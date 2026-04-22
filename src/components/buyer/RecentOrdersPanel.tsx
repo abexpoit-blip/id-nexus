@@ -263,9 +263,18 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
           <div className="flex items-center gap-2 font-display text-lg font-semibold">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
             Delivered orders (last 48 hours)
+            {telegramLinked ? (
+              <Badge className="bg-success/20 text-success hover:bg-success/20">
+                <CheckCircle2 className="mr-1 h-3 w-3" /> Telegram linked
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-warning/40 text-warning">
+                <XCircle className="mr-1 h-3 w-3" /> Telegram not linked
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
-            Download CSV (Excel-compatible) or copy UID:PASS for each order. Older orders remain accessible from the order page.
+            Download CSV, copy UID:PASS, or send to Telegram. Template: <span className="font-medium capitalize text-foreground">{template}</span> · change in the Telegram card above.
           </p>
         </div>
         <Badge variant="outline" className="border-primary/40 text-primary">
