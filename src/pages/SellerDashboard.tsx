@@ -601,13 +601,23 @@ const SellerDashboard = () => {
     }
     setUploadError(null);
     setUploading(true);
+    setUploadStep("uploading");
+    setUploadProgress(0);
+    // simple synthetic progress while RPC is in flight
+    const tick = window.setInterval(() => {
+      setUploadProgress((p) => (p < 90 ? p + 7 : p));
+    }, 250);
     const { data, error } = await supabase.rpc("seller_upload_accounts", {
       p_category_id: categoryId,
       p_rows: parsed as any,
     });
+    window.clearInterval(tick);
+    setUploadProgress(100);
+    setUploadStep("confirming");
     setUploading(false);
     if (error) {
       setUploadError(error.message);
+      setUploadStep("error");
       toast.error(error.message);
       return;
     }
@@ -624,6 +634,9 @@ const SellerDashboard = () => {
     setParsed(null);
     setFileName("");
     clearPersistedParsed();
+    setLastFile(null);
+    setUploadStep("done");
+    window.setTimeout(() => setUploadStep("idle"), 1500);
     loadAll();
   };
 
