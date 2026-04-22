@@ -57,6 +57,9 @@ interface ParsedRow {
 interface DuplicateInfo {
   duplicatesInFile: string[]; // duplicate within uploaded file
   duplicatesInStock: string[]; // already in seller's existing accounts
+  duplicatesReplaced: string[]; // uid already exists in any account marked 'replaced' (own or other sellers)
+  ruleByUid: Record<string, "in_stock" | "in_file" | "already_replaced">;
+  checkedAt: number;
 }
 
 interface StockSummary {
