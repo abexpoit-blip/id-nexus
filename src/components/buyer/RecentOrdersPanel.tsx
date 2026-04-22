@@ -352,7 +352,8 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
                   size="sm"
                   variant="outline"
                   onClick={() => handleTelegram(o)}
-                  disabled={busyId === o.id}
+                  disabled={busyId === o.id || !telegramLinked}
+                  title={!telegramLinked ? "Link your Telegram account first" : undefined}
                 >
                   {busyId === o.id && statuses[o.id]?.status === "sending" ? (
                     <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
