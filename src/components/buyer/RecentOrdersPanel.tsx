@@ -220,6 +220,14 @@ export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
                 </Button>
                 <Button
                   size="sm"
+                  variant="outline"
+                  onClick={() => handleTelegram(o)}
+                  disabled={busyId === o.id}
+                >
+                  <Send className="mr-2 h-3.5 w-3.5" /> Send to Telegram
+                </Button>
+                <Button
+                  size="sm"
                   onClick={() => handleDownload(o)}
                   disabled={busyId === o.id}
                   className="bg-gradient-brand text-primary-foreground hover:opacity-90"
