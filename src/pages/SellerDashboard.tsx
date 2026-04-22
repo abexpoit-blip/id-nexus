@@ -990,6 +990,36 @@ const SellerDashboard = () => {
                   <span className="text-muted-foreground">— {parsed.length} rows ready</span>
                 </div>
               </div>
+              {duplicates && (duplicates.duplicatesInFile.length > 0 || duplicates.duplicatesInStock.length > 0) && (
+                <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
+                  <div className="mb-2 flex items-center gap-2 font-medium text-warning">
+                    <AlertTriangle className="h-4 w-4" />
+                    Duplicate UID warning — server will skip these on insert
+                  </div>
+                  {duplicates.duplicatesInStock.length > 0 && (
+                    <div className="mb-2">
+                      <div className="mb-1 text-muted-foreground">
+                        Already in your stock ({duplicates.duplicatesInStock.length}):
+                      </div>
+                      <div className="max-h-24 overflow-auto rounded border border-border/60 bg-background/40 p-2 font-mono">
+                        {duplicates.duplicatesInStock.slice(0, 50).join(", ")}
+                        {duplicates.duplicatesInStock.length > 50 && ` … +${duplicates.duplicatesInStock.length - 50} more`}
+                      </div>
+                    </div>
+                  )}
+                  {duplicates.duplicatesInFile.length > 0 && (
+                    <div>
+                      <div className="mb-1 text-muted-foreground">
+                        Repeated within this file ({duplicates.duplicatesInFile.length}):
+                      </div>
+                      <div className="max-h-24 overflow-auto rounded border border-border/60 bg-background/40 p-2 font-mono">
+                        {duplicates.duplicatesInFile.slice(0, 50).join(", ")}
+                        {duplicates.duplicatesInFile.length > 50 && ` … +${duplicates.duplicatesInFile.length - 50} more`}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="max-h-64 overflow-auto rounded-md border border-border/60">
                 <Table>
                   <TableHeader>
