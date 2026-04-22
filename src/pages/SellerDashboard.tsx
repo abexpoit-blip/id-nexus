@@ -660,6 +660,27 @@ const SellerDashboard = () => {
       toast.error(msg);
       return;
     }
+    // Apply client-side dedup based on user's choice
+    const dupSet = new Set<string>([
+      ...(duplicates?.duplicatesInStock ?? []),
+      ...(duplicates?.duplicatesInFile ?? []),
+    ]);
+    let rowsToSend = parsed;
+    if (skipDuplicates && dupSet.size > 0) {
+      const seenLocal = new Set<string>();
+      rowsToSend = parsed.filter((r) => {
+        if (dupSet.has(r.uid)) return false;
+        if (seenLocal.has(r.uid)) return false;
+        seenLocal.add(r.uid);
+        return true;
+      });
+    }
+    if (rowsToSend.length === 0) {
+      const msg = "Nothing left to upload after skipping duplicates.";
+      setUploadError(msg);
+      toast.error(msg);
+      return;
+    }
     setUploadError(null);
     setUploading(true);
     setUploadStep("uploading");
@@ -670,7 +691,7 @@ const SellerDashboard = () => {
     }, 250);
     const { data, error } = await supabase.rpc("seller_upload_accounts", {
       p_category_id: categoryId,
-      p_rows: parsed as any,
+      p_rows: rowsToSend as any,
     });
     window.clearInterval(tick);
     setUploadProgress(100);
