@@ -116,6 +116,10 @@ const SellerDashboard = () => {
   const [parsed, setParsed] = useState<ParsedRow[] | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [uploading, setUploading] = useState(false);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
