@@ -1024,6 +1024,7 @@ const SellerDashboard = () => {
                     setParsed(null);
                     setFileName("");
                     clearPersistedParsed();
+                    setDuplicates(null);
                   }}
                   disabled={uploading}
                 >
@@ -1031,7 +1032,14 @@ const SellerDashboard = () => {
                 </Button>
                 <Button
                   onClick={confirmUpload}
-                  disabled={uploading || !categoryId}
+                  disabled={
+                    uploading ||
+                    !categoryId ||
+                    uploadStep === "parsing" ||
+                    uploadStep === "validating" ||
+                    uploadStep === "uploading" ||
+                    uploadStep === "confirming"
+                  }
                   className="bg-gradient-brand text-primary-foreground hover:opacity-90"
                 >
                   {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
