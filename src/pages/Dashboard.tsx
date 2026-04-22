@@ -26,6 +26,7 @@ interface Profile {
   balance_bdt: number;
   telegram_link_code: string;
   telegram_chat_id: number | null;
+  buyer_settings: { telegram_template?: "compact" | "detailed" } | null;
 }
 
 const Dashboard = () => {
@@ -38,7 +39,7 @@ const Dashboard = () => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("display_name, email, balance_bdt, telegram_link_code, telegram_chat_id")
+      .select("display_name, email, balance_bdt, telegram_link_code, telegram_chat_id, buyer_settings")
       .eq("id", user.id)
       .single()
       .then(({ data, error }) => {
@@ -56,6 +57,23 @@ const Dashboard = () => {
     if (!profile) return;
     navigator.clipboard.writeText(`/start ${profile.telegram_link_code}`);
     toast.success("Telegram command copied");
+  };
+
+  const template: "compact" | "detailed" = profile?.buyer_settings?.telegram_template ?? "compact";
+
+  const setTemplate = async (next: "compact" | "detailed") => {
+    if (!user || !profile) return;
+    const newSettings = { ...(profile.buyer_settings ?? {}), telegram_template: next };
+    setProfile({ ...profile, buyer_settings: newSettings });
+    const { error } = await supabase
+      .from("profiles")
+      .update({ buyer_settings: newSettings })
+      .eq("id", user.id);
+    if (error) {
+      toast.error("Could not save template preference");
+    } else {
+      toast.success(`Telegram template set to ${next}`);
+    }
   };
 
   if (loading) {
@@ -188,6 +206,25 @@ const Dashboard = () => {
                   <Copy className="mr-2 h-3.5 w-3.5" /> Copy
                 </Button>
               </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/40 pt-4">
+                <span className="text-xs uppercase tracking-widest text-muted-foreground">Message template</span>
+                <Button
+                  size="sm"
+                  variant={template === "compact" ? "default" : "outline"}
+                  onClick={() => setTemplate("compact")}
+                  className={template === "compact" ? "bg-gradient-brand text-primary-foreground hover:opacity-90" : ""}
+                >
+                  Compact (UID:PASS only)
+                </Button>
+                <Button
+                  size="sm"
+                  variant={template === "detailed" ? "default" : "outline"}
+                  onClick={() => setTemplate("detailed")}
+                  className={template === "detailed" ? "bg-gradient-brand text-primary-foreground hover:opacity-90" : ""}
+                >
+                  Detailed (with header & 2FA)
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
@@ -253,7 +290,13 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {user && <RecentOrdersPanel userId={user.id} />}
+        {user && (
+          <RecentOrdersPanel
+            userId={user.id}
+            telegramLinked={!!profile?.telegram_chat_id}
+            template={template}
+          />
+        )}
       </main>
     </div>
   );

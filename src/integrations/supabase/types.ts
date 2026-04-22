@@ -327,6 +327,7 @@ export type Database = {
       profiles: {
         Row: {
           balance_bdt: number
+          buyer_settings: Json
           created_at: string
           display_name: string | null
           email: string | null
@@ -339,6 +340,7 @@ export type Database = {
         }
         Insert: {
           balance_bdt?: number
+          buyer_settings?: Json
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -351,6 +353,7 @@ export type Database = {
         }
         Update: {
           balance_bdt?: number
+          buyer_settings?: Json
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -542,6 +545,45 @@ export type Database = {
           seller_id?: string
           server_response?: Json | null
           skip_duplicates_setting?: boolean
+        }
+        Relationships: []
+      }
+      telegram_deliveries: {
+        Row: {
+          attempt_count: number
+          buyer_id: string
+          created_at: string
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          order_id: string
+          sent_at: string | null
+          status: Database["public"]["Enums"]["telegram_delivery_status"]
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          buyer_id: string
+          created_at?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          order_id: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["telegram_delivery_status"]
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          order_id?: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["telegram_delivery_status"]
+          updated_at?: string
         }
         Relationships: []
       }
@@ -835,6 +877,7 @@ export type Database = {
         | "out_of_window"
         | "not_yours"
       replacement_status: "pending" | "processing" | "resolved" | "rejected"
+      telegram_delivery_status: "pending" | "sending" | "sent" | "failed"
       topup_status: "pending" | "approved" | "rejected"
       withdraw_status: "pending" | "approved" | "paid" | "rejected"
     }
@@ -1003,6 +1046,7 @@ export const Constants = {
         "not_yours",
       ],
       replacement_status: ["pending", "processing", "resolved", "rejected"],
+      telegram_delivery_status: ["pending", "sending", "sent", "failed"],
       topup_status: ["pending", "approved", "rejected"],
       withdraw_status: ["pending", "approved", "paid", "rejected"],
     },
