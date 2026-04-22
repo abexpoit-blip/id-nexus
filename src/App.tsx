@@ -13,6 +13,7 @@ import SellerDashboard from "./pages/SellerDashboard.tsx";
 import Replacements from "./pages/Replacements.tsx";
 import Admin from "./pages/Admin.tsx";
 import Wallet from "./pages/Wallet.tsx";
+import AuditLog from "./pages/AuditLog.tsx";
 import { AuthProvider } from "./hooks/useAuth";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -81,6 +82,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Admin />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/audit"
+              element={
+                <ProtectedRoute>
+                  <AuditLog />
                 </ProtectedRoute>
               }
             />
