@@ -452,6 +452,63 @@ export type Database = {
         }
         Relationships: []
       }
+      seller_upload_audits: {
+        Row: {
+          category_id: string | null
+          category_name: string | null
+          created_at: string
+          duplicates_already_replaced: number
+          duplicates_in_file: number
+          duplicates_in_stock: number
+          file_name: string | null
+          id: string
+          invalid_rows: number
+          over_limit_skipped: number
+          rows_in_file: number
+          rows_inserted: number
+          rows_sent: number
+          seller_id: string
+          server_response: Json | null
+          skip_duplicates_setting: boolean
+        }
+        Insert: {
+          category_id?: string | null
+          category_name?: string | null
+          created_at?: string
+          duplicates_already_replaced?: number
+          duplicates_in_file?: number
+          duplicates_in_stock?: number
+          file_name?: string | null
+          id?: string
+          invalid_rows?: number
+          over_limit_skipped?: number
+          rows_in_file?: number
+          rows_inserted?: number
+          rows_sent?: number
+          seller_id: string
+          server_response?: Json | null
+          skip_duplicates_setting?: boolean
+        }
+        Update: {
+          category_id?: string | null
+          category_name?: string | null
+          created_at?: string
+          duplicates_already_replaced?: number
+          duplicates_in_file?: number
+          duplicates_in_stock?: number
+          file_name?: string | null
+          id?: string
+          invalid_rows?: number
+          over_limit_skipped?: number
+          rows_in_file?: number
+          rows_inserted?: number
+          rows_sent?: number
+          seller_id?: string
+          server_response?: Json | null
+          skip_duplicates_setting?: boolean
+        }
+        Relationships: []
+      }
       topup_requests: {
         Row: {
           admin_note: string | null
