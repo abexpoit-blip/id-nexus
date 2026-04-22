@@ -488,6 +488,7 @@ const SellerDashboard = () => {
   const processFile = async (file: File) => {
     setParseError(null);
     setUploadError(null);
+    setDuplicates(null);
     setLastFile(file);
     if (file.size > 5 * 1024 * 1024) {
       const msg = "File too large (max 5 MB)";
@@ -520,7 +521,10 @@ const SellerDashboard = () => {
       for (const c of chunks) { merged.set(c, offset); offset += c.byteLength; }
       setUploadProgress(100);
       setUploadStep("validating");
-      const wb = XLSX.read(merged, { type: "array" });
+      const isCsv = /\.csv$/i.test(file.name) || file.type === "text/csv";
+      const wb = isCsv
+        ? XLSX.read(new TextDecoder("utf-8").decode(merged), { type: "string" })
+        : XLSX.read(merged, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
 
       // Header validation BEFORE row parsing
