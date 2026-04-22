@@ -827,6 +827,15 @@ export type Database = {
         Args: { p_id: string; p_note?: string }
         Returns: Json
       }
+      admin_replace_with_category: {
+        Args: {
+          p_category_id: string
+          p_item_id: string
+          p_message?: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
       admin_resolve_replacement_item: {
         Args: { p_action: string; p_item_id: string; p_reason?: string }
         Returns: Json
