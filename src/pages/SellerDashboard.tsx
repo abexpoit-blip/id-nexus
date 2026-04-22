@@ -109,6 +109,21 @@ const HEADER_MAP: Record<string, keyof ParsedRow> = {
   mailpass: "email_password",
 };
 
+const REQUIRED_HEADER_TARGETS: Array<{ target: keyof ParsedRow; label: string; aliases: string[] }> = [
+  { target: "uid", label: "UID", aliases: ["uid", "id", "account"] },
+  { target: "password", label: "Password", aliases: ["password", "pass", "pwd"] },
+];
+
+const PARSED_STORAGE_PREFIX = "seller:lastParsedUpload:";
+const PARSED_STORAGE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+interface PersistedParse {
+  fileName: string;
+  categoryId: string;
+  rows: ParsedRow[];
+  savedAt: number;
+}
+
 const SellerDashboard = () => {
   const { user, roles, loading: authLoading } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -141,6 +156,57 @@ const SellerDashboard = () => {
   const [usedToday, setUsedToday] = useState<number>(0);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
+
+  const storageKey = user ? `${PARSED_STORAGE_PREFIX}${user.id}` : null;
+
+  // Restore last parsed upload on mount (per-user, 24h TTL)
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as PersistedParse;
+      if (!saved?.rows?.length) return;
+      if (Date.now() - (saved.savedAt ?? 0) > PARSED_STORAGE_TTL_MS) {
+        localStorage.removeItem(storageKey);
+        return;
+      }
+      setParsed(saved.rows);
+      setFileName(saved.fileName ?? "");
+      if (saved.categoryId) setCategoryId(saved.categoryId);
+      toast.info("Restored your last parsed upload — confirm or discard.");
+    } catch {
+      // ignore corrupt storage
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+
+  const persistParsed = (rows: ParsedRow[], name: string, catId: string) => {
+    if (!storageKey) return;
+    try {
+      const payload: PersistedParse = { fileName: name, categoryId: catId, rows, savedAt: Date.now() };
+      localStorage.setItem(storageKey, JSON.stringify(payload));
+    } catch {
+      // quota / serialization failure — non-fatal
+    }
+  };
+
+  const clearPersistedParsed = () => {
+    if (!storageKey) return;
+    try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+  };
+
+  const handleCategoryChange = (next: string) => {
+    if (uploading) {
+      toast.error("Upload in progress — wait for it to finish before switching category.");
+      return;
+    }
+    if (parsed && next !== categoryId) {
+      toast.error("Discard the parsed file first to switch category.");
+      return;
+    }
+    setCategoryId(next);
+  };
 
   const loadAll = async () => {
     if (!user) return;
@@ -411,6 +477,26 @@ const SellerDashboard = () => {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
+
+      // Header validation BEFORE row parsing
+      const headerRows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
+      const headerRow = (headerRows[0] ?? []).map((h) => String(h ?? "").trim().toLowerCase().replace(/[\s\-]/g, "_"));
+      const presentTargets = new Set<string>();
+      headerRow.forEach((h) => {
+        const t = HEADER_MAP[h];
+        if (t) presentTargets.add(t);
+      });
+      const missing = REQUIRED_HEADER_TARGETS.filter((r) => !presentTargets.has(r.target));
+      if (missing.length > 0) {
+        const msg = `Missing required column${missing.length > 1 ? "s" : ""}: ${missing
+          .map((m) => `${m.label} (accepts: ${m.aliases.join(", ")})`)
+          .join("; ")}`;
+        setParseError(msg);
+        toast.error(msg);
+        setParsed(null);
+        return;
+      }
+
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
       const normalized: ParsedRow[] = [];
@@ -438,6 +524,7 @@ const SellerDashboard = () => {
         return;
       }
       setParsed(normalized);
+      persistParsed(normalized, file.name, categoryId);
       toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
     } catch (err: any) {
       const msg = "Could not read file: " + (err?.message || "unknown");
@@ -480,6 +567,7 @@ const SellerDashboard = () => {
     }
     setParsed(null);
     setFileName("");
+    clearPersistedParsed();
     loadAll();
   };
 
@@ -596,8 +684,8 @@ const SellerDashboard = () => {
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,auto]">
             <Select
               value={categoryId}
-              onValueChange={setCategoryId}
-              disabled={categoriesLoading || categories.length === 0}
+              onValueChange={handleCategoryChange}
+              disabled={categoriesLoading || categories.length === 0 || uploading || !!parsed}
             >
               <SelectTrigger aria-label="Choose category">
                 <SelectValue
@@ -669,6 +757,16 @@ const SellerDashboard = () => {
               Choose a category above to enable file picker.
             </p>
           )}
+          {parsed && !uploading && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Category locked while a parsed file is pending — discard it to switch.
+            </p>
+          )}
+          {uploading && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Upload in progress — category change disabled.
+            </p>
+          )}
           {!categoriesLoading && !categoriesError && categories.length === 0 && (
             <p className="mt-2 text-xs text-destructive">
               No active categories yet. Ask admin to create one in Admin → Categories.
@@ -722,7 +820,15 @@ const SellerDashboard = () => {
                 )}
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="ghost" onClick={() => setParsed(null)} disabled={uploading}>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setParsed(null);
+                    setFileName("");
+                    clearPersistedParsed();
+                  }}
+                  disabled={uploading}
+                >
                   Discard
                 </Button>
                 <Button
