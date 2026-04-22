@@ -548,6 +548,42 @@ export type Database = {
         }
         Relationships: []
       }
+      telegram_bot_sessions: {
+        Row: {
+          chat_id: number
+          state: Json
+          updated_at: string
+        }
+        Insert: {
+          chat_id: number
+          state?: Json
+          updated_at?: string
+        }
+        Update: {
+          chat_id?: number
+          state?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      telegram_bot_state: {
+        Row: {
+          id: number
+          update_offset: number
+          updated_at: string
+        }
+        Insert: {
+          id: number
+          update_offset?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          update_offset?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       telegram_deliveries: {
         Row: {
           attempt_count: number
@@ -591,13 +627,16 @@ export type Database = {
         Row: {
           admin_note: string | null
           amount_bdt: number
+          approved_at: string | null
           created_at: string
           id: string
           method: Database["public"]["Enums"]["payment_method"]
           note: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          screenshot_url: string | null
           sender_number: string
+          source: string
           status: Database["public"]["Enums"]["topup_status"]
           txn_id: string
           updated_at: string
@@ -606,13 +645,16 @@ export type Database = {
         Insert: {
           admin_note?: string | null
           amount_bdt: number
+          approved_at?: string | null
           created_at?: string
           id?: string
           method: Database["public"]["Enums"]["payment_method"]
           note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          screenshot_url?: string | null
           sender_number: string
+          source?: string
           status?: Database["public"]["Enums"]["topup_status"]
           txn_id: string
           updated_at?: string
@@ -621,13 +663,16 @@ export type Database = {
         Update: {
           admin_note?: string | null
           amount_bdt?: number
+          approved_at?: string | null
           created_at?: string
           id?: string
           method?: Database["public"]["Enums"]["payment_method"]
           note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          screenshot_url?: string | null
           sender_number?: string
+          source?: string
           status?: Database["public"]["Enums"]["topup_status"]
           txn_id?: string
           updated_at?: string
@@ -768,6 +813,26 @@ export type Database = {
         Args: { p_telegram_username: string; p_user_id: string }
         Returns: undefined
       }
+      bot_admin_approve_topup: {
+        Args: { p_admin_chat_id: number; p_request_id: string }
+        Returns: Json
+      }
+      bot_admin_reject_topup: {
+        Args: { p_admin_chat_id: number; p_note?: string; p_request_id: string }
+        Returns: Json
+      }
+      bot_submit_topup_request: {
+        Args: {
+          p_amount: number
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_screenshot_url: string
+          p_sender_number: string
+          p_telegram_chat_id: number
+          p_txn_id: string
+        }
+        Returns: Json
+      }
+      clear_topup_screenshot: { Args: { p_id: string }; Returns: undefined }
       generate_tg_link_code: { Args: never; Returns: string }
       get_public_stock_counts: {
         Args: never
@@ -787,6 +852,13 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      list_expired_topup_screenshots: {
+        Args: never
+        Returns: {
+          id: string
+          screenshot_url: string
+        }[]
       }
       log_audit_event: {
         Args: {
@@ -821,16 +893,28 @@ export type Database = {
         Args: { p_raw_input: string }
         Returns: Json
       }
-      submit_topup_request: {
-        Args: {
-          p_amount: number
-          p_method: Database["public"]["Enums"]["payment_method"]
-          p_note?: string
-          p_sender_number: string
-          p_txn_id: string
-        }
-        Returns: Json
-      }
+      submit_topup_request:
+        | {
+            Args: {
+              p_amount: number
+              p_method: Database["public"]["Enums"]["payment_method"]
+              p_note?: string
+              p_sender_number: string
+              p_txn_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_amount: number
+              p_method: Database["public"]["Enums"]["payment_method"]
+              p_note?: string
+              p_screenshot_url: string
+              p_sender_number: string
+              p_txn_id: string
+            }
+            Returns: Json
+          }
       submit_withdraw_request: {
         Args: {
           p_amount: number

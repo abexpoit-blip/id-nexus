@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.dispatch-notification]
 verify_jwt = false
+
+[functions.telegram-bot-poll]
+verify_jwt = false
+
+[functions.cleanup-screenshots]
+verify_jwt = false

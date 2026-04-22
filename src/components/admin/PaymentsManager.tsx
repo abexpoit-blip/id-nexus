@@ -8,13 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Check, X, Banknote } from "lucide-react";
+import { Loader2, Check, X, Banknote, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
 interface Topup {
   id: string; user_id: string; amount_bdt: number; method: string;
   sender_number: string; txn_id: string; note: string | null;
   status: string; admin_note: string | null; created_at: string;
+  screenshot_url: string | null; source: string | null;
 }
 interface Withdraw {
   id: string; user_id: string; amount_bdt: number; method: string;
@@ -138,16 +139,28 @@ export const PaymentsManager = () => {
         <TabsContent value="topups" className="mt-4">
           {topups.length === 0 ? <p className="text-sm text-muted-foreground">No top-up requests yet.</p> : (
             <div className="overflow-x-auto"><Table>
-              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {topups.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
-                    <TableCell className="text-sm">{userLabel(r.user_id)}</TableCell>
+                    <TableCell className="text-sm">
+                      {userLabel(r.user_id)}
+                      {r.source === "telegram_bot" && <Badge className="ml-1 bg-primary/20 text-primary hover:bg-primary/20">bot</Badge>}
+                    </TableCell>
                     <TableCell>{r.method}</TableCell>
                     <TableCell className="font-semibold">৳ {Number(r.amount_bdt).toFixed(0)}</TableCell>
                     <TableCell className="font-mono text-xs">{r.sender_number}</TableCell>
                     <TableCell className="font-mono text-xs">{r.txn_id}</TableCell>
+                    <TableCell>
+                      {r.screenshot_url ? (
+                        <a href={r.screenshot_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                          <ImageIcon className="h-3 w-3" /> View
+                        </a>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>{statusBadge(r.status)}</TableCell>
                     <TableCell className="text-right">
                       {r.status === "pending" && (
