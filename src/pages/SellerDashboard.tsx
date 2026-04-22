@@ -116,6 +116,10 @@ const SellerDashboard = () => {
   const [parsed, setParsed] = useState<ParsedRow[] | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [uploading, setUploading] = useState(false);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
@@ -140,20 +144,22 @@ const SellerDashboard = () => {
 
   const loadAll = async () => {
     if (!user) return;
+    setCategoriesLoading(true);
+    setCategoriesError(null);
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const startOfWeek = new Date();
     startOfWeek.setHours(0, 0, 0, 0);
     startOfWeek.setDate(startOfWeek.getDate() - 6); // last 7 days incl. today
 
-    const [
-      { data: cats },
-      { data: myAccounts },
-      { data: recentRows },
-      { count: todayCount },
-      { count: weekCount },
-      { data: rpItems },
-    ] = await Promise.all([
+    let cats: any[] | null = null;
+    let myAccounts: any[] | null = null;
+    let recentRows: any[] | null = null;
+    let todayCount: number | null = 0;
+    let weekCount: number | null = 0;
+    let rpItems: any[] | null = null;
+    try {
+      const results = await Promise.all([
       supabase
         .from("categories")
         .select("id, name, slug, price_bdt")
@@ -188,8 +194,21 @@ const SellerDashboard = () => {
         .eq("seller_id", user.id)
         .order("created_at", { ascending: false })
         .limit(100),
-    ]);
+      ]);
+      cats = results[0].data as any[] | null;
+      myAccounts = results[1].data as any[] | null;
+      recentRows = results[2].data as any[] | null;
+      todayCount = results[3].count;
+      weekCount = results[4].count;
+      rpItems = results[5].data as any[] | null;
+      if (results[0].error) throw results[0].error;
+    } catch (err: any) {
+      setCategoriesError(err?.message || "Failed to load categories");
+      setCategoriesLoading(false);
+      return;
+    }
     setCategories((cats ?? []) as Category[]);
+    setCategoriesLoading(false);
     setSoldToday(todayCount ?? 0);
     setSoldWeek(weekCount ?? 0);
     setReplacements((rpItems ?? []) as ReplacementRow[]);
@@ -379,8 +398,12 @@ const SellerDashboard = () => {
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setParseError(null);
+    setUploadError(null);
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large (max 5 MB)");
+      const msg = "File too large (max 5 MB)";
+      setParseError(msg);
+      toast.error(msg);
       return;
     }
     setFileName(file.name);
@@ -401,19 +424,25 @@ const SellerDashboard = () => {
         if (out.uid && out.password) normalized.push(out as ParsedRow);
       }
       if (normalized.length === 0) {
-        toast.error("No valid rows. Need columns: UID, Password (2FA, Email optional).");
+        const msg = "No valid rows. Need columns: UID, Password (2FA, Email optional).";
+        setParseError(msg);
+        toast.error(msg);
         setParsed(null);
         return;
       }
       if (normalized.length > 5000) {
-        toast.error("Max 5000 rows per upload");
+        const msg = "Max 5000 rows per upload";
+        setParseError(msg);
+        toast.error(msg);
         setParsed(null);
         return;
       }
       setParsed(normalized);
       toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
     } catch (err: any) {
-      toast.error("Could not read file: " + (err?.message || "unknown"));
+      const msg = "Could not read file: " + (err?.message || "unknown");
+      setParseError(msg);
+      toast.error(msg);
       setParsed(null);
     } finally {
       if (fileRef.current) fileRef.current.value = "";
@@ -422,9 +451,12 @@ const SellerDashboard = () => {
 
   const confirmUpload = async () => {
     if (!parsed || !categoryId) {
-      toast.error("Pick a category first");
+      const msg = "Pick a category first";
+      setUploadError(msg);
+      toast.error(msg);
       return;
     }
+    setUploadError(null);
     setUploading(true);
     const { data, error } = await supabase.rpc("seller_upload_accounts", {
       p_category_id: categoryId,
@@ -432,6 +464,7 @@ const SellerDashboard = () => {
     });
     setUploading(false);
     if (error) {
+      setUploadError(error.message);
       toast.error(error.message);
       return;
     }
@@ -561,9 +594,21 @@ const SellerDashboard = () => {
           </p>
 
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,auto]">
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose category" />
+            <Select
+              value={categoryId}
+              onValueChange={setCategoryId}
+              disabled={categoriesLoading || categories.length === 0}
+            >
+              <SelectTrigger aria-label="Choose category">
+                <SelectValue
+                  placeholder={
+                    categoriesLoading
+                      ? "Loading categories…"
+                      : categories.length === 0
+                        ? "No categories available"
+                        : "Choose category"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 {categories.map((c) => (
@@ -584,27 +629,60 @@ const SellerDashboard = () => {
             <Button
               type="button"
               variant="outline"
-              disabled={!categoryId || uploading}
+              disabled={!categoryId || uploading || categoriesLoading}
               onClick={() => {
                 if (!categoryId) {
-                  toast.error("Choose a category first");
+                  const msg = "Choose a category first";
+                  setParseError(msg);
+                  toast.error(msg);
                   return;
                 }
+                setParseError(null);
                 fileRef.current?.click();
               }}
             >
-              <FileSpreadsheet className="mr-2 h-4 w-4" /> Pick file
+              {uploading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+              )}
+              {uploading ? "Uploading…" : "Pick file"}
             </Button>
           </div>
-          {!categoryId && (
+          {categoriesLoading && (
+            <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading your categories…
+            </p>
+          )}
+          {categoriesError && (
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <span className="flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> {categoriesError}
+              </span>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={loadAll}>
+                Retry
+              </Button>
+            </div>
+          )}
+          {!categoriesLoading && !categoriesError && !categoryId && categories.length > 0 && (
             <p className="mt-2 text-xs text-warning">
               Choose a category above to enable file picker.
             </p>
           )}
-          {categories.length === 0 && (
+          {!categoriesLoading && !categoriesError && categories.length === 0 && (
             <p className="mt-2 text-xs text-destructive">
               No active categories yet. Ask admin to create one in Admin → Categories.
             </p>
+          )}
+          {parseError && (
+            <div className="mt-2 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <AlertTriangle className="h-3 w-3" /> {parseError}
+            </div>
+          )}
+          {uploadError && (
+            <div className="mt-2 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <AlertTriangle className="h-3 w-3" /> Upload failed: {uploadError}
+            </div>
           )}
 
           {parsed && (
