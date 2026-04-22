@@ -452,6 +452,54 @@ export type Database = {
         }
         Relationships: []
       }
+      topup_requests: {
+        Row: {
+          admin_note: string | null
+          amount_bdt: number
+          created_at: string
+          id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          sender_number: string
+          status: Database["public"]["Enums"]["topup_status"]
+          txn_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          amount_bdt: number
+          created_at?: string
+          id?: string
+          method: Database["public"]["Enums"]["payment_method"]
+          note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sender_number: string
+          status?: Database["public"]["Enums"]["topup_status"]
+          txn_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          amount_bdt?: number
+          created_at?: string
+          id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sender_number?: string
+          status?: Database["public"]["Enums"]["topup_status"]
+          txn_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -473,12 +521,76 @@ export type Database = {
         }
         Relationships: []
       }
+      withdraw_requests: {
+        Row: {
+          admin_note: string | null
+          amount_bdt: number
+          created_at: string
+          id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          note: string | null
+          payout_txn_id: string | null
+          receiver_number: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["withdraw_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          amount_bdt: number
+          created_at?: string
+          id?: string
+          method: Database["public"]["Enums"]["payment_method"]
+          note?: string | null
+          payout_txn_id?: string | null
+          receiver_number: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["withdraw_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          amount_bdt?: number
+          created_at?: string
+          id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          note?: string | null
+          payout_txn_id?: string | null
+          receiver_number?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["withdraw_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      admin_approve_topup: {
+        Args: { p_id: string; p_note?: string }
+        Returns: Json
+      }
       admin_clear_seller_limit: { Args: { p_seller_id: string }; Returns: Json }
+      admin_pay_withdraw: {
+        Args: { p_id: string; p_note?: string; p_payout_txn: string }
+        Returns: Json
+      }
+      admin_reject_topup: {
+        Args: { p_id: string; p_note?: string }
+        Returns: Json
+      }
+      admin_reject_withdraw: {
+        Args: { p_id: string; p_note?: string }
+        Returns: Json
+      }
       admin_resolve_replacement_item: {
         Args: { p_action: string; p_item_id: string; p_reason?: string }
         Returns: Json
@@ -564,6 +676,25 @@ export type Database = {
         Args: { p_raw_input: string }
         Returns: Json
       }
+      submit_topup_request: {
+        Args: {
+          p_amount: number
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_note?: string
+          p_sender_number: string
+          p_txn_id: string
+        }
+        Returns: Json
+      }
+      submit_withdraw_request: {
+        Args: {
+          p_amount: number
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_note?: string
+          p_receiver_number: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       account_status:
@@ -592,6 +723,7 @@ export type Database = {
         | "stock_low"
         | "system"
       order_status: "pending" | "completed" | "failed" | "refunded"
+      payment_method: "bkash" | "nagad"
       replacement_item_outcome:
         | "pending"
         | "replaced"
@@ -600,6 +732,8 @@ export type Database = {
         | "out_of_window"
         | "not_yours"
       replacement_status: "pending" | "processing" | "resolved" | "rejected"
+      topup_status: "pending" | "approved" | "rejected"
+      withdraw_status: "pending" | "approved" | "paid" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -756,6 +890,7 @@ export const Constants = {
         "system",
       ],
       order_status: ["pending", "completed", "failed", "refunded"],
+      payment_method: ["bkash", "nagad"],
       replacement_item_outcome: [
         "pending",
         "replaced",
@@ -765,6 +900,8 @@ export const Constants = {
         "not_yours",
       ],
       replacement_status: ["pending", "processing", "resolved", "rejected"],
+      topup_status: ["pending", "approved", "rejected"],
+      withdraw_status: ["pending", "approved", "paid", "rejected"],
     },
   },
 } as const
