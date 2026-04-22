@@ -116,3 +116,22 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  /* Premium button — gradient + glow, used across dashboards */
+  .btn-premium {
+    @apply bg-gradient-brand text-primary-foreground shadow-glow transition-all
+           hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0;
+  }
+
+  /* Premium card — subtle gradient + soft border + lift on hover */
+  .card-premium {
+    @apply rounded-2xl border border-border/60 bg-gradient-card shadow-card
+           transition-all hover:border-primary/30 hover:shadow-glow;
+  }
+
+  /* Section heading accent */
+  .heading-gradient {
+    @apply bg-gradient-brand bg-clip-text text-transparent;
+  }
+}
