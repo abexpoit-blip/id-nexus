@@ -1639,9 +1639,12 @@ const SellerDashboard = () => {
               </DialogDescription>
             </DialogHeader>
             {duplicates && (() => {
-              const list = dupModalTab === "stock"
-                ? duplicates.duplicatesInStock
-                : duplicates.duplicatesInFile;
+              const list =
+                dupModalTab === "stock"
+                  ? duplicates.duplicatesInStock
+                  : dupModalTab === "file"
+                    ? duplicates.duplicatesInFile
+                    : duplicates.duplicatesReplaced;
               const PAGE_SIZE = 50;
               const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
               const page = Math.min(Math.max(1, dupModalPage), totalPages);
@@ -1654,6 +1657,11 @@ const SellerDashboard = () => {
                 } catch {
                   toast.error("Clipboard blocked — select text manually");
                 }
+              };
+              const ruleLabel: Record<string, { label: string; cls: string }> = {
+                in_stock: { label: "In stock", cls: "bg-warning/20 text-warning" },
+                in_file: { label: "Repeated in file", cls: "bg-muted text-muted-foreground" },
+                already_replaced: { label: "Already replaced", cls: "bg-destructive/20 text-destructive" },
               };
               return (
                 <div className="space-y-3">
@@ -1672,7 +1680,28 @@ const SellerDashboard = () => {
                     >
                       Repeated in file ({duplicates.duplicatesInFile.length})
                     </Button>
+                    <Button
+                      size="sm"
+                      variant={dupModalTab === "replaced" ? "default" : "outline"}
+                      onClick={() => { setDupModalTab("replaced"); setDupModalPage(1); }}
+                    >
+                      Already replaced ({duplicates.duplicatesReplaced.length})
+                    </Button>
                     <div className="ml-auto">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mr-2 gap-1"
+                        onClick={recheckDuplicates}
+                        disabled={recheckLoading}
+                      >
+                        {recheckLoading ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Recheck
+                      </Button>
                       <Button size="sm" variant="outline" className="gap-1" onClick={copyAll} disabled={list.length === 0}>
                         <Copy className="h-3 w-3" /> Copy {list.length}
                       </Button>
@@ -1685,11 +1714,19 @@ const SellerDashboard = () => {
                   ) : (
                     <>
                       <div className="max-h-72 overflow-auto rounded-md border border-border/60 bg-background/40 p-3 font-mono text-xs">
-                        {slice.map((u) => (
-                          <div key={u} className="border-b border-border/40 py-1 last:border-0">
-                            {u}
-                          </div>
-                        ))}
+                        {slice.map((u) => {
+                          const rule = duplicates.ruleByUid[u] ?? "in_file";
+                          const meta = ruleLabel[rule];
+                          return (
+                            <div
+                              key={u}
+                              className="flex items-center justify-between gap-2 border-b border-border/40 py-1 last:border-0"
+                            >
+                              <span>{u}</span>
+                              <Badge className={`${meta.cls} text-[10px]`}>{meta.label}</Badge>
+                            </div>
+                          );
+                        })}
                       </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>
