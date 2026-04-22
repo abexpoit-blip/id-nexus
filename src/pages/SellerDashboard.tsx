@@ -7,6 +7,8 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { RefreshCw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -124,6 +126,19 @@ interface PersistedParse {
   savedAt: number;
 }
 
+type UploadStep = "idle" | "parsing" | "validating" | "uploading" | "confirming" | "done" | "error";
+
+const STEP_ORDER: UploadStep[] = ["parsing", "validating", "uploading", "confirming", "done"];
+const STEP_LABELS: Record<UploadStep, string> = {
+  idle: "Idle",
+  parsing: "Reading file",
+  validating: "Validating headers & rows",
+  uploading: "Sending to server",
+  confirming: "Confirming insert",
+  done: "Done",
+  error: "Error",
+};
+
 const SellerDashboard = () => {
   const { user, roles, loading: authLoading } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -135,6 +150,9 @@ const SellerDashboard = () => {
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadStep, setUploadStep] = useState<UploadStep>("idle");
+  const [uploadProgress, setUploadProgress] = useState(0); // 0..100, used for parsing read
+  const [lastFile, setLastFile] = useState<File | null>(null);
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
@@ -461,21 +479,42 @@ const SellerDashboard = () => {
     toast.success(`Exported ${rows.length} rows`);
   };
 
-  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processFile = async (file: File) => {
     setParseError(null);
     setUploadError(null);
+    setLastFile(file);
     if (file.size > 5 * 1024 * 1024) {
       const msg = "File too large (max 5 MB)";
       setParseError(msg);
+      setUploadStep("error");
       toast.error(msg);
       return;
     }
     setFileName(file.name);
+    setUploadStep("parsing");
+    setUploadProgress(0);
     try {
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
+      // Stream read with progress
+      const reader = file.stream().getReader();
+      const total = file.size || 1;
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          received += value.byteLength;
+          setUploadProgress(Math.min(99, Math.round((received / total) * 100)));
+        }
+      }
+      const merged = new Uint8Array(received);
+      let offset = 0;
+      for (const c of chunks) { merged.set(c, offset); offset += c.byteLength; }
+      setUploadProgress(100);
+      setUploadStep("validating");
+      const wb = XLSX.read(merged, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
 
       // Header validation BEFORE row parsing
@@ -492,6 +531,7 @@ const SellerDashboard = () => {
           .map((m) => `${m.label} (accepts: ${m.aliases.join(", ")})`)
           .join("; ")}`;
         setParseError(msg);
+        setUploadStep("error");
         toast.error(msg);
         setParsed(null);
         return;
@@ -512,6 +552,7 @@ const SellerDashboard = () => {
       if (normalized.length === 0) {
         const msg = "No valid rows. Need columns: UID, Password (2FA, Email optional).";
         setParseError(msg);
+        setUploadStep("error");
         toast.error(msg);
         setParsed(null);
         return;
@@ -519,21 +560,38 @@ const SellerDashboard = () => {
       if (normalized.length > 5000) {
         const msg = "Max 5000 rows per upload";
         setParseError(msg);
+        setUploadStep("error");
         toast.error(msg);
         setParsed(null);
         return;
       }
       setParsed(normalized);
       persistParsed(normalized, file.name, categoryId);
+      setUploadStep("idle");
       toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
     } catch (err: any) {
       const msg = "Could not read file: " + (err?.message || "unknown");
       setParseError(msg);
+      setUploadStep("error");
       toast.error(msg);
       setParsed(null);
     } finally {
       if (fileRef.current) fileRef.current.value = "";
     }
+  };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  };
+
+  const retryParsing = async () => {
+    if (!lastFile) {
+      toast.error("No previous file to retry — pick a file again.");
+      return;
+    }
+    await processFile(lastFile);
   };
 
   const confirmUpload = async () => {
@@ -545,13 +603,23 @@ const SellerDashboard = () => {
     }
     setUploadError(null);
     setUploading(true);
+    setUploadStep("uploading");
+    setUploadProgress(0);
+    // simple synthetic progress while RPC is in flight
+    const tick = window.setInterval(() => {
+      setUploadProgress((p) => (p < 90 ? p + 7 : p));
+    }, 250);
     const { data, error } = await supabase.rpc("seller_upload_accounts", {
       p_category_id: categoryId,
       p_rows: parsed as any,
     });
+    window.clearInterval(tick);
+    setUploadProgress(100);
+    setUploadStep("confirming");
     setUploading(false);
     if (error) {
       setUploadError(error.message);
+      setUploadStep("error");
       toast.error(error.message);
       return;
     }
@@ -568,6 +636,9 @@ const SellerDashboard = () => {
     setParsed(null);
     setFileName("");
     clearPersistedParsed();
+    setLastFile(null);
+    setUploadStep("done");
+    window.setTimeout(() => setUploadStep("idle"), 1500);
     loadAll();
   };
 
@@ -680,6 +751,15 @@ const SellerDashboard = () => {
             <code>2FA</code> (optional), <code>Email</code> (optional),{" "}
             <code>Email Password</code> (optional).
           </p>
+          <div className="mt-2">
+            <a
+              href="/seller-stock-template.xlsx"
+              download
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <Download className="h-3 w-3" /> Download Excel template
+            </a>
+          </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,auto]">
             <Select
@@ -773,13 +853,75 @@ const SellerDashboard = () => {
             </p>
           )}
           {parseError && (
-            <div className="mt-2 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              <AlertTriangle className="h-3 w-3" /> {parseError}
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-3 w-3" /> {parseError}
+              </span>
+              {lastFile && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 gap-1 px-2 text-xs text-destructive hover:bg-destructive/20"
+                  onClick={retryParsing}
+                  disabled={uploading || uploadStep === "parsing" || uploadStep === "validating"}
+                >
+                  <RefreshCw className="h-3 w-3" /> Retry parsing
+                </Button>
+              )}
             </div>
           )}
           {uploadError && (
-            <div className="mt-2 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              <AlertTriangle className="h-3 w-3" /> Upload failed: {uploadError}
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-3 w-3" /> Upload failed: {uploadError}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 gap-1 px-2 text-xs text-destructive hover:bg-destructive/20"
+                onClick={confirmUpload}
+                disabled={uploading || !parsed}
+              >
+                <RefreshCw className="h-3 w-3" /> Retry upload
+              </Button>
+            </div>
+          )}
+
+          {(uploadStep !== "idle" || uploadProgress > 0) && (
+            <div className="mt-4 rounded-md border border-border/60 bg-background/40 p-3">
+              <div className="mb-2 flex items-center justify-between text-xs">
+                <span className="font-medium">
+                  {uploadStep === "error" ? (
+                    <span className="text-destructive">Failed at: {parseError ? "validation" : "upload"}</span>
+                  ) : (
+                    <span>Step: {STEP_LABELS[uploadStep]}</span>
+                  )}
+                </span>
+                <span className="text-muted-foreground">{uploadProgress}%</span>
+              </div>
+              <Progress value={uploadProgress} className="h-1.5" />
+              <ol className="mt-3 grid grid-cols-4 gap-1 text-[10px]">
+                {STEP_ORDER.filter((s) => s !== "done").map((s) => {
+                  const idx = STEP_ORDER.indexOf(s);
+                  const currentIdx = STEP_ORDER.indexOf(uploadStep);
+                  const reached = uploadStep === "done" || (currentIdx >= idx && uploadStep !== "error");
+                  const active = uploadStep === s;
+                  return (
+                    <li
+                      key={s}
+                      className={`rounded border px-1.5 py-1 text-center transition-colors ${
+                        active
+                          ? "border-primary/60 bg-primary/10 text-primary"
+                          : reached
+                            ? "border-success/40 bg-success/5 text-success"
+                            : "border-border/60 text-muted-foreground"
+                      }`}
+                    >
+                      {STEP_LABELS[s]}
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
           )}
 
