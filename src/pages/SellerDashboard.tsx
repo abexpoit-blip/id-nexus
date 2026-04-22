@@ -751,6 +751,15 @@ const SellerDashboard = () => {
             <code>2FA</code> (optional), <code>Email</code> (optional),{" "}
             <code>Email Password</code> (optional).
           </p>
+          <div className="mt-2">
+            <a
+              href="/seller-stock-template.xlsx"
+              download
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <Download className="h-3 w-3" /> Download Excel template
+            </a>
+          </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,auto]">
             <Select
