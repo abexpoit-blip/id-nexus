@@ -8,13 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Check, X, Banknote } from "lucide-react";
+import { Loader2, Check, X, Banknote, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
 interface Topup {
   id: string; user_id: string; amount_bdt: number; method: string;
   sender_number: string; txn_id: string; note: string | null;
   status: string; admin_note: string | null; created_at: string;
+  screenshot_url: string | null; source: string | null;
 }
 interface Withdraw {
   id: string; user_id: string; amount_bdt: number; method: string;
