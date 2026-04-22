@@ -594,9 +594,21 @@ const SellerDashboard = () => {
           </p>
 
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,auto]">
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose category" />
+            <Select
+              value={categoryId}
+              onValueChange={setCategoryId}
+              disabled={categoriesLoading || categories.length === 0}
+            >
+              <SelectTrigger aria-label="Choose category">
+                <SelectValue
+                  placeholder={
+                    categoriesLoading
+                      ? "Loading categories…"
+                      : categories.length === 0
+                        ? "No categories available"
+                        : "Choose category"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 {categories.map((c) => (
@@ -617,27 +629,60 @@ const SellerDashboard = () => {
             <Button
               type="button"
               variant="outline"
-              disabled={!categoryId || uploading}
+              disabled={!categoryId || uploading || categoriesLoading}
               onClick={() => {
                 if (!categoryId) {
-                  toast.error("Choose a category first");
+                  const msg = "Choose a category first";
+                  setParseError(msg);
+                  toast.error(msg);
                   return;
                 }
+                setParseError(null);
                 fileRef.current?.click();
               }}
             >
-              <FileSpreadsheet className="mr-2 h-4 w-4" /> Pick file
+              {uploading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+              )}
+              {uploading ? "Uploading…" : "Pick file"}
             </Button>
           </div>
-          {!categoryId && (
+          {categoriesLoading && (
+            <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading your categories…
+            </p>
+          )}
+          {categoriesError && (
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <span className="flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> {categoriesError}
+              </span>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={loadAll}>
+                Retry
+              </Button>
+            </div>
+          )}
+          {!categoriesLoading && !categoriesError && !categoryId && categories.length > 0 && (
             <p className="mt-2 text-xs text-warning">
               Choose a category above to enable file picker.
             </p>
           )}
-          {categories.length === 0 && (
+          {!categoriesLoading && !categoriesError && categories.length === 0 && (
             <p className="mt-2 text-xs text-destructive">
               No active categories yet. Ask admin to create one in Admin → Categories.
             </p>
+          )}
+          {parseError && (
+            <div className="mt-2 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <AlertTriangle className="h-3 w-3" /> {parseError}
+            </div>
+          )}
+          {uploadError && (
+            <div className="mt-2 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <AlertTriangle className="h-3 w-3" /> Upload failed: {uploadError}
+            </div>
           )}
 
           {parsed && (
