@@ -634,6 +634,7 @@ export type Database = {
           note: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          screenshot_path: string | null
           screenshot_url: string | null
           sender_number: string
           source: string
@@ -652,6 +653,7 @@ export type Database = {
           note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          screenshot_path?: string | null
           screenshot_url?: string | null
           sender_number: string
           source?: string
@@ -670,6 +672,7 @@ export type Database = {
           note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          screenshot_path?: string | null
           screenshot_url?: string | null
           sender_number?: string
           source?: string
@@ -832,7 +835,22 @@ export type Database = {
         }
         Returns: Json
       }
+      bot_submit_topup_request_v2: {
+        Args: {
+          p_amount: number
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_screenshot_path: string
+          p_sender_number: string
+          p_telegram_chat_id: number
+          p_txn_id: string
+        }
+        Returns: Json
+      }
       clear_topup_screenshot: { Args: { p_id: string }; Returns: undefined }
+      clear_topup_screenshot_path: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       generate_tg_link_code: { Args: never; Returns: string }
       get_public_stock_counts: {
         Args: never
@@ -852,6 +870,13 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      list_expired_topup_screenshot_paths: {
+        Args: never
+        Returns: {
+          id: string
+          screenshot_path: string
+        }[]
       }
       list_expired_topup_screenshots: {
         Args: never
@@ -915,6 +940,17 @@ export type Database = {
             }
             Returns: Json
           }
+      submit_topup_request_v2: {
+        Args: {
+          p_amount: number
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_note?: string
+          p_screenshot_path: string
+          p_sender_number: string
+          p_txn_id: string
+        }
+        Returns: Json
+      }
       submit_withdraw_request: {
         Args: {
           p_amount: number
