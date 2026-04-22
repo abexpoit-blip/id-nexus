@@ -692,6 +692,7 @@ const SellerDashboard = () => {
     setFileName("");
     clearPersistedParsed();
     setLastFile(null);
+    setDuplicates(null);
     setUploadStep("done");
     window.setTimeout(() => setUploadStep("idle"), 1500);
     loadAll();
