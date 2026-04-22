@@ -167,7 +167,10 @@ const SellerDashboard = () => {
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [dupModalOpen, setDupModalOpen] = useState(false);
   const [dupModalPage, setDupModalPage] = useState(1);
-  const [dupModalTab, setDupModalTab] = useState<"stock" | "file">("stock");
+  const [dupModalTab, setDupModalTab] = useState<"stock" | "file" | "replaced">("stock");
+  const [recheckLoading, setRecheckLoading] = useState(false);
+  const [audits, setAudits] = useState<any[]>([]);
+  const [auditsLoading, setAuditsLoading] = useState(false);
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
