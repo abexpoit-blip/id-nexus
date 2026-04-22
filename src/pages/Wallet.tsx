@@ -1,0 +1,311 @@
+import { useEffect, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Logo } from "@/components/Logo";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArrowLeft, Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { toast } from "sonner";
+import { NotificationsBell } from "@/components/NotificationsBell";
+
+type Method = "bkash" | "nagad";
+
+interface TopupRow {
+  id: string;
+  amount_bdt: number;
+  method: Method;
+  sender_number: string;
+  txn_id: string;
+  status: string;
+  admin_note: string | null;
+  created_at: string;
+}
+
+interface WithdrawRow {
+  id: string;
+  amount_bdt: number;
+  method: Method;
+  receiver_number: string;
+  status: string;
+  admin_note: string | null;
+  payout_txn_id: string | null;
+  created_at: string;
+}
+
+const statusBadge = (s: string) => {
+  const cls =
+    s === "approved" || s === "paid"
+      ? "bg-success/20 text-success"
+      : s === "rejected"
+      ? "bg-destructive/20 text-destructive"
+      : "bg-warning/20 text-warning";
+  return <Badge className={`${cls} hover:${cls}`}>{s}</Badge>;
+};
+
+const Wallet = () => {
+  const { user, roles, loading: authLoading } = useAuth();
+  const [balance, setBalance] = useState(0);
+  const [topups, setTopups] = useState<TopupRow[]>([]);
+  const [withdraws, setWithdraws] = useState<WithdrawRow[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  // Topup form
+  const [tAmount, setTAmount] = useState("");
+  const [tMethod, setTMethod] = useState<Method>("bkash");
+  const [tSender, setTSender] = useState("");
+  const [tTxn, setTTxn] = useState("");
+  const [tNote, setTNote] = useState("");
+
+  // Withdraw form
+  const [wAmount, setWAmount] = useState("");
+  const [wMethod, setWMethod] = useState<Method>("bkash");
+  const [wReceiver, setWReceiver] = useState("");
+  const [wNote, setWNote] = useState("");
+
+  const isSeller = roles.includes("seller") || roles.includes("admin");
+
+  const loadAll = async () => {
+    if (!user) return;
+    const [{ data: prof }, { data: tp }, { data: wd }] = await Promise.all([
+      supabase.from("profiles").select("balance_bdt").eq("id", user.id).maybeSingle(),
+      supabase.from("topup_requests").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
+      supabase.from("withdraw_requests").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
+    ]);
+    setBalance(Number(prof?.balance_bdt ?? 0));
+    setTopups((tp ?? []) as TopupRow[]);
+    setWithdraws((wd ?? []) as WithdrawRow[]);
+  };
+
+  useEffect(() => {
+    loadAll();
+    if (!user) return;
+    const ch = supabase
+      .channel("wallet-" + user.id)
+      .on("postgres_changes", { event: "*", schema: "public", table: "topup_requests", filter: `user_id=eq.${user.id}` }, loadAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "withdraw_requests", filter: `user_id=eq.${user.id}` }, loadAll)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` }, loadAll)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const submitTopup = async () => {
+    const amt = Number(tAmount);
+    if (!amt || amt < 50) return toast.error("Minimum top-up ৳50");
+    if (!tSender.trim() || !tTxn.trim()) return toast.error("Fill sender number and txn ID");
+    setBusy(true);
+    const { error } = await supabase.rpc("submit_topup_request", {
+      p_amount: amt, p_method: tMethod, p_sender_number: tSender, p_txn_id: tTxn, p_note: tNote || null,
+    });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Top-up submitted — admin will review.");
+    setTAmount(""); setTSender(""); setTTxn(""); setTNote("");
+    loadAll();
+  };
+
+  const submitWithdraw = async () => {
+    const amt = Number(wAmount);
+    if (!amt || amt < 100) return toast.error("Minimum withdraw ৳100");
+    if (!wReceiver.trim()) return toast.error("Enter receiver number");
+    setBusy(true);
+    const { error } = await supabase.rpc("submit_withdraw_request", {
+      p_amount: amt, p_method: wMethod, p_receiver_number: wReceiver, p_note: wNote || null,
+    });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Withdraw submitted — admin will process.");
+    setWAmount(""); setWReceiver(""); setWNote("");
+    loadAll();
+  };
+
+  if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  if (!user) return <Navigate to="/auth" replace />;
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="inline h-4 w-4" /> Dashboard
+            </Link>
+            <Logo size="sm" showTagline={false} />
+            <Badge variant="outline">Wallet</Badge>
+          </div>
+          <NotificationsBell />
+        </div>
+      </header>
+
+      <main className="container py-8">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="font-display text-2xl font-bold md:text-3xl">Wallet</h1>
+            <p className="text-sm text-muted-foreground">Top-up via bKash/Nagad. Sellers can request payouts.</p>
+          </div>
+          <Card className="border-border/60 bg-gradient-card p-5">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Current balance</div>
+            <div className="mt-1 flex items-center gap-2 font-display text-3xl font-bold text-primary">
+              <WalletIcon className="h-6 w-6" /> ৳ {balance.toFixed(2)}
+            </div>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="topup">
+          <TabsList>
+            <TabsTrigger value="topup"><ArrowDownToLine className="mr-2 h-4 w-4" />Top-up</TabsTrigger>
+            {isSeller && <TabsTrigger value="withdraw"><ArrowUpFromLine className="mr-2 h-4 w-4" />Withdraw</TabsTrigger>}
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="topup" className="mt-4">
+            <Card className="border-border/60 bg-gradient-card p-6">
+              <div className="mb-4">
+                <div className="font-display text-lg font-semibold">Add money to your wallet</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Send the amount to admin's bKash/Nagad number, then submit your sender number + transaction ID. Admin will approve within 30 minutes (typically).
+                </p>
+                <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+                  <div className="font-medium">Send Money to:</div>
+                  <div className="mt-1 font-mono text-base">bKash / Nagad: <span className="text-primary">01XXXXXXXXX</span> (Personal)</div>
+                  <div className="mt-1 text-xs text-muted-foreground">Use "Send Money", not "Payment". Save the TrxID before submitting.</div>
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label>Method</Label>
+                  <Select value={tMethod} onValueChange={(v) => setTMethod(v as Method)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bkash">bKash</SelectItem>
+                      <SelectItem value="nagad">Nagad</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Amount (৳)</Label>
+                  <Input type="number" min={50} value={tAmount} onChange={(e) => setTAmount(e.target.value)} placeholder="500" />
+                </div>
+                <div>
+                  <Label>Your bKash/Nagad number</Label>
+                  <Input value={tSender} onChange={(e) => setTSender(e.target.value)} placeholder="01XXXXXXXXX" />
+                </div>
+                <div>
+                  <Label>Transaction ID (TrxID)</Label>
+                  <Input value={tTxn} onChange={(e) => setTTxn(e.target.value)} placeholder="9A1B2C3D4E" />
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Note (optional)</Label>
+                  <Textarea value={tNote} onChange={(e) => setTNote(e.target.value)} placeholder="anything admin should know" rows={2} />
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button onClick={submitTopup} disabled={busy} className="bg-gradient-brand text-primary-foreground">
+                  {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Submit top-up
+                </Button>
+              </div>
+            </Card>
+          </TabsContent>
+
+          {isSeller && (
+            <TabsContent value="withdraw" className="mt-4">
+              <Card className="border-border/60 bg-gradient-card p-6">
+                <div className="mb-4">
+                  <div className="font-display text-lg font-semibold">Request withdraw</div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Available balance: <span className="font-semibold text-primary">৳ {balance.toFixed(2)}</span>. Pending withdraws are reserved automatically.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label>Method</Label>
+                    <Select value={wMethod} onValueChange={(v) => setWMethod(v as Method)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bkash">bKash</SelectItem>
+                        <SelectItem value="nagad">Nagad</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Amount (৳)</Label>
+                    <Input type="number" min={100} value={wAmount} onChange={(e) => setWAmount(e.target.value)} placeholder="1000" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Receiver number</Label>
+                    <Input value={wReceiver} onChange={(e) => setWReceiver(e.target.value)} placeholder="01XXXXXXXXX (your number)" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Note (optional)</Label>
+                    <Textarea value={wNote} onChange={(e) => setWNote(e.target.value)} rows={2} />
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <Button onClick={submitWithdraw} disabled={busy} className="bg-gradient-brand text-primary-foreground">
+                    {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Request withdraw
+                  </Button>
+                </div>
+              </Card>
+            </TabsContent>
+          )}
+
+          <TabsContent value="history" className="mt-4 space-y-6">
+            <Card className="border-border/60 bg-gradient-card p-6">
+              <div className="mb-3 font-display text-lg font-semibold">Top-up history</div>
+              {topups.length === 0 ? <p className="text-sm text-muted-foreground">No top-ups yet.</p> : (
+                <div className="overflow-x-auto"><Table>
+                  <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>TxnID</TableHead><TableHead>Status</TableHead><TableHead>Note</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {topups.map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
+                        <TableCell>{r.method}</TableCell>
+                        <TableCell>৳ {Number(r.amount_bdt).toFixed(2)}</TableCell>
+                        <TableCell className="font-mono text-xs">{r.txn_id}</TableCell>
+                        <TableCell>{statusBadge(r.status)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.admin_note ?? "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table></div>
+              )}
+            </Card>
+
+            {isSeller && (
+              <Card className="border-border/60 bg-gradient-card p-6">
+                <div className="mb-3 font-display text-lg font-semibold">Withdraw history</div>
+                {withdraws.length === 0 ? <p className="text-sm text-muted-foreground">No withdraws yet.</p> : (
+                  <div className="overflow-x-auto"><Table>
+                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Receiver</TableHead><TableHead>Status</TableHead><TableHead>Payout TxnID</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {withdraws.map((r) => (
+                        <TableRow key={r.id}>
+                          <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
+                          <TableCell>{r.method}</TableCell>
+                          <TableCell>৳ {Number(r.amount_bdt).toFixed(2)}</TableCell>
+                          <TableCell className="font-mono text-xs">{r.receiver_number}</TableCell>
+                          <TableCell>{statusBadge(r.status)}</TableCell>
+                          <TableCell className="font-mono text-xs">{r.payout_txn_id ?? "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table></div>
+                )}
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
+};
+
+export default Wallet;
