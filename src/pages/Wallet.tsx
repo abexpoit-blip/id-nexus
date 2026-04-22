@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { ArrowLeft, Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
 
@@ -101,6 +101,12 @@ const Wallet = () => {
     const amt = Number(tAmount);
     if (!amt || amt < 50) return toast.error("Minimum top-up ৳50");
     if (!tSender.trim() || !tTxn.trim()) return toast.error("Fill sender number and txn ID");
+    if (!isSeller) {
+      const ok = window.confirm(
+        "IMPORTANT: Wallet deposits are NON-REFUNDABLE. Buyers cannot withdraw money once deposited — funds can only be used to purchase accounts on this platform. Continue?",
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     const { error } = await supabase.rpc("submit_topup_request", {
       p_amount: amt, p_method: tMethod, p_sender_number: tSender, p_txn_id: tTxn, p_note: tNote || null,
