@@ -310,20 +310,20 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
                     if (s.status === "sending")
                       return (
                         <Badge variant="outline" className="border-primary/40 text-primary">
-                          <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Sending…
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Sending… (try {s.attempt_count})
                         </Badge>
                       );
                     if (s.status === "sent")
                       return (
                         <Badge className="bg-success/20 text-success hover:bg-success/20">
                           <CheckCircle2 className="mr-1 h-3 w-3" /> Sent to Telegram
-                          {s.at ? ` · ${new Date(s.at).toLocaleTimeString()}` : ""}
+                          {s.sent_at ? ` · ${new Date(s.sent_at).toLocaleTimeString()}` : ""}
                         </Badge>
                       );
                     if (s.status === "failed")
                       return (
-                        <Badge variant="destructive" title={s.error}>
-                          <XCircle className="mr-1 h-3 w-3" /> Failed
+                        <Badge variant="destructive" title={s.last_error ?? undefined}>
+                          <XCircle className="mr-1 h-3 w-3" /> Failed (try {s.attempt_count})
                         </Badge>
                       );
                     return null;
