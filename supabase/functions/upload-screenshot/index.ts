@@ -12,6 +12,29 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
+    const url = new URL(req.url);
+    // Diagnostic: GET /upload-screenshot/diag → tests VPS connectivity & token
+    if (req.method === 'GET' && url.pathname.endsWith('/diag')) {
+      const VPS_URL = Deno.env.get('VPS_UPLOAD_URL') ?? '';
+      const VPS_TOKEN = Deno.env.get('VPS_UPLOAD_TOKEN') ?? '';
+      const out: any = {
+        VPS_URL_set: !!VPS_URL,
+        VPS_URL_preview: VPS_URL ? VPS_URL.replace(/^(https?:\/\/[^/]+).*/, '$1') + '/...' : null,
+        VPS_URL_endsWith_upload: VPS_URL.endsWith('/upload'),
+        VPS_TOKEN_set: !!VPS_TOKEN,
+        VPS_TOKEN_length: VPS_TOKEN.length,
+      };
+      try {
+        const base = VPS_URL.replace(/\/upload\/?$/, '');
+        const h = await fetch(base + '/health', { method: 'GET' });
+        out.health_status = h.status;
+        out.health_body = (await h.text()).slice(0, 200);
+      } catch (e) {
+        out.health_error = String(e);
+      }
+      return json(out);
+    }
+
     const auth = req.headers.get('Authorization');
     if (!auth) return json({ error: 'Unauthenticated' }, 401);
 
