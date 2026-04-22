@@ -57,6 +57,9 @@ interface ParsedRow {
 interface DuplicateInfo {
   duplicatesInFile: string[]; // duplicate within uploaded file
   duplicatesInStock: string[]; // already in seller's existing accounts
+  duplicatesReplaced: string[]; // uid already exists in any account marked 'replaced' (own or other sellers)
+  ruleByUid: Record<string, "in_stock" | "in_file" | "already_replaced">;
+  checkedAt: number;
 }
 
 interface StockSummary {
@@ -164,7 +167,10 @@ const SellerDashboard = () => {
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [dupModalOpen, setDupModalOpen] = useState(false);
   const [dupModalPage, setDupModalPage] = useState(1);
-  const [dupModalTab, setDupModalTab] = useState<"stock" | "file">("stock");
+  const [dupModalTab, setDupModalTab] = useState<"stock" | "file" | "replaced">("stock");
+  const [recheckLoading, setRecheckLoading] = useState(false);
+  const [audits, setAudits] = useState<any[]>([]);
+  const [auditsLoading, setAuditsLoading] = useState(false);
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
@@ -491,6 +497,103 @@ const SellerDashboard = () => {
     toast.success(`Exported ${rows.length} rows`);
   };
 
+  // Inspect normalized rows and classify each colliding UID against latest DB state.
+  // Returns null on DB error (after surfacing toast / parseError).
+  const detectDuplicates = async (rows: ParsedRow[]): Promise<DuplicateInfo | null> => {
+    const seen = new Set<string>();
+    const dupInFile = new Set<string>();
+    for (const r of rows) {
+      if (seen.has(r.uid)) dupInFile.add(r.uid);
+      else seen.add(r.uid);
+    }
+    const dupInStock = new Set<string>();
+    const dupReplaced = new Set<string>();
+    if (user) {
+      const uidList = Array.from(seen);
+      const CHUNK = 500;
+      for (let i = 0; i < uidList.length; i += CHUNK) {
+        const slice = uidList.slice(i, i + CHUNK);
+        // Check across ALL sellers for "replaced" status (UID was already swapped out
+        // somewhere in the system — must never re-enter live stock).
+        const { data: existing, error: dupErr } = await supabase
+          .from("accounts")
+          .select("uid, status, seller_id")
+          .in("uid", slice);
+        if (dupErr) {
+          const msg = "Could not verify duplicates: " + dupErr.message;
+          setParseError(msg);
+          setUploadStep("error");
+          toast.error(msg);
+          return null;
+        }
+        for (const row of existing ?? []) {
+          const uid = String(row.uid);
+          if (row.status === "replaced") {
+            dupReplaced.add(uid);
+          } else if (row.seller_id === user.id) {
+            // Counts only seller's own active rows for the "in stock" rule.
+            dupInStock.add(uid);
+          } else {
+            // Another seller already owns this UID — treat as in-stock collision so it's blocked.
+            dupInStock.add(uid);
+          }
+        }
+      }
+    }
+    // Build rule map. Priority: already_replaced > in_stock > in_file
+    const ruleByUid: Record<string, "in_stock" | "in_file" | "already_replaced"> = {};
+    dupInFile.forEach((u) => { ruleByUid[u] = "in_file"; });
+    dupInStock.forEach((u) => { ruleByUid[u] = "in_stock"; });
+    dupReplaced.forEach((u) => { ruleByUid[u] = "already_replaced"; });
+    return {
+      duplicatesInFile: Array.from(dupInFile),
+      duplicatesInStock: Array.from(dupInStock),
+      duplicatesReplaced: Array.from(dupReplaced),
+      ruleByUid,
+      checkedAt: Date.now(),
+    };
+  };
+
+  const recheckDuplicates = async () => {
+    if (!parsed) return;
+    setRecheckLoading(true);
+    const info = await detectDuplicates(parsed);
+    setRecheckLoading(false);
+    if (!info) return;
+    setDuplicates(info);
+    const total =
+      info.duplicatesInFile.length +
+      info.duplicatesInStock.length +
+      info.duplicatesReplaced.length;
+    toast.success(
+      total === 0
+        ? "Recheck complete — no duplicates left."
+        : `Recheck complete — ${total} duplicate UID${total > 1 ? "s" : ""} flagged with latest stock state.`,
+    );
+  };
+
+  const loadAudits = async () => {
+    if (!user) return;
+    setAuditsLoading(true);
+    const { data, error } = await supabase
+      .from("seller_upload_audits")
+      .select("*")
+      .eq("seller_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setAuditsLoading(false);
+    if (error) {
+      toast.error("Failed to load upload history: " + error.message);
+      return;
+    }
+    setAudits(data ?? []);
+  };
+
+  useEffect(() => {
+    if (user) loadAudits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   const processFile = async (file: File) => {
     setParseError(null);
     setUploadError(null);
@@ -582,47 +685,19 @@ const SellerDashboard = () => {
         return;
       }
 
-      // Duplicate detection — within file
-      const seen = new Set<string>();
-      const dupInFile = new Set<string>();
-      for (const r of normalized) {
-        if (seen.has(r.uid)) dupInFile.add(r.uid);
-        else seen.add(r.uid);
+      const dupInfo = await detectDuplicates(normalized);
+      if (!dupInfo) {
+        setParsed(null);
+        return;
       }
-
-      // Duplicate detection — against seller's existing stock
-      let dupInStock: string[] = [];
-      if (user) {
-        const uidList = Array.from(seen);
-        // Chunk to avoid very large IN() filters
-        const CHUNK = 500;
-        for (let i = 0; i < uidList.length; i += CHUNK) {
-          const slice = uidList.slice(i, i + CHUNK);
-          const { data: existing, error: dupErr } = await supabase
-            .from("accounts")
-            .select("uid")
-            .eq("seller_id", user.id)
-            .in("uid", slice);
-          if (dupErr) {
-            const msg = "Could not verify duplicates: " + dupErr.message;
-            setParseError(msg);
-            setUploadStep("error");
-            toast.error(msg);
-            setParsed(null);
-            return;
-          }
-          dupInStock.push(...(existing ?? []).map((e: any) => String(e.uid)));
-        }
-      }
-
-      setDuplicates({
-        duplicatesInFile: Array.from(dupInFile),
-        duplicatesInStock: dupInStock,
-      });
+      setDuplicates(dupInfo);
       setParsed(normalized);
       persistParsed(normalized, file.name, categoryId);
       setUploadStep("idle");
-      const dupTotal = dupInFile.size + dupInStock.length;
+      const dupTotal =
+        dupInfo.duplicatesInFile.length +
+        dupInfo.duplicatesInStock.length +
+        dupInfo.duplicatesReplaced.length;
       if (dupTotal > 0) {
         toast.warning(
           `Parsed ${normalized.length} rows. ${dupTotal} duplicate UID${dupTotal > 1 ? "s" : ""} detected — review before confirm.`,
@@ -666,6 +741,7 @@ const SellerDashboard = () => {
     const dupSet = new Set<string>([
       ...(duplicates?.duplicatesInStock ?? []),
       ...(duplicates?.duplicatesInFile ?? []),
+      ...(duplicates?.duplicatesReplaced ?? []),
     ]);
     let rowsToSend = parsed;
     if (skipDuplicates && dupSet.size > 0) {
@@ -715,6 +791,31 @@ const SellerDashboard = () => {
     } else {
       toast.success(msg + (remaining >= 0 ? ` ${remaining} uploads left today.` : ""));
     }
+
+    // Persist audit log row (best-effort — failure shouldn't block UX)
+    try {
+      const catName = categories.find((c) => c.id === categoryId)?.name ?? null;
+      await supabase.from("seller_upload_audits").insert({
+        seller_id: user!.id,
+        category_id: categoryId,
+        category_name: catName,
+        file_name: fileName || null,
+        rows_in_file: parsed.length,
+        rows_sent: rowsToSend.length,
+        rows_inserted: Number(r.inserted ?? 0),
+        duplicates_in_stock: duplicates?.duplicatesInStock.length ?? 0,
+        duplicates_in_file: duplicates?.duplicatesInFile.length ?? 0,
+        duplicates_already_replaced: duplicates?.duplicatesReplaced.length ?? 0,
+        invalid_rows: Number(r.invalid_count ?? 0),
+        over_limit_skipped: overLimit,
+        skip_duplicates_setting: skipDuplicates,
+        server_response: r,
+      });
+      loadAudits();
+    } catch (auditErr) {
+      console.warn("audit insert failed", auditErr);
+    }
+
     setParsed(null);
     setFileName("");
     clearPersistedParsed();
@@ -1021,10 +1122,12 @@ const SellerDashboard = () => {
               {duplicates && (() => {
                 const dupStockCount = duplicates.duplicatesInStock.length;
                 const dupFileCount = duplicates.duplicatesInFile.length;
-                const totalDup = dupStockCount + dupFileCount;
+                const dupReplacedCount = duplicates.duplicatesReplaced.length;
+                const totalDup = dupStockCount + dupFileCount + dupReplacedCount;
                 const uniqueDupSet = new Set<string>([
                   ...duplicates.duplicatesInStock,
                   ...duplicates.duplicatesInFile,
+                  ...duplicates.duplicatesReplaced,
                 ]);
                 // rows that survive client-side skip (also dedup intra-file)
                 const seenLocal = new Set<string>();
@@ -1043,20 +1146,38 @@ const SellerDashboard = () => {
                         <AlertTriangle className="h-4 w-4" />
                         Duplicate UID warning
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 gap-1 px-2 text-xs"
-                        onClick={() => {
-                          setDupModalTab(dupStockCount > 0 ? "stock" : "file");
-                          setDupModalPage(1);
-                          setDupModalOpen(true);
-                        }}
-                      >
-                        <Eye className="h-3 w-3" /> View full duplicates
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 px-2 text-xs"
+                          onClick={recheckDuplicates}
+                          disabled={recheckLoading || uploading}
+                        >
+                          {recheckLoading ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3" />
+                          )}
+                          Recheck duplicates
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 px-2 text-xs"
+                          onClick={() => {
+                            setDupModalTab(
+                              dupStockCount > 0 ? "stock" : dupFileCount > 0 ? "file" : "replaced",
+                            );
+                            setDupModalPage(1);
+                            setDupModalOpen(true);
+                          }}
+                        >
+                          <Eye className="h-3 w-3" /> View full duplicates
+                        </Button>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
                       <div className="rounded border border-border/60 bg-background/40 p-2">
                         <div className="text-muted-foreground">Already in your stock</div>
                         <div className="font-display text-base font-semibold">{dupStockCount}</div>
@@ -1065,6 +1186,14 @@ const SellerDashboard = () => {
                         <div className="text-muted-foreground">Repeated in file</div>
                         <div className="font-display text-base font-semibold">{dupFileCount}</div>
                       </div>
+                      <div className="rounded border border-border/60 bg-background/40 p-2">
+                        <div className="text-muted-foreground">Already replaced</div>
+                        <div className="font-display text-base font-semibold">{dupReplacedCount}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-[10px] text-muted-foreground">
+                      Last checked: {new Date(duplicates.checkedAt).toLocaleTimeString()} ·
+                      Click <strong>Recheck duplicates</strong> right before Confirm to re-query latest stock.
                     </div>
                     <div className="mt-3 flex items-start justify-between gap-3 rounded-md border border-border/60 bg-background/40 p-2">
                       <div className="flex-1">
@@ -1228,6 +1357,80 @@ const SellerDashboard = () => {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {r.sold_at ? new Date(r.sold_at).toLocaleString() : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </Card>
+
+        {/* Upload audit history */}
+        <Card className="mt-6 border-border/60 bg-gradient-card p-6">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div>
+              <div className="font-display text-lg font-semibold">Upload history</div>
+              <p className="text-xs text-muted-foreground">
+                Per Confirm Upload: how many rows were sent, inserted, and skipped (with reason).
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={loadAudits} disabled={auditsLoading}>
+              {auditsLoading ? (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1 h-3 w-3" />
+              )}
+              Refresh
+            </Button>
+          </div>
+          {audits.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              No uploads recorded yet.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>When</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>File</TableHead>
+                    <TableHead className="text-right">In file</TableHead>
+                    <TableHead className="text-right">Sent</TableHead>
+                    <TableHead className="text-right">Inserted</TableHead>
+                    <TableHead className="text-right">Dup (stock)</TableHead>
+                    <TableHead className="text-right">Dup (file)</TableHead>
+                    <TableHead className="text-right">Dup (replaced)</TableHead>
+                    <TableHead className="text-right">Invalid</TableHead>
+                    <TableHead className="text-right">Over limit</TableHead>
+                    <TableHead>Skip mode</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {audits.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        {new Date(a.created_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-xs">{a.category_name ?? "—"}</TableCell>
+                      <TableCell className="max-w-[180px] truncate font-mono text-xs">
+                        {a.file_name ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">{a.rows_in_file}</TableCell>
+                      <TableCell className="text-right text-xs">{a.rows_sent}</TableCell>
+                      <TableCell className="text-right text-xs font-semibold text-success">
+                        {a.rows_inserted}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">{a.duplicates_in_stock}</TableCell>
+                      <TableCell className="text-right text-xs">{a.duplicates_in_file}</TableCell>
+                      <TableCell className="text-right text-xs">{a.duplicates_already_replaced}</TableCell>
+                      <TableCell className="text-right text-xs">{a.invalid_rows}</TableCell>
+                      <TableCell className="text-right text-xs">{a.over_limit_skipped}</TableCell>
+                      <TableCell className="text-xs">
+                        <Badge variant="outline" className="text-[10px]">
+                          {a.skip_duplicates_setting ? "skip on" : "skip off"}
+                        </Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1510,9 +1713,12 @@ const SellerDashboard = () => {
               </DialogDescription>
             </DialogHeader>
             {duplicates && (() => {
-              const list = dupModalTab === "stock"
-                ? duplicates.duplicatesInStock
-                : duplicates.duplicatesInFile;
+              const list =
+                dupModalTab === "stock"
+                  ? duplicates.duplicatesInStock
+                  : dupModalTab === "file"
+                    ? duplicates.duplicatesInFile
+                    : duplicates.duplicatesReplaced;
               const PAGE_SIZE = 50;
               const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
               const page = Math.min(Math.max(1, dupModalPage), totalPages);
@@ -1525,6 +1731,11 @@ const SellerDashboard = () => {
                 } catch {
                   toast.error("Clipboard blocked — select text manually");
                 }
+              };
+              const ruleLabel: Record<string, { label: string; cls: string }> = {
+                in_stock: { label: "In stock", cls: "bg-warning/20 text-warning" },
+                in_file: { label: "Repeated in file", cls: "bg-muted text-muted-foreground" },
+                already_replaced: { label: "Already replaced", cls: "bg-destructive/20 text-destructive" },
               };
               return (
                 <div className="space-y-3">
@@ -1543,7 +1754,28 @@ const SellerDashboard = () => {
                     >
                       Repeated in file ({duplicates.duplicatesInFile.length})
                     </Button>
+                    <Button
+                      size="sm"
+                      variant={dupModalTab === "replaced" ? "default" : "outline"}
+                      onClick={() => { setDupModalTab("replaced"); setDupModalPage(1); }}
+                    >
+                      Already replaced ({duplicates.duplicatesReplaced.length})
+                    </Button>
                     <div className="ml-auto">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mr-2 gap-1"
+                        onClick={recheckDuplicates}
+                        disabled={recheckLoading}
+                      >
+                        {recheckLoading ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Recheck
+                      </Button>
                       <Button size="sm" variant="outline" className="gap-1" onClick={copyAll} disabled={list.length === 0}>
                         <Copy className="h-3 w-3" /> Copy {list.length}
                       </Button>
@@ -1556,11 +1788,19 @@ const SellerDashboard = () => {
                   ) : (
                     <>
                       <div className="max-h-72 overflow-auto rounded-md border border-border/60 bg-background/40 p-3 font-mono text-xs">
-                        {slice.map((u) => (
-                          <div key={u} className="border-b border-border/40 py-1 last:border-0">
-                            {u}
-                          </div>
-                        ))}
+                        {slice.map((u) => {
+                          const rule = duplicates.ruleByUid[u] ?? "in_file";
+                          const meta = ruleLabel[rule];
+                          return (
+                            <div
+                              key={u}
+                              className="flex items-center justify-between gap-2 border-b border-border/40 py-1 last:border-0"
+                            >
+                              <span>{u}</span>
+                              <Badge className={`${meta.cls} text-[10px]`}>{meta.label}</Badge>
+                            </div>
+                          );
+                        })}
                       </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>
