@@ -179,6 +179,17 @@ const Wallet = () => {
                 <p className="mt-1 text-sm text-muted-foreground">
                   Send the amount to admin's bKash/Nagad number, then submit your sender number + transaction ID. Admin will approve within 30 minutes (typically).
                 </p>
+                {!isSeller && (
+                  <div className="mt-3 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <div>
+                      <div className="font-semibold">Deposits are non-refundable</div>
+                      <div className="mt-1 text-xs text-destructive/90">
+                        Once you deposit money into your wallet, it <strong>cannot be withdrawn</strong>. Buyers can only spend the balance on accounts available in this marketplace. Please deposit only what you intend to spend.
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
                   <div className="font-medium">Send Money to:</div>
                   <div className="mt-1 font-mono text-base">bKash / Nagad: <span className="text-primary">01XXXXXXXXX</span> (Personal)</div>
