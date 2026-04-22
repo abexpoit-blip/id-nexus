@@ -68,6 +68,77 @@ const Wallet = () => {
   const [tUploading, setTUploading] = useState(false);
   const [tUploadedUrl, setTUploadedUrl] = useState<string | null>(null);
   const [tUploadError, setTUploadError] = useState<string | null>(null);
+  const [tFileMeta, setTFileMeta] = useState<{ width: number; height: number; sizeKB: number } | null>(null);
+
+  // Client-side screenshot validation rules
+  const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+  const MAX_SIZE_BYTES = 5 * 1024 * 1024;
+  const MIN_WIDTH = 200;
+  const MIN_HEIGHT = 200;
+  const MAX_WIDTH = 6000;
+  const MAX_HEIGHT = 8000;
+
+  const validateScreenshot = (f: File): Promise<{ width: number; height: number; sizeKB: number }> =>
+    new Promise((resolve, reject) => {
+      // 1. MIME type check
+      if (!ALLOWED_TYPES.includes(f.type.toLowerCase())) {
+        return reject(new Error(`Wrong file type "${f.type || "unknown"}". Only PNG, JPG or WEBP allowed.`));
+      }
+      // 2. Extension sanity check
+      const ext = (f.name.split(".").pop() || "").toLowerCase();
+      if (!["png", "jpg", "jpeg", "webp"].includes(ext)) {
+        return reject(new Error(`File extension ".${ext}" is not allowed. Use .png, .jpg or .webp.`));
+      }
+      // 3. Size check
+      if (f.size === 0) return reject(new Error("File is empty (0 bytes)."));
+      if (f.size > MAX_SIZE_BYTES) {
+        return reject(new Error(`File too large (${(f.size / 1024 / 1024).toFixed(2)} MB). Max 5 MB.`));
+      }
+      // 4. Image dimensions check (catches PDFs/text renamed to .jpg)
+      const url = URL.createObjectURL(f);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const { naturalWidth: w, naturalHeight: h } = img;
+        if (w < MIN_WIDTH || h < MIN_HEIGHT) {
+          return reject(new Error(`Image too small (${w}×${h}px). Minimum ${MIN_WIDTH}×${MIN_HEIGHT}px.`));
+        }
+        if (w > MAX_WIDTH || h > MAX_HEIGHT) {
+          return reject(new Error(`Image too large (${w}×${h}px). Maximum ${MAX_WIDTH}×${MAX_HEIGHT}px.`));
+        }
+        resolve({ width: w, height: h, sizeKB: Math.round(f.size / 1024) });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("File is not a valid image (corrupted or wrong format)."));
+      };
+      img.src = url;
+    });
+
+  const handleFilePick = async (f: File | null) => {
+    if (tPreview) URL.revokeObjectURL(tPreview);
+    setTUploadedUrl(null);
+    setTUploadError(null);
+    setTFileMeta(null);
+    if (!f) {
+      setTFile(null);
+      setTPreview(null);
+      return;
+    }
+    try {
+      const meta = await validateScreenshot(f);
+      setTFile(f);
+      setTFileMeta(meta);
+      setTPreview(URL.createObjectURL(f));
+      toast.success(`Valid screenshot (${meta.width}×${meta.height}px, ${meta.sizeKB} KB)`);
+    } catch (e: any) {
+      setTFile(null);
+      setTPreview(null);
+      const msg = e?.message ?? "Invalid file";
+      setTUploadError(msg);
+      toast.error(msg);
+    }
+  };
 
   // Withdraw form
   const [wAmount, setWAmount] = useState("");
