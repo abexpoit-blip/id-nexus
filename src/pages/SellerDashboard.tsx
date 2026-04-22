@@ -1424,6 +1424,66 @@ const SellerDashboard = () => {
                 variant="outline"
                 disabled={audits.length === 0}
                 onClick={() => {
+                  const a = audits[0];
+                  if (!a) return;
+                  const headers = [
+                    "When",
+                    "Category",
+                    "File",
+                    "Rows in file",
+                    "Rows sent",
+                    "Rows inserted",
+                    "Skipped (duplicates in stock)",
+                    "Skipped (duplicates in file)",
+                    "Skipped (already replaced)",
+                    "Skipped (over daily limit)",
+                    "Invalid rows",
+                    "Skip duplicates setting",
+                  ];
+                  const escape = (v: string | number | null | undefined) => {
+                    const s = v == null ? "" : String(v);
+                    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+                  };
+                  const row = [
+                    new Date(a.created_at).toISOString(),
+                    a.category_name ?? "",
+                    a.file_name ?? "",
+                    a.rows_in_file,
+                    a.rows_sent,
+                    a.rows_inserted,
+                    a.duplicates_in_stock,
+                    a.duplicates_in_file,
+                    a.duplicates_already_replaced,
+                    a.over_limit_skipped,
+                    a.invalid_rows,
+                    a.skip_duplicates_setting ? "on" : "off",
+                  ];
+                  const csv =
+                    headers.join(",") + "\n" + row.map(escape).join(",") + "\n";
+                  const blob = new Blob(["\ufeff" + csv], {
+                    type: "text/csv;charset=utf-8;",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  const stamp = new Date(a.created_at)
+                    .toISOString()
+                    .replace(/[:.]/g, "-");
+                  link.download = `last-upload-${stamp}.csv`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                  toast.success("Exported last upload");
+                }}
+              >
+                <Download className="mr-1 h-3 w-3" /> Download last upload CSV
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={audits.length === 0}
+                onClick={() => {
                   const headers = [
                     "When",
                     "Category",
