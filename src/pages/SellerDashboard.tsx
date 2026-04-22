@@ -567,6 +567,7 @@ const SellerDashboard = () => {
     }
     setParsed(null);
     setFileName("");
+    clearPersistedParsed();
     loadAll();
   };
 
