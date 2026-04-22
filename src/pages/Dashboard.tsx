@@ -26,6 +26,7 @@ interface Profile {
   balance_bdt: number;
   telegram_link_code: string;
   telegram_chat_id: number | null;
+  buyer_settings: { telegram_template?: "compact" | "detailed" } | null;
 }
 
 const Dashboard = () => {
@@ -38,7 +39,7 @@ const Dashboard = () => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("display_name, email, balance_bdt, telegram_link_code, telegram_chat_id")
+      .select("display_name, email, balance_bdt, telegram_link_code, telegram_chat_id, buyer_settings")
       .eq("id", user.id)
       .single()
       .then(({ data, error }) => {
@@ -56,6 +57,23 @@ const Dashboard = () => {
     if (!profile) return;
     navigator.clipboard.writeText(`/start ${profile.telegram_link_code}`);
     toast.success("Telegram command copied");
+  };
+
+  const template: "compact" | "detailed" = profile?.buyer_settings?.telegram_template ?? "compact";
+
+  const setTemplate = async (next: "compact" | "detailed") => {
+    if (!user || !profile) return;
+    const newSettings = { ...(profile.buyer_settings ?? {}), telegram_template: next };
+    setProfile({ ...profile, buyer_settings: newSettings });
+    const { error } = await supabase
+      .from("profiles")
+      .update({ buyer_settings: newSettings })
+      .eq("id", user.id);
+    if (error) {
+      toast.error("Could not save template preference");
+    } else {
+      toast.success(`Telegram template set to ${next}`);
+    }
   };
 
   if (loading) {
