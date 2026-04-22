@@ -144,20 +144,22 @@ const SellerDashboard = () => {
 
   const loadAll = async () => {
     if (!user) return;
+    setCategoriesLoading(true);
+    setCategoriesError(null);
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const startOfWeek = new Date();
     startOfWeek.setHours(0, 0, 0, 0);
     startOfWeek.setDate(startOfWeek.getDate() - 6); // last 7 days incl. today
 
-    const [
-      { data: cats },
-      { data: myAccounts },
-      { data: recentRows },
-      { count: todayCount },
-      { count: weekCount },
-      { data: rpItems },
-    ] = await Promise.all([
+    let cats: any[] | null = null;
+    let myAccounts: any[] | null = null;
+    let recentRows: any[] | null = null;
+    let todayCount: number | null = 0;
+    let weekCount: number | null = 0;
+    let rpItems: any[] | null = null;
+    try {
+      const results = await Promise.all([
       supabase
         .from("categories")
         .select("id, name, slug, price_bdt")
@@ -192,8 +194,21 @@ const SellerDashboard = () => {
         .eq("seller_id", user.id)
         .order("created_at", { ascending: false })
         .limit(100),
-    ]);
+      ]);
+      cats = results[0].data as any[] | null;
+      myAccounts = results[1].data as any[] | null;
+      recentRows = results[2].data as any[] | null;
+      todayCount = results[3].count;
+      weekCount = results[4].count;
+      rpItems = results[5].data as any[] | null;
+      if (results[0].error) throw results[0].error;
+    } catch (err: any) {
+      setCategoriesError(err?.message || "Failed to load categories");
+      setCategoriesLoading(false);
+      return;
+    }
     setCategories((cats ?? []) as Category[]);
+    setCategoriesLoading(false);
     setSoldToday(todayCount ?? 0);
     setSoldWeek(weekCount ?? 0);
     setReplacements((rpItems ?? []) as ReplacementRow[]);
