@@ -245,8 +245,32 @@ export const RecentOrdersPanel = ({ userId }: { userId: string }) => {
                     ৳{o.total_bdt.toFixed(2)}
                   </Badge>
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {formatTime(o.created_at)} · #{o.id.slice(0, 8)}
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>{formatTime(o.created_at)} · #{o.id.slice(0, 8)}</span>
+                  {(() => {
+                    const s = statuses[o.id];
+                    if (!s) return null;
+                    if (s.status === "sending")
+                      return (
+                        <Badge variant="outline" className="border-primary/40 text-primary">
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Sending…
+                        </Badge>
+                      );
+                    if (s.status === "sent")
+                      return (
+                        <Badge className="bg-success/20 text-success hover:bg-success/20">
+                          <CheckCircle2 className="mr-1 h-3 w-3" /> Sent to Telegram
+                          {s.at ? ` · ${new Date(s.at).toLocaleTimeString()}` : ""}
+                        </Badge>
+                      );
+                    if (s.status === "failed")
+                      return (
+                        <Badge variant="destructive" title={s.error}>
+                          <XCircle className="mr-1 h-3 w-3" /> Failed
+                        </Badge>
+                      );
+                    return null;
+                  })()}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
