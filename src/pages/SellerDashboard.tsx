@@ -1418,14 +1418,76 @@ const SellerDashboard = () => {
                 Per Confirm Upload: how many rows were sent, inserted, and skipped (with reason).
               </p>
             </div>
-            <Button size="sm" variant="outline" onClick={loadAudits} disabled={auditsLoading}>
-              {auditsLoading ? (
-                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-1 h-3 w-3" />
-              )}
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={audits.length === 0}
+                onClick={() => {
+                  const headers = [
+                    "When",
+                    "Category",
+                    "File",
+                    "Rows in file",
+                    "Rows sent",
+                    "Rows inserted",
+                    "Duplicates in stock",
+                    "Duplicates in file",
+                    "Duplicates already replaced",
+                    "Invalid rows",
+                    "Over-limit skipped",
+                    "Skip duplicates setting",
+                  ];
+                  const escape = (v: string | number | null | undefined) => {
+                    const s = v == null ? "" : String(v);
+                    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+                  };
+                  const lines = [headers.join(",")];
+                  audits.forEach((a) => {
+                    lines.push(
+                      [
+                        new Date(a.created_at).toISOString(),
+                        a.category_name ?? "",
+                        a.file_name ?? "",
+                        a.rows_in_file,
+                        a.rows_sent,
+                        a.rows_inserted,
+                        a.duplicates_in_stock,
+                        a.duplicates_in_file,
+                        a.duplicates_already_replaced,
+                        a.invalid_rows,
+                        a.over_limit_skipped,
+                        a.skip_duplicates_setting ? "on" : "off",
+                      ]
+                        .map(escape)
+                        .join(","),
+                    );
+                  });
+                  const blob = new Blob(["\ufeff" + lines.join("\n")], {
+                    type: "text/csv;charset=utf-8;",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = `upload-history-${new Date().toISOString().slice(0, 10)}.csv`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                  toast.success(`Exported ${audits.length} upload row${audits.length === 1 ? "" : "s"}`);
+                }}
+              >
+                <Download className="mr-1 h-3 w-3" /> Download CSV
+              </Button>
+              <Button size="sm" variant="outline" onClick={loadAudits} disabled={auditsLoading}>
+                {auditsLoading ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1 h-3 w-3" />
+                )}
+                Refresh
+              </Button>
+            </div>
           </div>
           {audits.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
