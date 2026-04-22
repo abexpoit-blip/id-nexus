@@ -158,6 +158,7 @@ const SellerDashboard = () => {
   const [uploadStep, setUploadStep] = useState<UploadStep>("idle");
   const [uploadProgress, setUploadProgress] = useState(0); // 0..100, used for parsing read
   const [lastFile, setLastFile] = useState<File | null>(null);
+  const [duplicates, setDuplicates] = useState<DuplicateInfo | null>(null);
   const [stock, setStock] = useState<StockSummary[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [soldToday, setSoldToday] = useState(0);
