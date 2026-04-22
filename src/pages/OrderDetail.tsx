@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Copy, Download, Loader2, RefreshCcw } from "lucide-react";
+import { ArrowLeft, Copy, Download, Loader2, RefreshCcw, Clock, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
@@ -43,6 +43,12 @@ const OrderDetail = () => {
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [categoryName, setCategoryName] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -114,6 +120,15 @@ const OrderDetail = () => {
   }
   if (!order) return null;
 
+  // Replacement window: 2h for orders <=10 IDs, 6h for larger
+  const windowHours = order.quantity <= 10 ? 2 : 6;
+  const orderTime = new Date(order.created_at).getTime();
+  const expiresAt = orderTime + windowHours * 60 * 60 * 1000;
+  const remainingMs = Math.max(0, expiresAt - now);
+  const expired = remainingMs <= 0;
+  const remainingH = Math.floor(remainingMs / (60 * 60 * 1000));
+  const remainingM = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
@@ -160,13 +175,44 @@ const OrderDetail = () => {
           <Button onClick={downloadExcel} className="bg-gradient-brand text-primary-foreground hover:opacity-90">
             <Download className="mr-2 h-4 w-4" /> Download Excel
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => navigate("/replacements")}
-            className="border-warning/40 text-warning hover:text-warning"
-          >
-            <RefreshCcw className="mr-2 h-4 w-4" /> Report bad IDs
-          </Button>
+          {expired ? (
+            <Button
+              variant="outline"
+              disabled
+              className="border-muted/40 text-muted-foreground"
+              title={`Replacement window of ${windowHours}h has expired`}
+            >
+              <Clock className="mr-2 h-4 w-4" /> 6 hour expired
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => navigate("/replacements")}
+              className="border-warning/40 text-warning hover:text-warning"
+            >
+              <RefreshCcw className="mr-2 h-4 w-4" /> Report bad IDs
+              <span className="ml-2 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium">
+                {remainingH}h {remainingM}m left
+              </span>
+            </Button>
+          )}
+        </div>
+
+        <div className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-xs ${
+          expired ? "border-muted bg-muted/30 text-muted-foreground" : "border-warning/30 bg-warning/5 text-warning"
+        }`}>
+          {expired ? <CheckCircle2 className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+          {expired ? (
+            <span>
+              Replacement window of <b>{windowHours} hours</b> has expired for this order.
+              Reports filed now will be marked out-of-window.
+            </span>
+          ) : (
+            <span>
+              You have <b>{remainingH}h {remainingM}m</b> left to report bad IDs from this order
+              (window: {windowHours} hours after purchase).
+            </span>
+          )}
         </div>
 
         <Card className="overflow-hidden border-border/60 bg-gradient-card">
