@@ -578,12 +578,31 @@ const SellerDashboard = () => {
               className="hidden"
               id="stock-file"
             />
-            <Button asChild variant="outline">
-              <label htmlFor="stock-file" className="cursor-pointer">
-                <FileSpreadsheet className="mr-2 h-4 w-4" /> Pick file
-              </label>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!categoryId || uploading}
+              onClick={() => {
+                if (!categoryId) {
+                  toast.error("Choose a category first");
+                  return;
+                }
+                fileRef.current?.click();
+              }}
+            >
+              <FileSpreadsheet className="mr-2 h-4 w-4" /> Pick file
             </Button>
           </div>
+          {!categoryId && (
+            <p className="mt-2 text-xs text-warning">
+              Choose a category above to enable file picker.
+            </p>
+          )}
+          {categories.length === 0 && (
+            <p className="mt-2 text-xs text-destructive">
+              No active categories yet. Ask admin to create one in Admin → Categories.
+            </p>
+          )}
 
           {parsed && (
             <div className="mt-5 space-y-3">
