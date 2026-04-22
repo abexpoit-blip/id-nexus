@@ -223,7 +223,7 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
     toast.success(`Copied ${rows.length} UID:PASS lines`);
   };
 
-  const handleTelegram = async (order: OrderRow) => {
+  const handleTelegram = async (order: OrderRow, isAutoRetry = false) => {
     if (!telegramLinked) {
       toast.error("Link your Telegram account first (see Telegram card above).");
       return;
@@ -244,8 +244,7 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
     setBusyId(null);
     if (error) {
       await upsertStatus(order.id, { status: "failed", last_error: error.message });
-      toast.error(error.message || "Telegram send failed");
-      return;
+      return scheduleAutoRetry(order, error.message || "Telegram send failed", isAutoRetry);
     }
     if (data && (data as any).ok === false) {
       await upsertStatus(order.id, { status: "failed", last_error: "Telegram not linked" });
@@ -254,6 +253,21 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
     }
     await upsertStatus(order.id, { status: "sent" });
     toast.success(`Sent ${rows.length} credentials to your Telegram`);
+  };
+
+  // Auto-retry up to 2 times with exponential backoff (3s, 8s) on transient failures.
+  const MAX_AUTO_RETRIES = 2;
+  const scheduleAutoRetry = (order: OrderRow, errMsg: string, wasAutoRetry: boolean) => {
+    const attempts = (statuses[order.id]?.attempt_count ?? 0) + (wasAutoRetry ? 0 : 1);
+    if (attempts >= MAX_AUTO_RETRIES + 1) {
+      toast.error(`Telegram send failed after ${attempts} tries. Tap "Retry Telegram" to try again.`);
+      return;
+    }
+    const delayMs = attempts === 1 ? 3000 : 8000;
+    toast.message(`Telegram failed (${errMsg}). Auto-retrying in ${delayMs / 1000}s…`);
+    window.setTimeout(() => {
+      handleTelegram(order, true);
+    }, delayMs);
   };
 
   return (
