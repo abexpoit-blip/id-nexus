@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
@@ -69,9 +70,12 @@ const Admin = () => {
   const [section, setSection] = useState<"replacements" | "stock" | "categories" | "sellers" | "applications" | "payments">("replacements");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
-  const [action, setAction] = useState<"replace" | "refund" | "reject" | null>(null);
+  const [action, setAction] = useState<"replace" | "refund" | "reject" | "replace_category" | null>(null);
+  const [targetCategoryId, setTargetCategoryId] = useState<string>("");
   const [reason, setReason] = useState("");
+  const [customMessage, setCustomMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
   const load = async () => {
     if (!isAdmin) return;
@@ -95,6 +99,14 @@ const Admin = () => {
       .channel("admin-replacement-items")
       .on("postgres_changes", { event: "*", schema: "public", table: "replacement_items" }, () => load())
       .subscribe();
+    // Load fb_account categories for quick-replace buttons
+    supabase
+      .from("categories")
+      .select("id, name")
+      .eq("is_active", true)
+      .eq("kind", "fb_account")
+      .order("sort_order")
+      .then(({ data }) => setCategories((data ?? []) as { id: string; name: string }[]));
     return () => {
       supabase.removeChannel(ch);
     };
@@ -125,26 +137,45 @@ const Admin = () => {
     };
   }, [items]);
 
-  const openAction = (item: RpItem, act: "replace" | "refund" | "reject") => {
+  const openAction = (item: RpItem, act: "replace" | "refund" | "reject" | "replace_category", catId?: string) => {
     setActingItem(item);
     setAction(act);
     setReason("");
+    setCustomMessage("");
+    setTargetCategoryId(catId ?? "");
   };
 
   const submit = async () => {
     if (!actingItem || !action) return;
     setSubmitting(true);
-    const { error } = await supabase.rpc("admin_resolve_replacement_item", {
-      p_item_id: actingItem.id,
-      p_action: action,
-      p_reason: reason.trim() || null,
-    });
+    let error: any = null;
+    if (action === "replace_category") {
+      if (!targetCategoryId) {
+        toast.error("Pick a category");
+        setSubmitting(false);
+        return;
+      }
+      const res = await supabase.rpc("admin_replace_with_category", {
+        p_item_id: actingItem.id,
+        p_category_id: targetCategoryId,
+        p_reason: reason.trim() || null,
+        p_message: customMessage.trim() || null,
+      });
+      error = res.error;
+    } else {
+      const res = await supabase.rpc("admin_resolve_replacement_item", {
+        p_item_id: actingItem.id,
+        p_action: action,
+        p_reason: reason.trim() || null,
+      });
+      error = res.error;
+    }
     setSubmitting(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success(`Marked as ${action}`);
+    toast.success(action === "replace_category" ? "Replaced from chosen category" : `Marked as ${action}`);
     setActingItem(null);
     setAction(null);
     load();
@@ -313,7 +344,18 @@ const Admin = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         {it.outcome === "pending" ? (
-                          <div className="inline-flex gap-1">
+                          <div className="inline-flex flex-wrap justify-end gap-1">
+                            {categories.map((c) => (
+                              <Button
+                                key={c.id}
+                                size="sm"
+                                variant="outline"
+                                className="border-primary/40 text-primary hover:text-primary"
+                                onClick={() => openAction(it, "replace_category", c.id)}
+                              >
+                                <RefreshCcw className="mr-1 h-3 w-3" /> {c.name}
+                              </Button>
+                            ))}
                             <Button
                               size="sm"
                               variant="outline"
@@ -321,7 +363,7 @@ const Admin = () => {
                               onClick={() => openAction(it, "replace")}
                               disabled={!it.account_id}
                             >
-                              <RefreshCcw className="mr-1 h-3 w-3" /> Replace
+                              <RefreshCcw className="mr-1 h-3 w-3" /> Same cat.
                             </Button>
                             <Button
                               size="sm"
@@ -359,25 +401,43 @@ const Admin = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="capitalize">
-              {action} replacement
+              {action === "replace_category"
+                ? `Replace with ${categories.find((c) => c.id === targetCategoryId)?.name ?? "selected category"}`
+                : `${action} replacement`}
             </DialogTitle>
             <DialogDescription>
               UID <span className="font-mono">{actingItem?.reported_uid}</span> ·
-              {action === "replace"
+              {action === "replace_category"
+                ? ` Picks the oldest available ID from the chosen category and assigns it to the buyer.`
+                : action === "replace"
                 ? " Issues a fresh available ID from the same category to the buyer."
                 : action === "refund"
                 ? " Credits the buyer's balance with the original unit price."
                 : " Closes without action — buyer will be notified."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Reason / note (optional)</label>
-            <Input
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Visible to buyer & seller"
-              maxLength={500}
-            />
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Internal reason (optional)</label>
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Short note — visible to buyer & seller"
+                maxLength={500}
+              />
+            </div>
+            {(action === "replace" || action === "replace_category") && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Custom message to buyer (optional)</label>
+                <Textarea
+                  value={customMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  placeholder="If empty, a default replacement message will be sent."
+                  maxLength={1000}
+                  rows={3}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setActingItem(null)} disabled={submitting}>
@@ -389,7 +449,7 @@ const Admin = () => {
               className="bg-gradient-brand text-primary-foreground hover:opacity-90"
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirm {action}
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -827,6 +827,15 @@ export type Database = {
         Args: { p_id: string; p_note?: string }
         Returns: Json
       }
+      admin_replace_with_category: {
+        Args: {
+          p_category_id: string
+          p_item_id: string
+          p_message?: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
       admin_resolve_replacement_item: {
         Args: { p_action: string; p_item_id: string; p_reason?: string }
         Returns: Json
@@ -875,6 +884,15 @@ export type Database = {
       }
       bot_admin_reject_topup: {
         Args: { p_admin_chat_id: number; p_note?: string; p_request_id: string }
+        Returns: Json
+      }
+      bot_admin_replace_with_category: {
+        Args: {
+          p_admin_chat_id: number
+          p_category_slug: string
+          p_item_id: string
+          p_message?: string
+        }
         Returns: Json
       }
       bot_submit_topup_request: {

@@ -93,7 +93,42 @@ async function handleMessage(admin: any, token: string, vpsUrl: string | undefin
         `Commands:\n` +
         `/deposit <amount> <bkash|nagad> <sender_no> <txn_id> — submit a top-up\n` +
         `Then reply to my next message with the payment screenshot.\n\n` +
+        `Admin only:\n` +
+        `/replace <item_id> <category_slug> [message] — quick-replace a reported UID\n` +
+        `Example: <code>/replace 1234abcd 61xxx Sorry for the inconvenience</code>\n\n` +
         `Example:\n<code>/deposit 500 bkash 01712345678 9A1B2C3D4E</code>`,
+      parse_mode: 'HTML',
+    });
+    return;
+  }
+
+  // /replace <item_id> <category_slug> [message...]
+  if (text.startsWith('/replace')) {
+    const parts = text.split(/\s+/);
+    if (parts.length < 3) {
+      await tg(token, 'sendMessage', {
+        chat_id: chatId,
+        text: '⚠️ Usage: /replace <item_id> <category_slug> [optional message]',
+      });
+      return;
+    }
+    const itemId = parts[1];
+    const catSlug = parts[2];
+    const message = parts.slice(3).join(' ').trim() || null;
+    const { data: res, error } = await admin.rpc('bot_admin_replace_with_category', {
+      p_admin_chat_id: chatId,
+      p_item_id: itemId,
+      p_category_slug: catSlug,
+      p_message: message,
+    });
+    if (error) {
+      await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${error.message}` });
+      return;
+    }
+    const r = res as { new_uid?: string; category?: string };
+    await tg(token, 'sendMessage', {
+      chat_id: chatId,
+      text: `✅ Replaced with UID <code>${r.new_uid}</code> from ${r.category}`,
       parse_mode: 'HTML',
     });
     return;
