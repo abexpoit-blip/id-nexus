@@ -737,11 +737,54 @@ const SellerDashboard = () => {
       toast.error(msg);
       return;
     }
-    // Apply client-side dedup based on user's choice
-    const dupSet = new Set<string>([
+    // Final safety net: recheck duplicates against latest stock right before insert.
+    // If new collisions appeared since the modal/last check, BLOCK and surface them.
+    setUploadStep("validating");
+    setUploadError(null);
+    const prevDupSet = new Set<string>([
       ...(duplicates?.duplicatesInStock ?? []),
       ...(duplicates?.duplicatesInFile ?? []),
       ...(duplicates?.duplicatesReplaced ?? []),
+    ]);
+    const fresh = await detectDuplicates(parsed);
+    if (!fresh) {
+      // detectDuplicates already surfaced the error
+      return;
+    }
+    setDuplicates(fresh);
+    const freshDupSet = new Set<string>([
+      ...fresh.duplicatesInStock,
+      ...fresh.duplicatesInFile,
+      ...fresh.duplicatesReplaced,
+    ]);
+    const newCollisions: string[] = [];
+    freshDupSet.forEach((u) => { if (!prevDupSet.has(u)) newCollisions.push(u); });
+    if (newCollisions.length > 0) {
+      const sample = newCollisions.slice(0, 5).join(", ");
+      const more = newCollisions.length > 5 ? ` (+${newCollisions.length - 5} more)` : "";
+      const msg = `Recheck found ${newCollisions.length} NEW duplicate UID${
+        newCollisions.length > 1 ? "s" : ""
+      } since you opened the review. Review the duplicates panel and confirm again. New: ${sample}${more}`;
+      setUploadError(msg);
+      setUploadStep("error");
+      toast.error(msg, { duration: 8000 });
+      setDupModalTab(
+        fresh.duplicatesInStock.length > 0
+          ? "stock"
+          : fresh.duplicatesReplaced.length > 0
+            ? "replaced"
+            : "file",
+      );
+      setDupModalPage(1);
+      setDupModalOpen(true);
+      return;
+    }
+    setUploadStep("idle");
+    // Apply client-side dedup based on user's choice
+    const dupSet = new Set<string>([
+      ...fresh.duplicatesInStock,
+      ...fresh.duplicatesInFile,
+      ...fresh.duplicatesReplaced,
     ]);
     let rowsToSend = parsed;
     if (skipDuplicates && dupSet.size > 0) {
@@ -803,9 +846,9 @@ const SellerDashboard = () => {
         rows_in_file: parsed.length,
         rows_sent: rowsToSend.length,
         rows_inserted: Number(r.inserted ?? 0),
-        duplicates_in_stock: duplicates?.duplicatesInStock.length ?? 0,
-        duplicates_in_file: duplicates?.duplicatesInFile.length ?? 0,
-        duplicates_already_replaced: duplicates?.duplicatesReplaced.length ?? 0,
+        duplicates_in_stock: fresh.duplicatesInStock.length,
+        duplicates_in_file: fresh.duplicatesInFile.length,
+        duplicates_already_replaced: fresh.duplicatesReplaced.length,
         invalid_rows: Number(r.invalid_count ?? 0),
         over_limit_skipped: overLimit,
         skip_duplicates_setting: skipDuplicates,
@@ -1375,14 +1418,76 @@ const SellerDashboard = () => {
                 Per Confirm Upload: how many rows were sent, inserted, and skipped (with reason).
               </p>
             </div>
-            <Button size="sm" variant="outline" onClick={loadAudits} disabled={auditsLoading}>
-              {auditsLoading ? (
-                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-1 h-3 w-3" />
-              )}
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={audits.length === 0}
+                onClick={() => {
+                  const headers = [
+                    "When",
+                    "Category",
+                    "File",
+                    "Rows in file",
+                    "Rows sent",
+                    "Rows inserted",
+                    "Duplicates in stock",
+                    "Duplicates in file",
+                    "Duplicates already replaced",
+                    "Invalid rows",
+                    "Over-limit skipped",
+                    "Skip duplicates setting",
+                  ];
+                  const escape = (v: string | number | null | undefined) => {
+                    const s = v == null ? "" : String(v);
+                    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+                  };
+                  const lines = [headers.join(",")];
+                  audits.forEach((a) => {
+                    lines.push(
+                      [
+                        new Date(a.created_at).toISOString(),
+                        a.category_name ?? "",
+                        a.file_name ?? "",
+                        a.rows_in_file,
+                        a.rows_sent,
+                        a.rows_inserted,
+                        a.duplicates_in_stock,
+                        a.duplicates_in_file,
+                        a.duplicates_already_replaced,
+                        a.invalid_rows,
+                        a.over_limit_skipped,
+                        a.skip_duplicates_setting ? "on" : "off",
+                      ]
+                        .map(escape)
+                        .join(","),
+                    );
+                  });
+                  const blob = new Blob(["\ufeff" + lines.join("\n")], {
+                    type: "text/csv;charset=utf-8;",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = `upload-history-${new Date().toISOString().slice(0, 10)}.csv`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                  toast.success(`Exported ${audits.length} upload row${audits.length === 1 ? "" : "s"}`);
+                }}
+              >
+                <Download className="mr-1 h-3 w-3" /> Download CSV
+              </Button>
+              <Button size="sm" variant="outline" onClick={loadAudits} disabled={auditsLoading}>
+                {auditsLoading ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1 h-3 w-3" />
+                )}
+                Refresh
+              </Button>
+            </div>
           </div>
           {audits.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
