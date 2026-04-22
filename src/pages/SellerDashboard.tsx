@@ -737,11 +737,54 @@ const SellerDashboard = () => {
       toast.error(msg);
       return;
     }
-    // Apply client-side dedup based on user's choice
-    const dupSet = new Set<string>([
+    // Final safety net: recheck duplicates against latest stock right before insert.
+    // If new collisions appeared since the modal/last check, BLOCK and surface them.
+    setUploadStep("validating");
+    setUploadError(null);
+    const prevDupSet = new Set<string>([
       ...(duplicates?.duplicatesInStock ?? []),
       ...(duplicates?.duplicatesInFile ?? []),
       ...(duplicates?.duplicatesReplaced ?? []),
+    ]);
+    const fresh = await detectDuplicates(parsed);
+    if (!fresh) {
+      // detectDuplicates already surfaced the error
+      return;
+    }
+    setDuplicates(fresh);
+    const freshDupSet = new Set<string>([
+      ...fresh.duplicatesInStock,
+      ...fresh.duplicatesInFile,
+      ...fresh.duplicatesReplaced,
+    ]);
+    const newCollisions: string[] = [];
+    freshDupSet.forEach((u) => { if (!prevDupSet.has(u)) newCollisions.push(u); });
+    if (newCollisions.length > 0) {
+      const sample = newCollisions.slice(0, 5).join(", ");
+      const more = newCollisions.length > 5 ? ` (+${newCollisions.length - 5} more)` : "";
+      const msg = `Recheck found ${newCollisions.length} NEW duplicate UID${
+        newCollisions.length > 1 ? "s" : ""
+      } since you opened the review. Review the duplicates panel and confirm again. New: ${sample}${more}`;
+      setUploadError(msg);
+      setUploadStep("error");
+      toast.error(msg, { duration: 8000 });
+      setDupModalTab(
+        fresh.duplicatesInStock.length > 0
+          ? "stock"
+          : fresh.duplicatesReplaced.length > 0
+            ? "replaced"
+            : "file",
+      );
+      setDupModalPage(1);
+      setDupModalOpen(true);
+      return;
+    }
+    setUploadStep("idle");
+    // Apply client-side dedup based on user's choice
+    const dupSet = new Set<string>([
+      ...fresh.duplicatesInStock,
+      ...fresh.duplicatesInFile,
+      ...fresh.duplicatesReplaced,
     ]);
     let rowsToSend = parsed;
     if (skipDuplicates && dupSet.size > 0) {
