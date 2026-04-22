@@ -125,10 +125,33 @@ async function handleMessage(admin: any, token: string, vpsUrl: string | undefin
       await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${error.message}` });
       return;
     }
-    const r = res as { new_uid?: string; category?: string };
+    const r = res as {
+      new_uid?: string;
+      category?: string;
+      reported_uid?: string;
+      buyer_name?: string;
+      order_created_at?: string | null;
+      window_hours?: number;
+      in_window?: boolean;
+      minutes_left?: number;
+      outcome?: string;
+    };
+    const orderTime = r.order_created_at
+      ? new Date(r.order_created_at).toUTCString()
+      : 'unknown';
+    const windowLine = r.in_window
+      ? `🟢 In window — buyer can still report (${Math.floor((r.minutes_left ?? 0) / 60)}h ${(r.minutes_left ?? 0) % 60}m left of ${r.window_hours}h)`
+      : `🔴 Out of window — buyer can NOT replace anymore (${r.window_hours}h expired)`;
     await tg(token, 'sendMessage', {
       chat_id: chatId,
-      text: `✅ Replaced with UID <code>${r.new_uid}</code> from ${r.category}`,
+      text:
+        `✅ <b>Replacement done</b>\n\n` +
+        `Outcome: <b>${r.outcome ?? 'replaced'}</b>\n` +
+        `Reported UID: <code>${r.reported_uid ?? '-'}</code>\n` +
+        `New UID: <code>${r.new_uid}</code> (${r.category})\n` +
+        `Buyer: ${r.buyer_name || '-'}\n` +
+        `Order placed: ${orderTime}\n` +
+        `${windowLine}`,
       parse_mode: 'HTML',
     });
     return;
