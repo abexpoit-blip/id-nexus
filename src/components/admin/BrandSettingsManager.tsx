@@ -4,9 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Save, Sparkles } from "lucide-react";
+import { Loader2, Save, Sparkles, History, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { BRAND_DEFAULTS, BRAND_SETTING_KEY, useBrandSettings } from "@/hooks/useBrandSettings";
+
+interface AuditEntry {
+  id: string;
+  created_at: string;
+  actor_email: string | null;
+  details: any;
+}
 
 export const BrandSettingsManager = () => {
   const { settings, loading } = useBrandSettings();
@@ -14,6 +21,25 @@ export const BrandSettingsManager = () => {
   const [developerUrl, setDeveloperUrl] = useState(BRAND_DEFAULTS.developer_url);
   const [parentBrand, setParentBrand] = useState(BRAND_DEFAULTS.parent_brand);
   const [saving, setSaving] = useState(false);
+  const [history, setHistory] = useState<AuditEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    const { data, error } = await supabase
+      .from("audit_logs")
+      .select("id, created_at, actor_email, details")
+      .eq("event_type", "brand_credit_updated")
+      .order("created_at", { ascending: false })
+      .limit(15);
+    setHistoryLoading(false);
+    if (error) toast.error("Could not load history");
+    else setHistory((data ?? []) as AuditEntry[]);
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -24,25 +50,17 @@ export const BrandSettingsManager = () => {
 
   const onSave = async () => {
     setSaving(true);
-    const { data: userData } = await supabase.auth.getUser();
-    const { error } = await supabase
-      .from("app_settings")
-      .upsert(
-        {
-          key: BRAND_SETTING_KEY,
-          value: {
-            developer_name: developerName.trim() || BRAND_DEFAULTS.developer_name,
-            developer_url: developerUrl.trim() || BRAND_DEFAULTS.developer_url,
-            parent_brand: parentBrand.trim() || BRAND_DEFAULTS.parent_brand,
-          },
-          updated_by: userData.user?.id ?? null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "key" }
-      );
+    const { error } = await supabase.rpc("admin_save_brand_credit", {
+      p_developer_name: developerName,
+      p_developer_url: developerUrl,
+      p_parent_brand: parentBrand,
+    });
     setSaving(false);
     if (error) toast.error(error.message);
-    else toast.success("Brand credit updated — live across the site");
+    else {
+      toast.success("Brand credit updated — live across the site");
+      loadHistory();
+    }
   };
 
   const onReset = () => {

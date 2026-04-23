@@ -14,6 +14,31 @@ const DEFAULTS: BrandSettings = {
 };
 
 const SETTING_KEY = "brand_credit";
+const CACHE_KEY = "nx_brand_credit_v1";
+
+const readCache = (): BrandSettings | null => {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      developer_name: parsed.developer_name || DEFAULTS.developer_name,
+      developer_url: parsed.developer_url || DEFAULTS.developer_url,
+      parent_brand: parsed.parent_brand || DEFAULTS.parent_brand,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const writeCache = (s: BrandSettings) => {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(s));
+  } catch {
+    /* ignore quota errors */
+  }
+};
 
 /**
  * Reads brand credit from app_settings (key = brand_credit) and
@@ -21,16 +46,20 @@ const SETTING_KEY = "brand_credit";
  * update instantly when an admin saves new values.
  */
 export const useBrandSettings = () => {
-  const [settings, setSettings] = useState<BrandSettings>(DEFAULTS);
+  // Hydrate immediately from localStorage so footer/banner never flash
+  // back to defaults if realtime is delayed or temporarily fails.
+  const [settings, setSettings] = useState<BrandSettings>(() => readCache() ?? DEFAULTS);
   const [loading, setLoading] = useState(true);
 
   const apply = (raw: any) => {
     if (!raw || typeof raw !== "object") return;
-    setSettings({
+    const next: BrandSettings = {
       developer_name: raw.developer_name?.trim() || DEFAULTS.developer_name,
       developer_url: raw.developer_url?.trim() || DEFAULTS.developer_url,
       parent_brand: raw.parent_brand?.trim() || DEFAULTS.parent_brand,
-    });
+    };
+    setSettings(next);
+    writeCache(next);
   };
 
   useEffect(() => {
