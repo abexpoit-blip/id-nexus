@@ -33,6 +33,7 @@ import { SellerLimitsManager } from "@/components/admin/SellerLimitsManager";
 import { StockOverview } from "@/components/admin/StockOverview";
 import { PaymentsManager } from "@/components/admin/PaymentsManager";
 import { SellerApplicationsManager } from "@/components/admin/SellerApplicationsManager";
+import { BrandSettingsManager } from "@/components/admin/BrandSettingsManager";
 
 interface RpItem {
   id: string;
@@ -67,7 +68,9 @@ const Admin = () => {
   const [items, setItems] = useState<RpItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
-  const [section, setSection] = useState<"replacements" | "stock" | "categories" | "sellers" | "applications" | "payments">("replacements");
+  const [section, setSection] = useState<
+    "replacements" | "stock" | "categories" | "sellers" | "applications" | "payments" | "brand"
+  >("replacements");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
   const [action, setAction] = useState<"replace" | "refund" | "reject" | "replace_category" | null>(null);
@@ -244,6 +247,7 @@ const Admin = () => {
             <TabsTrigger value="sellers">Seller limits</TabsTrigger>
             <TabsTrigger value="applications">Seller applications</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
+            <TabsTrigger value="brand">Brand credit</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -252,6 +256,7 @@ const Admin = () => {
         {section === "sellers" && <SellerLimitsManager />}
         {section === "applications" && <SellerApplicationsManager />}
         {section === "payments" && <PaymentsManager />}
+        {section === "brand" && <BrandSettingsManager />}
 
         {section === "replacements" && (
         <>

@@ -1,11 +1,13 @@
 import { Logo } from "@/components/Logo";
 import { Sparkles } from "lucide-react";
+import { useBrandSettings } from "@/hooks/useBrandSettings";
 
 /**
  * Neon glass footer used across pages.
  * Highlights "Part of Basictrick MarketPlace" and developer credit.
  */
 export const BrandFooter = ({ compact = false }: { compact?: boolean }) => {
+  const { settings } = useBrandSettings();
   return (
     <footer className="relative mt-12 border-t border-border/60 bg-background/60 backdrop-blur-xl">
       {/* Neon glow underline */}
@@ -26,13 +28,13 @@ export const BrandFooter = ({ compact = false }: { compact?: boolean }) => {
             className="rounded-full border border-primary/40 bg-primary/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary shadow-[0_0_18px_-4px_hsl(var(--primary)/0.65)]"
             style={{ textShadow: "0 0 12px hsl(var(--primary) / 0.7)" }}
           >
-            Part of Basictrick MarketPlace
+            {settings.parent_brand}
           </span>
         </div>
 
         <div className="flex flex-col items-center gap-2 md:items-end">
           <a
-            href="https://t.me/basictrickbd"
+            href={settings.developer_url}
             target="_blank"
             rel="noreferrer"
             className="group inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-4 py-1.5 backdrop-blur transition-all hover:border-primary/60 hover:bg-card/70"
@@ -46,7 +48,7 @@ export const BrandFooter = ({ compact = false }: { compact?: boolean }) => {
               className="bg-gradient-brand bg-clip-text font-display text-base font-bold text-transparent"
               style={{ filter: "drop-shadow(0 0 8px hsl(265 84% 62% / 0.55))" }}
             >
-              Shovon
+              {settings.developer_name}
             </span>
           </a>
           {!compact && (

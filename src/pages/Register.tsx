@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Logo } from "@/components/Logo";
+import { BrandTagline } from "@/components/BrandTagline";
 import { toast } from "sonner";
 import { Loader2, ArrowLeft, ShoppingBag, Store, Info } from "lucide-react";
 
@@ -80,6 +81,7 @@ const Register = () => {
         <div className="mb-6 text-center">
           <Logo size="lg" showTagline />
         </div>
+        <BrandTagline />
         <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
           <div className="mb-5 text-center">
             <h1 className="font-display text-2xl font-bold">Create account</h1>
