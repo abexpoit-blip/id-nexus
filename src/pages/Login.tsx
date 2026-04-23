@@ -59,7 +59,11 @@ const Login = () => {
         throw new Error("This account is a Seller, not a Buyer. Switch to the Seller tab.");
       }
 
-      toast.success(`Signed in as ${roleChoice}`);
+      const welcomeName =
+        signedIn.user_metadata?.display_name ||
+        signedIn.email?.split("@")[0] ||
+        "Shovon";
+      toast.success(`স্বাগতম, ${welcomeName} 👋  (${roleChoice})`);
       navigate(roleChoice === "seller" ? "/seller" : "/dashboard", { replace: true });
     } catch (err: any) {
       if (err?.issues?.[0]?.message) toast.error(err.issues[0].message);

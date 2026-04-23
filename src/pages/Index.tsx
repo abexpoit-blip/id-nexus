@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { Logo } from "@/components/Logo";
+import { BrandFooter } from "@/components/BrandFooter";
 
 const Index = () => {
   return (
@@ -339,19 +340,7 @@ const Index = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border/60 bg-background/80">
-        <div className="container flex flex-col items-center justify-between gap-4 py-8 text-sm text-muted-foreground md:flex-row">
-          <div className="flex items-center gap-2">
-            <Logo size="sm" showTagline={false} />
-            <span className="ml-2">© {new Date().getFullYear()} · Part of Basictrick MarketPlace</span>
-          </div>
-          <div className="flex gap-6">
-            <a href="#" className="hover:text-foreground">Terms</a>
-            <a href="#" className="hover:text-foreground">Privacy</a>
-            <a href="#" className="hover:text-foreground">Support</a>
-          </div>
-        </div>
-      </footer>
+      <BrandFooter />
     </div>
   );
 };
