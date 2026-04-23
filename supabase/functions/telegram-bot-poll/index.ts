@@ -317,6 +317,13 @@ async function handleCallback(admin: any, token: string, adminChat: string | und
 
   if (data.startsWith('buy:')) {
     const catId = data.slice(4);
+    // STAGE 1: Processing
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '⏳ প্রসেস হচ্ছে...' });
+    await tg(token, 'editMessageText', {
+      chat_id: chatId, message_id: msgId,
+      text: '⏳ <b>আপনার অর্ডার প্রসেস হচ্ছে...</b>\n\nঅনুগ্রহ করে অপেক্ষা করুন।',
+      parse_mode: 'HTML',
+    });
     const { data: res, error } = await admin.rpc('bot_buy_account', {
       p_telegram_chat_id: chatId,
       p_category_id: catId,
@@ -330,7 +337,6 @@ async function handleCallback(admin: any, token: string, adminChat: string | und
         userMsg = T.insufficient(cat?.price_bdt ?? 0, prof.balance_bdt);
       } else if (msg.includes('out_of_stock')) userMsg = T.outOfStock;
       else if (msg.includes('account_banned')) userMsg = '⛔ আপনার অ্যাকাউন্ট ব্যান করা হয়েছে।';
-      await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '❌', show_alert: false });
       await tg(token, 'editMessageText', {
         chat_id: chatId, message_id: msgId,
         text: userMsg, parse_mode: 'HTML', reply_markup: backOnly(),
@@ -338,9 +344,9 @@ async function handleCallback(admin: any, token: string, adminChat: string | und
       return;
     }
     const r = res as any;
-    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '✅ Delivered!' });
+    // STAGE 2: Delivered with credentials + CSV file
     const lines = [
-      `✅ <b>ডেলিভারি সম্পন্ন!</b>`,
+      `📬 <b>ডেলিভারি সম্পন্ন!</b>`,
       ``,
       `📦 ${r.category}`,
       `🆔 UID: <code>${r.uid}</code>`,
@@ -349,10 +355,27 @@ async function handleCallback(admin: any, token: string, adminChat: string | und
     if (r.two_fa) lines.push(`🔐 2FA: <code>${r.two_fa}</code>`);
     if (r.email) lines.push(`📧 Email: <code>${r.email}</code>`);
     if (r.email_password) lines.push(`📧 Email Pass: <code>${r.email_password}</code>`);
-    lines.push(``, `💼 নতুন ব্যালেন্স: <b>৳${r.new_balance}</b>`);
+    await tg(token, 'editMessageText', {
+      chat_id: chatId, message_id: msgId,
+      text: lines.join('\n'), parse_mode: 'HTML',
+    });
+    // CSV download (Excel-compatible)
+    await sendOrderCsv(token, chatId, r.category, [{
+      uid: r.uid, password: r.password, two_fa: r.two_fa,
+      email: r.email, email_password: r.email_password,
+    }], r.order_id ?? 'order');
+    // STAGE 3: Final confirmation
     await tg(token, 'sendMessage', {
-      chat_id: chatId, text: lines.join('\n'), parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: [[{ text: '🏠 মেনু', callback_data: 'menu:home' }]] },
+      chat_id: chatId,
+      text:
+        `✅ <b>অর্ডার সম্পন্ন!</b>\n\n` +
+        `💼 নতুন ব্যালেন্স: <b>৳${r.new_balance}</b>\n` +
+        `🙏 আমাদের সেবা ব্যবহারের জন্য ধন্যবাদ।`,
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [
+        [{ text: T.buyId, callback_data: 'menu:buy' }],
+        [{ text: '🏠 মেনু', callback_data: 'menu:home' }],
+      ]},
     });
     return;
   }
@@ -581,4 +604,34 @@ async function handleAdminTopupCallback(admin: any, token: string, cq: any) {
       parse_mode: 'HTML',
     });
   }
+}
+// ============== CSV delivery helper (Excel-compatible) ==============
+function csvEscape(v: any): string {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+async function sendOrderCsv(
+  token: string, chatId: number, category: string,
+  accounts: Array<{ uid: string; password: string; two_fa?: string | null; email?: string | null; email_password?: string | null }>,
+  orderId: string,
+) {
+  const header = ['UID', 'Password', '2FA', 'Email', 'EmailPassword'].join(',');
+  const rows = accounts.map((a) => [
+    csvEscape(a.uid), csvEscape(a.password), csvEscape(a.two_fa ?? ''),
+    csvEscape(a.email ?? ''), csvEscape(a.email_password ?? ''),
+  ].join(','));
+  // BOM + CRLF so Excel opens UTF-8 cleanly
+  const csv = '\uFEFF' + [header, ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const safeCat = category.replace(/[^a-z0-9]+/gi, '_').slice(0, 30);
+  const filename = `order_${safeCat}_${String(orderId).slice(0, 8)}.csv`;
+
+  const fd = new FormData();
+  fd.append('chat_id', String(chatId));
+  fd.append('caption', `📎 ${category} — ${accounts.length} ID${accounts.length > 1 ? 's' : ''} (Excel-এ open করুন)`);
+  fd.append('document', blob, filename);
+  await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: 'POST', body: fd });
 }
