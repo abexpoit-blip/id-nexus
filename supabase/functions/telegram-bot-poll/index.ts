@@ -178,15 +178,21 @@ async function handleMessage(admin: any, token: string, vpsUrl: string | undefin
     await tg(token, 'sendMessage', {
       chat_id: chatId,
       text:
-        `👋 Hello ${prof.display_name ?? prof.email ?? ''}\n\n` +
-        `Commands:\n` +
-        `/deposit <amount> <bkash|nagad> <sender_no> <txn_id> — submit a top-up\n` +
-        `Then reply to my next message with the payment screenshot.\n\n` +
-        `/logout — disconnect this Telegram from your account (use a different account)\n\n` +
-        `Admin only:\n` +
-        `/replace <item_id> <category_slug> [message] — quick-replace a reported UID\n` +
-        `Example: <code>/replace 1234abcd 61xxx Sorry for the inconvenience</code>\n\n` +
-        `Example:\n<code>/deposit 500 bkash 01712345678 9A1B2C3D4E</code>`,
+        `👋 Hello <b>${prof.display_name ?? prof.email ?? ''}</b>\n` +
+        `✅ This Telegram is linked to your Nexus X account.\n\n` +
+        `<b>📋 Available commands</b>\n` +
+        `/help — show this message\n` +
+        `/deposit <code>&lt;amount&gt; &lt;bkash|nagad&gt; &lt;sender_no&gt; &lt;txn_id&gt;</code> — submit a top-up, then reply with the payment screenshot\n` +
+        `/logout — unlink this Telegram from your account so you (or someone else) can link a different account\n\n` +
+        `<b>🔗 Linking another account</b>\n` +
+        `1. Send /logout here\n` +
+        `2. On the website → Dashboard → Telegram, copy the new link code\n` +
+        `3. Send the code to this bot (e.g. <code>ABC12345</code>)\n\n` +
+        `<b>👮 Admin only</b>\n` +
+        `/replace <code>&lt;item_id&gt; &lt;category_slug&gt; [message]</code> — quick-replace a reported UID\n\n` +
+        `<b>Examples</b>\n` +
+        `<code>/deposit 500 bkash 01712345678 9A1B2C3D4E</code>\n` +
+        `<code>/replace 1234abcd 61xxx Sorry for the inconvenience</code>`,
       parse_mode: 'HTML',
     });
     return;
