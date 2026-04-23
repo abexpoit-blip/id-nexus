@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Logo } from "@/components/Logo";
+import { BrandTagline } from "@/components/BrandTagline";
 import { toast } from "sonner";
 import { Loader2, ArrowLeft, ShoppingBag, Store } from "lucide-react";
 
@@ -63,7 +64,17 @@ const Login = () => {
         signedIn.user_metadata?.display_name ||
         signedIn.email?.split("@")[0] ||
         "Shovon";
-      toast.success(`স্বাগতম, ${welcomeName} 👋  (${roleChoice})`);
+      const bdTime = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Dhaka",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        day: "2-digit",
+        month: "short",
+      }).format(new Date());
+      toast.success(`স্বাগতম, ${welcomeName} 👋  (${roleChoice})`, {
+        description: `🇧🇩 Login time: ${bdTime} (BD)`,
+      });
       navigate(roleChoice === "seller" ? "/seller" : "/dashboard", { replace: true });
     } catch (err: any) {
       if (err?.issues?.[0]?.message) toast.error(err.issues[0].message);
@@ -89,6 +100,7 @@ const Login = () => {
         <div className="mb-6 text-center">
           <Logo size="lg" showTagline />
         </div>
+        <BrandTagline />
         <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
           <div className="mb-5 text-center">
             <h1 className="font-display text-2xl font-bold">Sign in</h1>
