@@ -909,6 +909,10 @@ export type Database = {
           slug: string
         }[]
       }
+      bot_get_order_for_delivery: {
+        Args: { p_order_id: string }
+        Returns: Json
+      }
       bot_get_profile: { Args: { p_telegram_chat_id: number }; Returns: Json }
       bot_submit_topup_request: {
         Args: {
