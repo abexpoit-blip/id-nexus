@@ -87,7 +87,7 @@ const Browse = () => {
 
   const openBuy = (cat: Category) => {
     if (!user) {
-      navigate("/auth");
+      navigate("/login");
       return;
     }
     setSelected(cat);

@@ -188,7 +188,7 @@ const Admin = () => {
       </div>
     );
   }
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) return <Navigate to="/admin-login" replace />;
   if (!isAdmin) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">

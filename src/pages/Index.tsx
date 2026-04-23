@@ -38,10 +38,10 @@ const Index = () => {
           </nav>
           <div className="flex items-center gap-2">
             <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-              <Link to="/auth">Login</Link>
+              <Link to="/login">Login</Link>
             </Button>
             <Button asChild size="sm" className="bg-gradient-brand text-primary-foreground shadow-glow hover:opacity-90">
-              <Link to="/auth">Get started</Link>
+              <Link to="/register">Get started</Link>
             </Button>
           </div>
         </div>
