@@ -840,6 +840,14 @@ export type Database = {
         Args: { p_action: string; p_item_id: string; p_reason?: string }
         Returns: Json
       }
+      admin_save_brand_credit: {
+        Args: {
+          p_developer_name: string
+          p_developer_url: string
+          p_parent_brand: string
+        }
+        Returns: Json
+      }
       admin_set_default_daily_limit: {
         Args: { p_limit: number }
         Returns: Json
