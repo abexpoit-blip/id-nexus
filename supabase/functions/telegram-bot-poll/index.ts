@@ -327,8 +327,100 @@ async function handleCallback(admin: any, token: string, adminChat: string | und
 
   if (data.startsWith('buy:')) {
     const catId = data.slice(4);
-    // STAGE 1: Processing
+    // Real-time refresh: fetch latest stock + price + balance BEFORE confirming
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '🔄 লেটেস্ট স্টক চেক করছি...' });
+    const [{ data: cats }, { data: freshProf }] = await Promise.all([
+      admin.rpc('bot_get_categories'),
+      admin.from('profiles').select('balance_bdt').eq('telegram_chat_id', chatId).maybeSingle(),
+    ]);
+    const cat = (cats as any[] | null)?.find((c) => c.id === catId);
+    const balance = freshProf?.balance_bdt ?? prof.balance_bdt;
+    if (!cat) {
+      await tg(token, 'editMessageText', {
+        chat_id: chatId, message_id: msgId,
+        text: '❌ ক্যাটাগরি আর available নেই।', reply_markup: backOnly(),
+      });
+      return;
+    }
+    if (cat.available <= 0) {
+      await tg(token, 'editMessageText', {
+        chat_id: chatId, message_id: msgId,
+        text: `❌ <b>${cat.name}</b>\n\nএই মুহূর্তে স্টক শেষ। অনুগ্রহ করে পরে আবার চেষ্টা করুন।`,
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: [[
+          { text: '🔄 আবার চেক করুন', callback_data: `cat:${cat.id}` },
+          { text: T.back, callback_data: 'menu:buy' },
+        ]]},
+      });
+      return;
+    }
+    if (Number(balance) < Number(cat.price_bdt)) {
+      await tg(token, 'editMessageText', {
+        chat_id: chatId, message_id: msgId,
+        text: T.insufficient(Number(cat.price_bdt), Number(balance)),
+        parse_mode: 'HTML', reply_markup: backOnly(),
+      });
+      return;
+    }
+    // Show fresh confirm screen — embed expected price into go: callback for server-side match
+    await tg(token, 'editMessageText', {
+      chat_id: chatId, message_id: msgId,
+      text:
+        `🔄 <b>লেটেস্ট তথ্য (${new Date().toLocaleTimeString('en-GB')})</b>\n\n` +
+        `📦 ${cat.name}\n` +
+        `💰 দাম: <b>৳${cat.price_bdt}</b>\n` +
+        `📊 স্টক: <b>${cat.available}</b>\n` +
+        `💼 আপনার ব্যালেন্স: <b>৳${balance}</b>\n\n` +
+        `নিশ্চিত হলে নিচের বাটনে ক্লিক করুন।`,
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [
+        [{ text: `✅ ৳${cat.price_bdt}-এ কিনুন`, callback_data: `go:${cat.id}:${cat.price_bdt}` }],
+        [{ text: T.back, callback_data: `cat:${cat.id}` }],
+      ]},
+    });
+    return;
+  }
+
+  if (data.startsWith('go:')) {
+    // Final purchase: re-verify price hasn't changed since refresh
+    const [, catId, expectedPriceStr] = data.split(':');
+    const expectedPrice = Number(expectedPriceStr);
     await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '⏳ প্রসেস হচ্ছে...' });
+    // Last-second freshness check
+    const { data: cats2 } = await admin.rpc('bot_get_categories');
+    const cat2 = (cats2 as any[] | null)?.find((c: any) => c.id === catId);
+    if (!cat2) {
+      await tg(token, 'editMessageText', {
+        chat_id: chatId, message_id: msgId,
+        text: '❌ ক্যাটাগরি আর available নেই।', reply_markup: backOnly(),
+      });
+      return;
+    }
+    if (Number(cat2.price_bdt) !== expectedPrice) {
+      await tg(token, 'editMessageText', {
+        chat_id: chatId, message_id: msgId,
+        text:
+          `⚠️ <b>দাম পরিবর্তন হয়েছে!</b>\n\n` +
+          `পুরনো দাম: ৳${expectedPrice}\n` +
+          `নতুন দাম: <b>৳${cat2.price_bdt}</b>\n\n` +
+          `অনুগ্রহ করে নতুন দামে আবার কনফার্ম করুন।`,
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: [[
+          { text: `✅ নতুন দামে কিনুন`, callback_data: `buy:${cat2.id}` },
+          { text: T.back, callback_data: `cat:${cat2.id}` },
+        ]]},
+      });
+      return;
+    }
+    if (cat2.available <= 0) {
+      await tg(token, 'editMessageText', {
+        chat_id: chatId, message_id: msgId,
+        text: T.outOfStock,
+        reply_markup: { inline_keyboard: [[{ text: T.back, callback_data: 'menu:buy' }]]},
+      });
+      return;
+    }
+    // STAGE 1: Processing
     await tg(token, 'editMessageText', {
       chat_id: chatId, message_id: msgId,
       text: '⏳ <b>আপনার অর্ডার প্রসেস হচ্ছে...</b>\n\nঅনুগ্রহ করে অপেক্ষা করুন।',
@@ -342,9 +434,7 @@ async function handleCallback(admin: any, token: string, adminChat: string | und
       const msg = String(error.message || '');
       let userMsg = `❌ ${msg}`;
       if (msg.includes('insufficient_balance')) {
-        const { data: cats } = await admin.rpc('bot_get_categories');
-        const cat = (cats as any[] | null)?.find((c) => c.id === catId);
-        userMsg = T.insufficient(cat?.price_bdt ?? 0, prof.balance_bdt);
+        userMsg = T.insufficient(Number(cat2.price_bdt), Number(prof.balance_bdt));
       } else if (msg.includes('out_of_stock')) userMsg = T.outOfStock;
       else if (msg.includes('account_banned')) userMsg = '⛔ আপনার অ্যাকাউন্ট ব্যান করা হয়েছে।';
       await tg(token, 'editMessageText', {
