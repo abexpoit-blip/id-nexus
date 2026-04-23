@@ -22,8 +22,13 @@ const AdminLogin = () => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && user && roles.includes("admin")) {
+    if (authLoading || !user) return;
+    if (roles.includes("admin")) {
       navigate("/admin", { replace: true });
+    } else if (roles.length > 0) {
+      // Logged in but not admin — bounce to their normal dashboard
+      toast.error("This account does not have admin access.");
+      navigate(roles.includes("seller") ? "/seller" : "/dashboard", { replace: true });
     }
   }, [user, roles, authLoading, navigate]);
 
