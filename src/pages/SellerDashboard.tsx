@@ -947,7 +947,17 @@ const SellerDashboard = () => {
               Wallet
             </Link>
           </div>
-          <NotificationsBell />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/seller/onboarding")}
+              className="border-primary/40 text-primary hover:bg-primary/10"
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Setup wizard
+            </Button>
+            <NotificationsBell />
+          </div>
         </div>
       </header>
 
