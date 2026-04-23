@@ -848,6 +848,10 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_save_payment_accounts: {
+        Args: { p_accounts: Json; p_min_deposit: Json }
+        Returns: Json
+      }
       admin_set_default_daily_limit: {
         Args: { p_limit: number }
         Returns: Json
@@ -950,6 +954,10 @@ export type Database = {
         Returns: undefined
       }
       generate_tg_link_code: { Args: never; Returns: string }
+      get_min_deposit: {
+        Args: { p_method: Database["public"]["Enums"]["payment_method"] }
+        Returns: number
+      }
       get_my_seller_application: {
         Args: never
         Returns: {
@@ -1113,7 +1121,7 @@ export type Database = {
         | "stock_low"
         | "system"
       order_status: "pending" | "completed" | "failed" | "refunded"
-      payment_method: "bkash" | "nagad"
+      payment_method: "bkash" | "nagad" | "binance"
       replacement_item_outcome:
         | "pending"
         | "replaced"
@@ -1282,7 +1290,7 @@ export const Constants = {
         "system",
       ],
       order_status: ["pending", "completed", "failed", "refunded"],
-      payment_method: ["bkash", "nagad"],
+      payment_method: ["bkash", "nagad", "binance"],
       replacement_item_outcome: [
         "pending",
         "replaced",
