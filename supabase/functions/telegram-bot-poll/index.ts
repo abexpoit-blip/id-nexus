@@ -77,6 +77,52 @@ async function handleMessage(admin: any, token: string, vpsUrl: string | undefin
     .eq('telegram_chat_id', chatId).maybeSingle();
 
   if (!prof) {
+    // Try to extract a link code from the message.
+    // Accepts:  "ABC12345"   or   "/start ABC12345"
+    const codeMatch = text.match(/^(?:\/start\s+)?([A-Z0-9]{6,12})$/i);
+    if (codeMatch) {
+      const code = codeMatch[1].toUpperCase();
+      const { data: target, error: lookupErr } = await admin
+        .from('profiles')
+        .select('id, display_name, email, telegram_chat_id')
+        .eq('telegram_link_code', code)
+        .maybeSingle();
+      if (lookupErr) {
+        await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${lookupErr.message}` });
+        return;
+      }
+      if (!target) {
+        await tg(token, 'sendMessage', {
+          chat_id: chatId,
+          text: '❌ Invalid link code. Open Dashboard → Telegram and copy a fresh code.',
+        });
+        return;
+      }
+      if (target.telegram_chat_id && target.telegram_chat_id !== chatId) {
+        await tg(token, 'sendMessage', {
+          chat_id: chatId,
+          text: '⚠️ This account is already linked to another Telegram. Ask the owner to send /logout first.',
+        });
+        return;
+      }
+      const { error: linkErr } = await admin
+        .from('profiles')
+        .update({ telegram_chat_id: chatId })
+        .eq('id', target.id);
+      if (linkErr) {
+        await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${linkErr.message}` });
+        return;
+      }
+      await tg(token, 'sendMessage', {
+        chat_id: chatId,
+        text:
+          `✅ <b>Linked!</b> Your Telegram is now connected to <b>${target.display_name ?? target.email ?? 'your account'}</b>.\n\n` +
+          `Send /help to see available commands.`,
+        parse_mode: 'HTML',
+      });
+      return;
+    }
+
     await tg(token, 'sendMessage', {
       chat_id: chatId,
       text:
