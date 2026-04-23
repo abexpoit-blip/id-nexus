@@ -228,18 +228,28 @@ async function handleMessage(
 }
 
 // ============== Callback (button press) handler ==============
+// Admin-only callback prefixes — non-admin attempts are rejected unconditionally.
+const ADMIN_CALLBACK_PREFIXES = ['approve:', 'reject:', 'admin:'];
+
 async function handleCallback(admin: any, token: string, adminChat: string | undefined, cq: any) {
   const chatId = cq.from.id;
   const data: string = cq.data ?? '';
   const msgId = cq.message?.message_id;
 
-  // Admin approve/reject (only ADMIN_CHAT may invoke)
-  if (data.startsWith('approve:') || data.startsWith('reject:')) {
-    if (!isAdminChat(chatId, adminChat)) {
+  // ===== Hard guard: ANY admin-prefixed callback must come from TELEGRAM_ADMIN_CHAT_ID =====
+  const isAdminCb = ADMIN_CALLBACK_PREFIXES.some((p) => data.startsWith(p));
+  if (isAdminCb) {
+    if (!adminChat || !isAdminChat(chatId, adminChat)) {
+      console.warn(`[security] non-admin chat ${chatId} attempted admin callback "${data}"`);
       await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '⛔ Admin only', show_alert: true });
       return;
     }
-    await handleAdminTopupCallback(admin, token, cq);
+    if (data.startsWith('approve:') || data.startsWith('reject:')) {
+      await handleAdminTopupCallback(admin, token, cq);
+      return;
+    }
+    // future admin: prefixed callbacks fall through to a no-op
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id });
     return;
   }
 
