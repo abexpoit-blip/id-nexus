@@ -13,6 +13,8 @@ import Browse from "./pages/Browse.tsx";
 import OrderDetail from "./pages/OrderDetail.tsx";
 import SellerDashboard from "./pages/SellerDashboard.tsx";
 import SellerApply from "./pages/SellerApply.tsx";
+import SellerOnboarding from "./pages/SellerOnboarding.tsx";
+import ClaimAdmin from "./pages/ClaimAdmin.tsx";
 import Replacements from "./pages/Replacements.tsx";
 import Admin from "./pages/Admin.tsx";
 import Wallet from "./pages/Wallet.tsx";
@@ -75,6 +77,15 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/seller/onboarding"
+              element={
+                <ProtectedRoute>
+                  <SellerOnboarding />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/claim-admin" element={<ClaimAdmin />} />
             <Route
               path="/replacements"
               element={
