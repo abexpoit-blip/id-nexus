@@ -948,6 +948,7 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_admin_self: { Args: never; Returns: Json }
       clear_topup_screenshot: { Args: { p_id: string }; Returns: undefined }
       clear_topup_screenshot_path: {
         Args: { p_id: string }
@@ -1024,6 +1025,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_seller_onboarded: { Args: never; Returns: Json }
       place_order: {
         Args: { p_category_id: string; p_quantity: number }
         Returns: Json
