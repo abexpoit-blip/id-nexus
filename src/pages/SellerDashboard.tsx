@@ -151,6 +151,7 @@ const STEP_LABELS: Record<UploadStep, string> = {
 
 const SellerDashboard = () => {
   const { user, roles, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState<string>("");
   const [parsed, setParsed] = useState<ParsedRow[] | null>(null);
@@ -192,6 +193,38 @@ const SellerDashboard = () => {
   const [usedToday, setUsedToday] = useState<number>(0);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
+
+  // First-time auto-redirect to onboarding wizard.
+  // Skip if already onboarded (profiles.buyer_settings.seller_onboarded_at exists)
+  // or admin (admins don't need the seller wizard).
+  useEffect(() => {
+    if (!user || authLoading) return;
+    if (!roles.includes("seller")) return; // admins skip
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("buyer_settings")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      const onboarded = (data?.buyer_settings as any)?.seller_onboarded_at;
+      if (!onboarded) {
+        navigate("/seller/onboarding", { replace: true });
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading, roles.join(",")]);
+
+  // Pre-select category chosen during onboarding wizard
+  useEffect(() => {
+    const pre = sessionStorage.getItem("seller_default_category");
+    if (pre) {
+      setCategoryId(pre);
+      sessionStorage.removeItem("seller_default_category");
+    }
+  }, []);
 
   const storageKey = user ? `${PARSED_STORAGE_PREFIX}${user.id}` : null;
 
