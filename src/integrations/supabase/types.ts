@@ -895,6 +895,21 @@ export type Database = {
         }
         Returns: Json
       }
+      bot_buy_account: {
+        Args: { p_category_id: string; p_telegram_chat_id: number }
+        Returns: Json
+      }
+      bot_get_categories: {
+        Args: never
+        Returns: {
+          available: number
+          id: string
+          name: string
+          price_bdt: number
+          slug: string
+        }[]
+      }
+      bot_get_profile: { Args: { p_telegram_chat_id: number }; Returns: Json }
       bot_submit_topup_request: {
         Args: {
           p_amount: number

@@ -8,8 +8,58 @@ const corsHeaders = {
 const MAX_RUNTIME_MS = 55_000;
 const MIN_REMAINING_MS = 5_000;
 
-// Telegram bot polling: handles /deposit flow for linked buyers,
-// and Approve/Reject inline buttons for admins.
+// ============== Bangla labels (BasicTrick-style premium buttons) ==============
+const T = {
+  welcome: (name: string) =>
+    `<b>★★ Nexus X Store ★★</b>\n\n` +
+    `✨ "আপনার সন্তুষ্টিই আমাদের সার্থকতা।"\n\n` +
+    `👤 অ্যাকাউন্ট: <b>${name}</b>\n` +
+    `🛒 সার্ভিস নিতে নিচের বাটনে ক্লিক করুন:`,
+  notLinked:
+    `⚠️ আপনার Telegram কোনো অ্যাকাউন্টের সাথে লিংক করা নেই।\n\n` +
+    `<b>🔗 কীভাবে লিংক করবেন:</b>\n` +
+    `১. ওয়েবসাইটে গিয়ে Dashboard → Telegram\n` +
+    `২. আপনার link code কপি করুন\n` +
+    `৩. কোডটি এই বটে পাঠান (যেমন <code>ABC12345</code>)`,
+  unknown: '❓ অজানা কমান্ড। মেনু দেখতে /start পাঠান।',
+  buyMenuTitle: '<b>📚 আইডি ক্যাটাগরি মেনু</b>\n\nনিচ থেকে একটি ক্যাটাগরি নির্বাচন করুন:',
+  noCategories: 'এখন কোনো ক্যাটাগরি available নেই।',
+  outOfStock: '❌ স্টক শেষ! অনুগ্রহ করে পরে আবার চেষ্টা করুন।',
+  insufficient: (need: number, have: number) =>
+    `❌ পর্যাপ্ত ব্যালেন্স নেই।\n\nপ্রয়োজন: ৳${need}\nআপনার ব্যালেন্স: ৳${have}\n\n"💵 ব্যালেন্স অ্যাড" বাটনে ক্লিক করে টপ-আপ করুন।`,
+  depositForm:
+    `<b>💵 ডিপোজিট ফর্ম</b>\n\n` +
+    `কমান্ড পাঠান:\n` +
+    `<code>/deposit AMOUNT METHOD SENDER_NO TXN_ID</code>\n\n` +
+    `উদাহরণ:\n<code>/deposit 500 bkash 01712345678 9A1B2C3D4E</code>\n\n` +
+    `METHOD = <b>bkash</b> অথবা <b>nagad</b>\n` +
+    `মিনিমাম: ৳50`,
+  support: '<b>📞 সাপোর্ট</b>\n\nএডমিনের সাথে যোগাযোগ করতে: @basictrick_admin',
+  back: '⬅️ ফিরে যান',
+  buyId: '🛒 আইডি কিনুন',
+  addBalance: '💵 ব্যালেন্স অ্যাড',
+  profile: '👤 প্রোফাইল',
+  supportBtn: '📞 সাপোর্ট ও হেল্প',
+  logout: '🚪 লগআউট',
+  confirmBuy: '✅ কনফার্ম করে কিনুন',
+  cancel: '❌ বাতিল',
+};
+
+function mainMenu() {
+  return {
+    inline_keyboard: [
+      [{ text: T.buyId, callback_data: 'menu:buy' }, { text: T.addBalance, callback_data: 'menu:deposit' }],
+      [{ text: T.profile, callback_data: 'menu:profile' }, { text: T.supportBtn, callback_data: 'menu:support' }],
+      [{ text: T.logout, callback_data: 'menu:logout' }],
+    ],
+  };
+}
+
+function backOnly() {
+  return { inline_keyboard: [[{ text: T.back, callback_data: 'menu:home' }]] };
+}
+
+// ============== Entry point ==============
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -52,7 +102,7 @@ Deno.serve(async (req) => {
     for (const u of updates) {
       try {
         if (u.message) await handleMessage(admin, TG_TOKEN, VPS_URL, VPS_TOKEN, ADMIN_CHAT, u.message);
-        else if (u.callback_query) await handleCallback(admin, TG_TOKEN, u.callback_query);
+        else if (u.callback_query) await handleCallback(admin, TG_TOKEN, ADMIN_CHAT, u.callback_query);
       } catch (e) {
         console.error('Update handle error', e);
       }
@@ -67,351 +117,10 @@ Deno.serve(async (req) => {
   return json({ ok: true, processed, offset });
 });
 
-async function handleMessage(admin: any, token: string, vpsUrl: string | undefined, vpsToken: string | undefined, adminChat: string | undefined, msg: any) {
-  const chatId: number = msg.chat.id;
-  const text: string = (msg.text ?? '').trim();
-
-  // Lookup linked profile
-  const { data: prof } = await admin
-    .from('profiles').select('id, display_name, email')
-    .eq('telegram_chat_id', chatId).maybeSingle();
-
-  if (!prof) {
-    // Try to extract a link code from the message.
-    // Accepts:  "ABC12345"   or   "/start ABC12345"
-    const codeMatch = text.match(/^(?:\/start\s+)?([A-Z0-9]{6,12})$/i);
-    if (codeMatch) {
-      const code = codeMatch[1].toUpperCase();
-      const { data: target, error: lookupErr } = await admin
-        .from('profiles')
-        .select('id, display_name, email, telegram_chat_id')
-        .eq('telegram_link_code', code)
-        .maybeSingle();
-      if (lookupErr) {
-        await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${lookupErr.message}` });
-        return;
-      }
-      if (!target) {
-        await tg(token, 'sendMessage', {
-          chat_id: chatId,
-          text: '❌ Invalid link code. Open Dashboard → Telegram and copy a fresh code.',
-        });
-        return;
-      }
-      if (target.telegram_chat_id && target.telegram_chat_id !== chatId) {
-        await tg(token, 'sendMessage', {
-          chat_id: chatId,
-          text: '⚠️ This account is already linked to another Telegram. Ask the owner to send /logout first.',
-        });
-        return;
-      }
-      const { error: linkErr } = await admin
-        .from('profiles')
-        .update({ telegram_chat_id: chatId })
-        .eq('id', target.id);
-      if (linkErr) {
-        await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${linkErr.message}` });
-        return;
-      }
-      await tg(token, 'sendMessage', {
-        chat_id: chatId,
-        text:
-          `✅ <b>Linked!</b> Your Telegram is now connected to <b>${target.display_name ?? target.email ?? 'your account'}</b>.\n\n` +
-          `Send /help to see available commands.`,
-        parse_mode: 'HTML',
-      });
-      return;
-    }
-
-    // /help for unlinked users
-    if (text === '/help' || text === '/start') {
-      await tg(token, 'sendMessage', {
-        chat_id: chatId,
-        text:
-          `👋 <b>Welcome to Nexus X bot</b>\n\n` +
-          `Your Telegram is <b>not linked</b> yet.\n\n` +
-          `<b>🔗 How to link:</b>\n` +
-          `1. Open the website → Dashboard → Telegram\n` +
-          `2. Copy your link code (e.g. <code>ABC12345</code>)\n` +
-          `3. Send it to this bot — either as <code>/start ABC12345</code> or just <code>ABC12345</code>\n\n` +
-          `Once linked, send /help again to see all commands.`,
-        parse_mode: 'HTML',
-      });
-      return;
-    }
-
-    await tg(token, 'sendMessage', {
-      chat_id: chatId,
-      text:
-        '⚠️ Your Telegram is not linked to any account.\n\n' +
-        'Open the website → Dashboard → Telegram → copy your link code, then send it to this bot to connect a fresh account.',
-    });
-    return;
-  }
-
-  // /logout — unlink current account so user can connect a fresh one
-  if (text === '/logout' || text === '/disconnect') {
-    await admin.from('telegram_bot_sessions').delete().eq('chat_id', chatId);
-    const { error: updErr } = await admin
-      .from('profiles')
-      .update({ telegram_chat_id: null })
-      .eq('id', prof.id);
-    if (updErr) {
-      await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${updErr.message}` });
-      return;
-    }
-    await tg(token, 'sendMessage', {
-      chat_id: chatId,
-      text:
-        `👋 You have been logged out from <b>${prof.display_name ?? prof.email ?? 'your account'}</b>.\n\n` +
-        `To connect a new account:\n` +
-        `1. Open the website → Dashboard → Telegram\n` +
-        `2. Copy the new link code\n` +
-        `3. Send it to this bot`,
-      parse_mode: 'HTML',
-    });
-    return;
-  }
-
-  // /start or help
-  if (text === '/start' || text === '/help') {
-    await tg(token, 'sendMessage', {
-      chat_id: chatId,
-      text:
-        `👋 Hello <b>${prof.display_name ?? prof.email ?? ''}</b>\n` +
-        `✅ This Telegram is linked to your Nexus X account.\n\n` +
-        `<b>📋 Available commands</b>\n` +
-        `/help — show this message\n` +
-        `/deposit <code>&lt;amount&gt; &lt;bkash|nagad&gt; &lt;sender_no&gt; &lt;txn_id&gt;</code> — submit a top-up, then reply with the payment screenshot\n` +
-        `/logout — unlink this Telegram from your account so you (or someone else) can link a different account\n\n` +
-        `<b>🔗 Linking another account</b>\n` +
-        `1. Send /logout here\n` +
-        `2. On the website → Dashboard → Telegram, copy the new link code\n` +
-        `3. Send the code to this bot (e.g. <code>ABC12345</code>)\n\n` +
-        `<b>👮 Admin only</b>\n` +
-        `/replace <code>&lt;item_id&gt; &lt;category_slug&gt; [message]</code> — quick-replace a reported UID\n\n` +
-        `<b>Examples</b>\n` +
-        `<code>/deposit 500 bkash 01712345678 9A1B2C3D4E</code>\n` +
-        `<code>/replace 1234abcd 61xxx Sorry for the inconvenience</code>`,
-      parse_mode: 'HTML',
-    });
-    return;
-  }
-
-  // /replace <item_id> <category_slug> [message...]
-  if (text.startsWith('/replace')) {
-    const parts = text.split(/\s+/);
-    if (parts.length < 3) {
-      await tg(token, 'sendMessage', {
-        chat_id: chatId,
-        text: '⚠️ Usage: /replace <item_id> <category_slug> [optional message]',
-      });
-      return;
-    }
-    const itemId = parts[1];
-    const catSlug = parts[2];
-    const message = parts.slice(3).join(' ').trim() || null;
-    const { data: res, error } = await admin.rpc('bot_admin_replace_with_category', {
-      p_admin_chat_id: chatId,
-      p_item_id: itemId,
-      p_category_slug: catSlug,
-      p_message: message,
-    });
-    if (error) {
-      await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${error.message}` });
-      return;
-    }
-    const r = res as {
-      new_uid?: string;
-      category?: string;
-      reported_uid?: string;
-      buyer_name?: string;
-      order_created_at?: string | null;
-      window_hours?: number;
-      in_window?: boolean;
-      minutes_left?: number;
-      outcome?: string;
-    };
-    const orderTime = r.order_created_at
-      ? new Date(r.order_created_at).toUTCString()
-      : 'unknown';
-    const windowLine = r.in_window
-      ? `🟢 In window — buyer can still report (${Math.floor((r.minutes_left ?? 0) / 60)}h ${(r.minutes_left ?? 0) % 60}m left of ${r.window_hours}h)`
-      : `🔴 Out of window — buyer can NOT replace anymore (${r.window_hours}h expired)`;
-    await tg(token, 'sendMessage', {
-      chat_id: chatId,
-      text:
-        `✅ <b>Replacement done</b>\n\n` +
-        `Outcome: <b>${r.outcome ?? 'replaced'}</b>\n` +
-        `Reported UID: <code>${r.reported_uid ?? '-'}</code>\n` +
-        `New UID: <code>${r.new_uid}</code> (${r.category})\n` +
-        `Buyer: ${r.buyer_name || '-'}\n` +
-        `Order placed: ${orderTime}\n` +
-        `${windowLine}`,
-      parse_mode: 'HTML',
-    });
-    return;
-  }
-
-  // /deposit command
-  if (text.startsWith('/deposit')) {
-    const parts = text.split(/\s+/).slice(1);
-    if (parts.length < 4) {
-      await tg(token, 'sendMessage', {
-        chat_id: chatId,
-        text: '❌ Usage:\n<code>/deposit AMOUNT METHOD SENDER_NO TXN_ID</code>\n\nMETHOD = bkash or nagad',
-        parse_mode: 'HTML',
-      });
-      return;
-    }
-    const amount = Number(parts[0]);
-    const method = parts[1].toLowerCase();
-    const sender = parts[2];
-    const txn = parts[3];
-    if (!amount || amount < 50) { await tg(token, 'sendMessage', { chat_id: chatId, text: '❌ Amount must be ≥ 50' }); return; }
-    if (method !== 'bkash' && method !== 'nagad') { await tg(token, 'sendMessage', { chat_id: chatId, text: '❌ Method must be bkash or nagad' }); return; }
-
-    await admin.from('telegram_bot_sessions').upsert({
-      chat_id: chatId,
-      state: { kind: 'awaiting_screenshot', amount, method, sender, txn, created: Date.now() },
-      updated_at: new Date().toISOString(),
-    });
-    await tg(token, 'sendMessage', {
-      chat_id: chatId,
-      text: `📸 Got it!\n\n৳${amount} via ${method} from ${sender} (txn ${txn})\n\nNow please <b>reply with the payment screenshot</b> as a photo.`,
-      parse_mode: 'HTML',
-    });
-    return;
-  }
-
-  // Photo upload — check if there's a pending session
-  if (msg.photo && Array.isArray(msg.photo) && msg.photo.length > 0) {
-    const { data: sess } = await admin.from('telegram_bot_sessions').select('state').eq('chat_id', chatId).maybeSingle();
-    const st = sess?.state ?? {};
-    if (st.kind !== 'awaiting_screenshot') {
-      await tg(token, 'sendMessage', { chat_id: chatId, text: 'ℹ️ Send /deposit first, then reply with screenshot.' });
-      return;
-    }
-    if (!vpsUrl || !vpsToken) {
-      await tg(token, 'sendMessage', { chat_id: chatId, text: '⚠️ Server not configured for screenshots. Contact admin.' });
-      return;
-    }
-
-    // Pick highest resolution
-    const photo = msg.photo[msg.photo.length - 1];
-    const fileInfo = await tg(token, 'getFile', { file_id: photo.file_id });
-    if (!fileInfo?.result?.file_path) {
-      await tg(token, 'sendMessage', { chat_id: chatId, text: '❌ Could not fetch photo from Telegram.' });
-      return;
-    }
-    const dl = await fetch(`https://api.telegram.org/file/bot${token}/${fileInfo.result.file_path}`);
-    const blob = await dl.blob();
-
-    const fd = new FormData();
-    fd.append('file', blob, `tg-${Date.now()}.jpg`);
-    fd.append('user_id', prof.id);
-    const up = await fetch(vpsUrl, { method: 'POST', headers: { Authorization: `Bearer ${vpsToken}` }, body: fd });
-    const upText = await up.text();
-    if (!up.ok) {
-      await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ Screenshot upload failed: ${upText.slice(0, 200)}` });
-      return;
-    }
-    let parsed: any = {};
-    try { parsed = JSON.parse(upText); } catch { parsed = { url: upText.trim() }; }
-    if (!parsed?.url) { await tg(token, 'sendMessage', { chat_id: chatId, text: '❌ Upload returned no URL' }); return; }
-
-    // Submit topup via service role function
-    const { data: res, error } = await admin.rpc('bot_submit_topup_request', {
-      p_telegram_chat_id: chatId,
-      p_amount: st.amount,
-      p_method: st.method,
-      p_sender_number: st.sender,
-      p_txn_id: st.txn,
-      p_screenshot_url: parsed.url,
-    });
-    if (error) {
-      await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${error.message}` });
-      return;
-    }
-    const reqId = (res as any)?.id;
-
-    // Clear session
-    await admin.from('telegram_bot_sessions').delete().eq('chat_id', chatId);
-
-    await tg(token, 'sendMessage', {
-      chat_id: chatId,
-      text: `✅ Top-up request submitted!\n\nID: <code>${reqId}</code>\nAdmin will review shortly.`,
-      parse_mode: 'HTML',
-    });
-
-    // Notify admin chat with inline buttons
-    if (adminChat) {
-      await tg(token, 'sendPhoto', {
-        chat_id: adminChat,
-        photo: parsed.url,
-        caption:
-          `💰 <b>New top-up</b>\n` +
-          `User: ${prof.display_name ?? prof.email ?? prof.id.slice(0,8)}\n` +
-          `Amount: ৳${st.amount} via ${st.method}\n` +
-          `Sender: <code>${st.sender}</code>\n` +
-          `TxnID: <code>${st.txn}</code>\n` +
-          `Source: telegram_bot`,
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [[
-            { text: '✅ Approve', callback_data: `approve:${reqId}` },
-            { text: '❌ Reject', callback_data: `reject:${reqId}` },
-          ]],
-        },
-      });
-    }
-    return;
-  }
-
-  // Default reply
-  await tg(token, 'sendMessage', { chat_id: chatId, text: 'Send /help to see available commands.' });
-}
-
-async function handleCallback(admin: any, token: string, cq: any) {
-  const chatId = cq.from.id;
-  const data: string = cq.data ?? '';
-  const [action, reqId] = data.split(':');
-  if (!reqId) return;
-
-  if (action === 'approve') {
-    const { data: res, error } = await admin.rpc('bot_admin_approve_topup', {
-      p_admin_chat_id: chatId,
-      p_request_id: reqId,
-    });
-    if (error) {
-      await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: `❌ ${error.message}`, show_alert: true });
-      return;
-    }
-    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '✅ Approved' });
-    await tg(token, 'editMessageCaption', {
-      chat_id: cq.message.chat.id,
-      message_id: cq.message.message_id,
-      caption: (cq.message.caption ?? '') + `\n\n✅ <b>Approved</b> · new balance ৳${(res as any)?.new_balance}`,
-      parse_mode: 'HTML',
-    });
-  } else if (action === 'reject') {
-    const { error } = await admin.rpc('bot_admin_reject_topup', {
-      p_admin_chat_id: chatId,
-      p_request_id: reqId,
-      p_note: 'Rejected via Telegram bot',
-    });
-    if (error) {
-      await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: `❌ ${error.message}`, show_alert: true });
-      return;
-    }
-    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '❌ Rejected' });
-    await tg(token, 'editMessageCaption', {
-      chat_id: cq.message.chat.id,
-      message_id: cq.message.message_id,
-      caption: (cq.message.caption ?? '') + `\n\n❌ <b>Rejected</b>`,
-      parse_mode: 'HTML',
-    });
-  }
+// ============== Helpers ==============
+function isAdminChat(chatId: number, adminChat: string | undefined) {
+  if (!adminChat) return false;
+  return String(chatId) === String(adminChat).trim();
 }
 
 async function tg(token: string, method: string, body: any) {
@@ -425,4 +134,451 @@ async function tg(token: string, method: string, body: any) {
 
 function json(b: unknown, status = 200) {
   return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+}
+
+async function sendMain(token: string, chatId: number, name: string) {
+  await tg(token, 'sendMessage', {
+    chat_id: chatId,
+    text: T.welcome(name),
+    parse_mode: 'HTML',
+    reply_markup: mainMenu(),
+  });
+}
+
+// ============== Message handler ==============
+async function handleMessage(
+  admin: any, token: string,
+  vpsUrl: string | undefined, vpsToken: string | undefined,
+  adminChat: string | undefined, msg: any,
+) {
+  const chatId: number = msg.chat.id;
+  const text: string = (msg.text ?? '').trim();
+
+  // Lookup linked profile
+  const { data: prof } = await admin
+    .from('profiles').select('id, display_name, email, balance_bdt')
+    .eq('telegram_chat_id', chatId).maybeSingle();
+
+  // ---- Unlinked: try linking via code, else show help ----
+  if (!prof) {
+    const codeMatch = text.match(/^(?:\/start\s+)?([A-Z0-9]{6,12})$/i);
+    if (codeMatch) {
+      const code = codeMatch[1].toUpperCase();
+      const { data: target } = await admin
+        .from('profiles')
+        .select('id, display_name, email, telegram_chat_id')
+        .eq('telegram_link_code', code).maybeSingle();
+      if (!target) {
+        await tg(token, 'sendMessage', { chat_id: chatId, text: '❌ ভুল link code। নতুন code কপি করে আবার পাঠান।' });
+        return;
+      }
+      if (target.telegram_chat_id && target.telegram_chat_id !== chatId) {
+        await tg(token, 'sendMessage', { chat_id: chatId, text: '⚠️ এই অ্যাকাউন্ট অন্য Telegram-এ লিংক আছে। মালিককে /logout পাঠাতে বলুন।' });
+        return;
+      }
+      await admin.from('profiles').update({ telegram_chat_id: chatId }).eq('id', target.id);
+      await sendMain(token, chatId, target.display_name ?? target.email ?? 'User');
+      return;
+    }
+    await tg(token, 'sendMessage', { chat_id: chatId, text: T.notLinked, parse_mode: 'HTML' });
+    return;
+  }
+
+  const displayName = prof.display_name ?? prof.email ?? 'User';
+
+  // ---- /start, /menu, /help → main menu ----
+  if (text === '/start' || text === '/menu' || text === '/help') {
+    await sendMain(token, chatId, displayName);
+    return;
+  }
+
+  // ---- /logout ----
+  if (text === '/logout' || text === '/disconnect') {
+    await admin.from('telegram_bot_sessions').delete().eq('chat_id', chatId);
+    await admin.from('profiles').update({ telegram_chat_id: null }).eq('id', prof.id);
+    await tg(token, 'sendMessage', {
+      chat_id: chatId,
+      text: `👋 আপনি লগআউট হয়েছেন।\n\nনতুন অ্যাকাউন্ট লিংক করতে website-এর Dashboard → Telegram থেকে কোড নিয়ে এই বটে পাঠান।`,
+    });
+    return;
+  }
+
+  // ---- /deposit (works for everyone) ----
+  if (text.startsWith('/deposit')) {
+    await handleDeposit(admin, token, chatId, text);
+    return;
+  }
+
+  // ---- Photo upload after /deposit ----
+  if (msg.photo && Array.isArray(msg.photo) && msg.photo.length > 0) {
+    await handlePhotoUpload(admin, token, vpsUrl, vpsToken, adminChat, chatId, prof, msg);
+    return;
+  }
+
+  // ---- Admin-only commands (HIDDEN — only admin chat can use) ----
+  if (isAdminChat(chatId, adminChat)) {
+    if (text.startsWith('/replace')) {
+      await handleReplace(admin, token, chatId, text);
+      return;
+    }
+  }
+
+  // ---- Default ----
+  await tg(token, 'sendMessage', { chat_id: chatId, text: T.unknown });
+}
+
+// ============== Callback (button press) handler ==============
+async function handleCallback(admin: any, token: string, adminChat: string | undefined, cq: any) {
+  const chatId = cq.from.id;
+  const data: string = cq.data ?? '';
+  const msgId = cq.message?.message_id;
+
+  // Admin approve/reject (only ADMIN_CHAT may invoke)
+  if (data.startsWith('approve:') || data.startsWith('reject:')) {
+    if (!isAdminChat(chatId, adminChat)) {
+      await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '⛔ Admin only', show_alert: true });
+      return;
+    }
+    await handleAdminTopupCallback(admin, token, cq);
+    return;
+  }
+
+  // Get linked profile
+  const { data: prof } = await admin
+    .from('profiles').select('id, display_name, email, balance_bdt')
+    .eq('telegram_chat_id', chatId).maybeSingle();
+  if (!prof) {
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '🔗 প্রথমে অ্যাকাউন্ট লিংক করুন', show_alert: true });
+    return;
+  }
+
+  const name = prof.display_name ?? prof.email ?? 'User';
+
+  // ---- Main menu navigation ----
+  if (data === 'menu:home') {
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id });
+    await tg(token, 'editMessageText', {
+      chat_id: chatId, message_id: msgId,
+      text: T.welcome(name), parse_mode: 'HTML', reply_markup: mainMenu(),
+    });
+    return;
+  }
+
+  if (data === 'menu:buy') {
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id });
+    const { data: cats, error } = await admin.rpc('bot_get_categories');
+    if (error || !cats || cats.length === 0) {
+      await tg(token, 'editMessageText', {
+        chat_id: chatId, message_id: msgId,
+        text: T.noCategories, reply_markup: backOnly(),
+      });
+      return;
+    }
+    const buttons = (cats as any[]).map((c) => ([{
+      text: `📦 ${c.name} (${c.available}) → ৳${c.price_bdt}`,
+      callback_data: `cat:${c.id}`,
+    }]));
+    buttons.push([{ text: T.back, callback_data: 'menu:home' }]);
+    await tg(token, 'editMessageText', {
+      chat_id: chatId, message_id: msgId,
+      text: T.buyMenuTitle, parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: buttons },
+    });
+    return;
+  }
+
+  if (data.startsWith('cat:')) {
+    const catId = data.slice(4);
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id });
+    const { data: cats } = await admin.rpc('bot_get_categories');
+    const cat = (cats as any[] | null)?.find((c) => c.id === catId);
+    if (!cat) {
+      await tg(token, 'editMessageText', {
+        chat_id: chatId, message_id: msgId,
+        text: '❌ ক্যাটাগরি পাওয়া যায়নি।', reply_markup: backOnly(),
+      });
+      return;
+    }
+    const text =
+      `<b>📦 ${cat.name}</b>\n\n` +
+      `💰 দাম: <b>৳${cat.price_bdt}</b>\n` +
+      `📊 স্টক: <b>${cat.available}</b>\n` +
+      `💼 আপনার ব্যালেন্স: <b>৳${prof.balance_bdt}</b>\n\n` +
+      (cat.available > 0 ? `কনফার্ম করলে ১টি আইডি ডেলিভার হবে।` : `❌ এই মুহূর্তে স্টক নেই।`);
+    const kb: any[] = [];
+    if (cat.available > 0) kb.push([{ text: T.confirmBuy, callback_data: `buy:${cat.id}` }]);
+    kb.push([{ text: T.back, callback_data: 'menu:buy' }]);
+    await tg(token, 'editMessageText', {
+      chat_id: chatId, message_id: msgId,
+      text, parse_mode: 'HTML', reply_markup: { inline_keyboard: kb },
+    });
+    return;
+  }
+
+  if (data.startsWith('buy:')) {
+    const catId = data.slice(4);
+    const { data: res, error } = await admin.rpc('bot_buy_account', {
+      p_telegram_chat_id: chatId,
+      p_category_id: catId,
+    });
+    if (error) {
+      const msg = String(error.message || '');
+      let userMsg = `❌ ${msg}`;
+      if (msg.includes('insufficient_balance')) {
+        const { data: cats } = await admin.rpc('bot_get_categories');
+        const cat = (cats as any[] | null)?.find((c) => c.id === catId);
+        userMsg = T.insufficient(cat?.price_bdt ?? 0, prof.balance_bdt);
+      } else if (msg.includes('out_of_stock')) userMsg = T.outOfStock;
+      else if (msg.includes('account_banned')) userMsg = '⛔ আপনার অ্যাকাউন্ট ব্যান করা হয়েছে।';
+      await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '❌', show_alert: false });
+      await tg(token, 'editMessageText', {
+        chat_id: chatId, message_id: msgId,
+        text: userMsg, parse_mode: 'HTML', reply_markup: backOnly(),
+      });
+      return;
+    }
+    const r = res as any;
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '✅ Delivered!' });
+    const lines = [
+      `✅ <b>ডেলিভারি সম্পন্ন!</b>`,
+      ``,
+      `📦 ${r.category}`,
+      `🆔 UID: <code>${r.uid}</code>`,
+      `🔑 Password: <code>${r.password}</code>`,
+    ];
+    if (r.two_fa) lines.push(`🔐 2FA: <code>${r.two_fa}</code>`);
+    if (r.email) lines.push(`📧 Email: <code>${r.email}</code>`);
+    if (r.email_password) lines.push(`📧 Email Pass: <code>${r.email_password}</code>`);
+    lines.push(``, `💼 নতুন ব্যালেন্স: <b>৳${r.new_balance}</b>`);
+    await tg(token, 'sendMessage', {
+      chat_id: chatId, text: lines.join('\n'), parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [[{ text: '🏠 মেনু', callback_data: 'menu:home' }]] },
+    });
+    return;
+  }
+
+  if (data === 'menu:deposit') {
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id });
+    await tg(token, 'editMessageText', {
+      chat_id: chatId, message_id: msgId,
+      text: T.depositForm, parse_mode: 'HTML', reply_markup: backOnly(),
+    });
+    return;
+  }
+
+  if (data === 'menu:profile') {
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id });
+    const { data: pres, error } = await admin.rpc('bot_get_profile', { p_telegram_chat_id: chatId });
+    if (error) {
+      await tg(token, 'editMessageText', {
+        chat_id: chatId, message_id: msgId,
+        text: `❌ ${error.message}`, reply_markup: backOnly(),
+      });
+      return;
+    }
+    const p = pres as any;
+    const text =
+      `<b>👤 প্রোফাইল</b>\n\n` +
+      `নাম: <b>${p.display_name ?? p.email}</b>\n` +
+      `ইউজার আইডি: <code>${(p.user_id as string).slice(0, 8)}</code>\n` +
+      `মোট ব্যালেন্স: <b>৳${p.balance_bdt}</b>\n` +
+      `মোট অর্ডার: <b>${p.orders_count}</b>`;
+    await tg(token, 'editMessageText', {
+      chat_id: chatId, message_id: msgId,
+      text, parse_mode: 'HTML', reply_markup: backOnly(),
+    });
+    return;
+  }
+
+  if (data === 'menu:support') {
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id });
+    await tg(token, 'editMessageText', {
+      chat_id: chatId, message_id: msgId,
+      text: T.support, parse_mode: 'HTML', reply_markup: backOnly(),
+    });
+    return;
+  }
+
+  if (data === 'menu:logout') {
+    await admin.from('telegram_bot_sessions').delete().eq('chat_id', chatId);
+    await admin.from('profiles').update({ telegram_chat_id: null }).eq('id', prof.id);
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '👋 লগআউট সম্পন্ন' });
+    await tg(token, 'editMessageText', {
+      chat_id: chatId, message_id: msgId,
+      text: '👋 আপনি লগআউট হয়েছেন। নতুন link code পাঠিয়ে আবার লিংক করুন।',
+    });
+    return;
+  }
+
+  await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id });
+}
+
+// ============== Deposit flow ==============
+async function handleDeposit(admin: any, token: string, chatId: number, text: string) {
+  const parts = text.split(/\s+/).slice(1);
+  if (parts.length < 4) {
+    await tg(token, 'sendMessage', { chat_id: chatId, text: T.depositForm, parse_mode: 'HTML' });
+    return;
+  }
+  const amount = Number(parts[0]);
+  const method = parts[1].toLowerCase();
+  const sender = parts[2];
+  const txn = parts[3];
+  if (!amount || amount < 50) { await tg(token, 'sendMessage', { chat_id: chatId, text: '❌ মিনিমাম ৳50 প্রয়োজন।' }); return; }
+  if (method !== 'bkash' && method !== 'nagad') { await tg(token, 'sendMessage', { chat_id: chatId, text: '❌ Method bkash বা nagad হতে হবে।' }); return; }
+
+  await admin.from('telegram_bot_sessions').upsert({
+    chat_id: chatId,
+    state: { kind: 'awaiting_screenshot', amount, method, sender, txn, created: Date.now() },
+    updated_at: new Date().toISOString(),
+  });
+  await tg(token, 'sendMessage', {
+    chat_id: chatId,
+    text: `📸 পেয়েছি!\n\n৳${amount} via ${method} (sender ${sender}, txn ${txn})\n\nএখন <b>পেমেন্টের স্ক্রিনশট ছবি হিসেবে</b> পাঠান।`,
+    parse_mode: 'HTML',
+  });
+}
+
+async function handlePhotoUpload(
+  admin: any, token: string,
+  vpsUrl: string | undefined, vpsToken: string | undefined,
+  adminChat: string | undefined, chatId: number, prof: any, msg: any,
+) {
+  const { data: sess } = await admin.from('telegram_bot_sessions').select('state').eq('chat_id', chatId).maybeSingle();
+  const st = sess?.state ?? {};
+  if (st.kind !== 'awaiting_screenshot') {
+    await tg(token, 'sendMessage', { chat_id: chatId, text: 'ℹ️ আগে /deposit কমান্ড পাঠান, তারপর স্ক্রিনশট পাঠান।' });
+    return;
+  }
+  if (!vpsUrl || !vpsToken) {
+    await tg(token, 'sendMessage', { chat_id: chatId, text: '⚠️ Server configured না। Admin-এর সাথে যোগাযোগ করুন।' });
+    return;
+  }
+  const photo = msg.photo[msg.photo.length - 1];
+  const fileInfo = await tg(token, 'getFile', { file_id: photo.file_id });
+  if (!fileInfo?.result?.file_path) {
+    await tg(token, 'sendMessage', { chat_id: chatId, text: '❌ ছবি আনতে পারিনি।' });
+    return;
+  }
+  const dl = await fetch(`https://api.telegram.org/file/bot${token}/${fileInfo.result.file_path}`);
+  const blob = await dl.blob();
+  const fd = new FormData();
+  fd.append('file', blob, `tg-${Date.now()}.jpg`);
+  fd.append('user_id', prof.id);
+  const up = await fetch(vpsUrl, { method: 'POST', headers: { Authorization: `Bearer ${vpsToken}` }, body: fd });
+  const upText = await up.text();
+  if (!up.ok) {
+    await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ Upload failed: ${upText.slice(0, 200)}` });
+    return;
+  }
+  let parsed: any = {};
+  try { parsed = JSON.parse(upText); } catch { parsed = { url: upText.trim() }; }
+  if (!parsed?.url) { await tg(token, 'sendMessage', { chat_id: chatId, text: '❌ Upload returned no URL' }); return; }
+
+  const { data: res, error } = await admin.rpc('bot_submit_topup_request', {
+    p_telegram_chat_id: chatId,
+    p_amount: st.amount, p_method: st.method,
+    p_sender_number: st.sender, p_txn_id: st.txn,
+    p_screenshot_url: parsed.url,
+  });
+  if (error) {
+    await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${error.message}` });
+    return;
+  }
+  const reqId = (res as any)?.id;
+  await admin.from('telegram_bot_sessions').delete().eq('chat_id', chatId);
+  await tg(token, 'sendMessage', {
+    chat_id: chatId,
+    text: `✅ টপ-আপ রিকোয়েস্ট সাবমিট হয়েছে!\n\nID: <code>${reqId}</code>\nAdmin শীঘ্রই রিভিউ করবে।`,
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: [[{ text: '🏠 মেনু', callback_data: 'menu:home' }]] },
+  });
+  if (adminChat) {
+    await tg(token, 'sendPhoto', {
+      chat_id: adminChat, photo: parsed.url,
+      caption:
+        `💰 <b>New top-up</b>\n` +
+        `User: ${prof.display_name ?? prof.email ?? prof.id.slice(0, 8)}\n` +
+        `Amount: ৳${st.amount} via ${st.method}\n` +
+        `Sender: <code>${st.sender}</code>\n` +
+        `TxnID: <code>${st.txn}</code>\n` +
+        `Source: telegram_bot`,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '✅ Approve', callback_data: `approve:${reqId}` },
+          { text: '❌ Reject', callback_data: `reject:${reqId}` },
+        ]],
+      },
+    });
+  }
+}
+
+// ============== Admin /replace ==============
+async function handleReplace(admin: any, token: string, chatId: number, text: string) {
+  const parts = text.split(/\s+/);
+  if (parts.length < 3) {
+    await tg(token, 'sendMessage', { chat_id: chatId, text: '⚠️ Usage: /replace <item_id> <category_slug> [optional message]' });
+    return;
+  }
+  const itemId = parts[1];
+  const catSlug = parts[2];
+  const message = parts.slice(3).join(' ').trim() || null;
+  const { data: res, error } = await admin.rpc('bot_admin_replace_with_category', {
+    p_admin_chat_id: chatId, p_item_id: itemId, p_category_slug: catSlug, p_message: message,
+  });
+  if (error) { await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${error.message}` }); return; }
+  const r = res as any;
+  const orderTime = r.order_created_at ? new Date(r.order_created_at).toUTCString() : 'unknown';
+  const windowLine = r.in_window
+    ? `🟢 In window (${Math.floor((r.minutes_left ?? 0) / 60)}h ${(r.minutes_left ?? 0) % 60}m left of ${r.window_hours}h)`
+    : `🔴 Out of window (${r.window_hours}h expired)`;
+  await tg(token, 'sendMessage', {
+    chat_id: chatId, parse_mode: 'HTML',
+    text:
+      `✅ <b>Replacement done</b>\n\n` +
+      `Outcome: <b>${r.outcome ?? 'replaced'}</b>\n` +
+      `Reported UID: <code>${r.reported_uid ?? '-'}</code>\n` +
+      `New UID: <code>${r.new_uid}</code> (${r.category})\n` +
+      `Buyer: ${r.buyer_name || '-'}\n` +
+      `Order placed: ${orderTime}\n${windowLine}`,
+  });
+}
+
+// ============== Admin topup approve/reject callback ==============
+async function handleAdminTopupCallback(admin: any, token: string, cq: any) {
+  const data: string = cq.data ?? '';
+  const [action, reqId] = data.split(':');
+  if (!reqId) return;
+  const chatId = cq.from.id;
+
+  if (action === 'approve') {
+    const { data: res, error } = await admin.rpc('bot_admin_approve_topup', {
+      p_admin_chat_id: chatId, p_request_id: reqId,
+    });
+    if (error) {
+      await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: `❌ ${error.message}`, show_alert: true });
+      return;
+    }
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '✅ Approved' });
+    await tg(token, 'editMessageCaption', {
+      chat_id: cq.message.chat.id, message_id: cq.message.message_id,
+      caption: (cq.message.caption ?? '') + `\n\n✅ <b>Approved</b> · new balance ৳${(res as any)?.new_balance}`,
+      parse_mode: 'HTML',
+    });
+  } else if (action === 'reject') {
+    const { error } = await admin.rpc('bot_admin_reject_topup', {
+      p_admin_chat_id: chatId, p_request_id: reqId, p_note: 'Rejected via Telegram bot',
+    });
+    if (error) {
+      await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: `❌ ${error.message}`, show_alert: true });
+      return;
+    }
+    await tg(token, 'answerCallbackQuery', { callback_query_id: cq.id, text: '❌ Rejected' });
+    await tg(token, 'editMessageCaption', {
+      chat_id: cq.message.chat.id, message_id: cq.message.message_id,
+      caption: (cq.message.caption ?? '') + `\n\n❌ <b>Rejected</b>`,
+      parse_mode: 'HTML',
+    });
+  }
 }
