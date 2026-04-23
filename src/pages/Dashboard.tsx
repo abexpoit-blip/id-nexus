@@ -298,6 +298,7 @@ const Dashboard = () => {
           />
         )}
       </main>
+      <BrandFooter />
     </div>
   );
 };

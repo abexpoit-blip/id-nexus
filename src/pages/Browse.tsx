@@ -272,6 +272,7 @@ const Browse = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <BrandFooter />
     </div>
   );
 };
