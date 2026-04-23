@@ -12,11 +12,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Upload, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { DepositWizard } from "@/components/wallet/DepositWizard";
 
-type Method = "bkash" | "nagad";
+type Method = "bkash" | "nagad" | "binance";
 
 interface TopupRow {
   id: string;
