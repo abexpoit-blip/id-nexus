@@ -123,6 +123,23 @@ async function handleMessage(admin: any, token: string, vpsUrl: string | undefin
       return;
     }
 
+    // /help for unlinked users
+    if (text === '/help' || text === '/start') {
+      await tg(token, 'sendMessage', {
+        chat_id: chatId,
+        text:
+          `👋 <b>Welcome to Nexus X bot</b>\n\n` +
+          `Your Telegram is <b>not linked</b> yet.\n\n` +
+          `<b>🔗 How to link:</b>\n` +
+          `1. Open the website → Dashboard → Telegram\n` +
+          `2. Copy your link code (e.g. <code>ABC12345</code>)\n` +
+          `3. Send it to this bot — either as <code>/start ABC12345</code> or just <code>ABC12345</code>\n\n` +
+          `Once linked, send /help again to see all commands.`,
+        parse_mode: 'HTML',
+      });
+      return;
+    }
+
     await tg(token, 'sendMessage', {
       chat_id: chatId,
       text:
