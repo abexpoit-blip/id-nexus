@@ -79,7 +79,33 @@ async function handleMessage(admin: any, token: string, vpsUrl: string | undefin
   if (!prof) {
     await tg(token, 'sendMessage', {
       chat_id: chatId,
-      text: '⚠️ Your Telegram is not linked to any account.\n\nPlease open the website → Dashboard → Telegram → copy your link code, then send it to this bot.',
+      text:
+        '⚠️ Your Telegram is not linked to any account.\n\n' +
+        'Open the website → Dashboard → Telegram → copy your link code, then send it to this bot to connect a fresh account.',
+    });
+    return;
+  }
+
+  // /logout — unlink current account so user can connect a fresh one
+  if (text === '/logout' || text === '/disconnect') {
+    await admin.from('telegram_bot_sessions').delete().eq('chat_id', chatId);
+    const { error: updErr } = await admin
+      .from('profiles')
+      .update({ telegram_chat_id: null })
+      .eq('id', prof.id);
+    if (updErr) {
+      await tg(token, 'sendMessage', { chat_id: chatId, text: `❌ ${updErr.message}` });
+      return;
+    }
+    await tg(token, 'sendMessage', {
+      chat_id: chatId,
+      text:
+        `👋 You have been logged out from <b>${prof.display_name ?? prof.email ?? 'your account'}</b>.\n\n` +
+        `To connect a new account:\n` +
+        `1. Open the website → Dashboard → Telegram\n` +
+        `2. Copy the new link code\n` +
+        `3. Send it to this bot`,
+      parse_mode: 'HTML',
     });
     return;
   }
@@ -93,6 +119,7 @@ async function handleMessage(admin: any, token: string, vpsUrl: string | undefin
         `Commands:\n` +
         `/deposit <amount> <bkash|nagad> <sender_no> <txn_id> — submit a top-up\n` +
         `Then reply to my next message with the payment screenshot.\n\n` +
+        `/logout — disconnect this Telegram from your account (use a different account)\n\n` +
         `Admin only:\n` +
         `/replace <item_id> <category_slug> [message] — quick-replace a reported UID\n` +
         `Example: <code>/replace 1234abcd 61xxx Sorry for the inconvenience</code>\n\n` +
