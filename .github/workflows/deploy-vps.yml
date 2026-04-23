@@ -18,8 +18,22 @@ jobs:
           port: 22
           script: |
             set -e
+            echo "==> Frontend deploy"
             cd /var/www/nexusx-frontend
             git pull origin main
             npm install
             npm run build
-            echo "✅ Deploy successful at $(date)"
+            echo "✅ Frontend built"
+
+            echo "==> Backend deploy (nexusx-api subfolder)"
+            cd /var/www/nexusx-frontend/nexusx-api
+            if [ ! -f .env ]; then
+              echo "⚠️  nexusx-api/.env missing — skipping backend deploy. Create it once, then re-run."
+              exit 0
+            fi
+            npm install
+            npm run build
+            npm run migrate || echo "migrate already applied"
+            pm2 restart nexusx-api --update-env || pm2 start dist/server.js --name nexusx-api --update-env
+            pm2 save
+            echo "✅ Backend deployed at $(date)"
