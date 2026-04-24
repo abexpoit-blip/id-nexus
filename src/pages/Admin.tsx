@@ -35,6 +35,8 @@ import { PaymentsManager } from "@/components/admin/PaymentsManager";
 import { SellerApplicationsManager } from "@/components/admin/SellerApplicationsManager";
 import { BrandSettingsManager } from "@/components/admin/BrandSettingsManager";
 import { PaymentAccountsManager } from "@/components/admin/PaymentAccountsManager";
+import { AdminOverview } from "@/components/admin/AdminOverview";
+import { UsersManager } from "@/components/admin/UsersManager";
 
 interface RpItem {
   id: string;
@@ -70,8 +72,8 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
   const [section, setSection] = useState<
-    "replacements" | "stock" | "categories" | "sellers" | "applications" | "payments" | "accounts" | "brand"
-  >("replacements");
+    "overview" | "users" | "replacements" | "stock" | "categories" | "sellers" | "applications" | "payments" | "accounts" | "brand"
+  >("overview");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
   const [action, setAction] = useState<"replace" | "refund" | "reject" | "replace_category" | null>(null);
@@ -242,6 +244,8 @@ const Admin = () => {
 
         <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)} className="mb-6">
           <TabsList className="flex w-full flex-wrap justify-start gap-1 sm:w-auto">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="users">Users & money</TabsTrigger>
             <TabsTrigger value="replacements">Replacements{counts.pending ? ` (${counts.pending})` : ""}</TabsTrigger>
             <TabsTrigger value="stock">Stock</TabsTrigger>
             <TabsTrigger value="categories">Categories & pricing</TabsTrigger>
@@ -253,6 +257,8 @@ const Admin = () => {
           </TabsList>
         </Tabs>
 
+        {section === "overview" && <AdminOverview onJump={(s) => setSection(s as typeof section)} />}
+        {section === "users" && <UsersManager />}
         {section === "stock" && <StockOverview />}
         {section === "categories" && <CategoriesManager />}
         {section === "sellers" && <SellerLimitsManager />}
