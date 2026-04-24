@@ -437,46 +437,106 @@ export const VpnBrandsManager = () => {
 
             <div className="grid gap-2">
               <Label>Logo</Label>
-              <div className="flex items-center gap-3">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-background">
-                  {form.logo_url ? (
-                    <img src={form.logo_url} alt="logo" className="h-full w-full object-contain" />
-                  ) : (
-                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleUpload(f);
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className="gap-2"
-                  >
-                    {uploading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="h-3.5 w-3.5" />
-                    )}
-                    {uploading ? "Uploading…" : "Upload logo"}
-                  </Button>
-                  <p className="text-[11px] text-muted-foreground">PNG/JPG/WebP, max 2 MB</p>
-                </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUpload(f);
+                }}
+              />
+              <div
+                onClick={() => !uploading && fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const f = e.dataTransfer.files?.[0];
+                  if (f) handleUpload(f);
+                }}
+                className="group relative flex cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-border/60 bg-background/40 transition-colors hover:border-primary/50 hover:bg-background/60"
+                style={{ minHeight: 200 }}
+              >
+                {uploading ? (
+                  <div className="flex flex-col items-center gap-2 py-10 text-sm text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    Uploading…
+                  </div>
+                ) : form.logo_url ? (
+                  <div className="flex w-full items-center justify-center bg-[linear-gradient(45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(-45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(45deg,transparent_75%,hsl(var(--muted))_75%),linear-gradient(-45deg,transparent_75%,hsl(var(--muted))_75%)] bg-[length:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0px] p-6">
+                    <img
+                      src={form.logo_url}
+                      alt="logo preview"
+                      className="max-h-40 w-auto max-w-full object-contain drop-shadow-lg"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
+                    <Upload className="h-7 w-7" />
+                    <div className="font-medium">Click or drag to upload</div>
+                    <div className="text-[11px]">PNG · JPG · WebP · SVG, max 2 MB</div>
+                  </div>
+                )}
               </div>
+
+              {form.logo_url && (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {logoMeta ? (
+                      <>
+                        <Badge variant="outline" className="font-mono">
+                          {logoMeta.width}×{logoMeta.height}px
+                        </Badge>
+                        <Badge variant="outline" className="font-mono">{logoMeta.sizeKb} KB</Badge>
+                        <Badge variant="outline" className="font-mono">{logoMeta.type}</Badge>
+                        {logoMeta.width > 0 && logoMeta.height > 0 && (
+                          <span>
+                            {Math.abs(logoMeta.width / logoMeta.height - 1) < 0.05
+                              ? "✓ Square (recommended)"
+                              : "Tip: square logos look best on cards"}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span>Existing logo · upload to replace</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Replace
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, logo_url: "" }));
+                        setLogoMeta(null);
+                      }}
+                      className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-muted-foreground">
+                Recommended: 512×512 transparent PNG · max 2 MB · square aspect ratio
+              </p>
               <Input
                 value={form.logo_url}
-                onChange={(e) => setForm((f) => ({ ...f, logo_url: e.target.value }))}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, logo_url: e.target.value }));
+                  setLogoMeta(null);
+                }}
                 placeholder="…or paste a logo URL"
                 className="text-xs"
               />
