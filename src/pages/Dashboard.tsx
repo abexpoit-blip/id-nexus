@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Logo } from "@/components/Logo";
 import { BrandFooter } from "@/components/BrandFooter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,12 +13,11 @@ import {
   Upload,
   Bot,
   Copy,
-  LogOut,
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { NotificationsBell } from "@/components/NotificationsBell";
 import { RecentOrdersPanel } from "@/components/buyer/RecentOrdersPanel";
+import { AppShell } from "@/components/layout/AppShell";
 
 interface Profile {
   display_name: string | null;
@@ -31,7 +29,7 @@ interface Profile {
 }
 
 const Dashboard = () => {
-  const { user, roles, signOut } = useAuth();
+  const { user, roles } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
