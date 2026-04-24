@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Copy, Download, Loader2, RefreshCcw, Clock, CheckCircle2 } from "lucide-react";
+import { Copy, Download, Loader2, RefreshCcw, Clock, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
+import { AppShell } from "@/components/layout/AppShell";
 
 interface OrderRow {
   id: string;
@@ -130,29 +130,14 @@ const OrderDetail = () => {
   const remainingM = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="inline h-4 w-4" /> Dashboard
-            </Link>
-            <Logo size="sm" showTagline={false} />
-          </div>
-        </div>
-      </header>
-
-      <main className="container py-8">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="font-display text-2xl font-bold">Order #{order.id.slice(0, 8)}</h1>
-            <p className="text-sm text-muted-foreground">
-              {categoryName} · {new Date(order.created_at).toLocaleString()}
-            </p>
-          </div>
-          <Badge className="bg-success/20 capitalize text-success hover:bg-success/20">{order.status}</Badge>
-        </div>
-
+    <AppShell
+      mode="buyer"
+      title={`Order #${order.id.slice(0, 8)}`}
+      subtitle={`${categoryName} · ${new Date(order.created_at).toLocaleString()}`}
+      actions={
+        <Badge className="bg-success/20 capitalize text-success hover:bg-success/20">{order.status}</Badge>
+      }
+    >
         <div className="mb-6 grid gap-4 md:grid-cols-3">
           <Card className="border-border/60 bg-gradient-card p-4">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Quantity</div>
@@ -241,8 +226,7 @@ const OrderDetail = () => {
             </Table>
           </div>
         </Card>
-      </main>
-    </div>
+    </AppShell>
   );
 };
 
