@@ -34,6 +34,7 @@ import { StockOverview } from "@/components/admin/StockOverview";
 import { PaymentsManager } from "@/components/admin/PaymentsManager";
 import { SellerApplicationsManager } from "@/components/admin/SellerApplicationsManager";
 import { BrandSettingsManager } from "@/components/admin/BrandSettingsManager";
+import { VpnBrandsManager } from "@/components/admin/VpnBrandsManager";
 import { PaymentAccountsManager } from "@/components/admin/PaymentAccountsManager";
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import { UsersManager } from "@/components/admin/UsersManager";
@@ -73,7 +74,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
   const [section, setSection] = useState<
-    "overview" | "users" | "replacements" | "stock" | "categories" | "sellers" | "applications" | "payments" | "accounts" | "brand" | "telegram"
+    "overview" | "users" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "accounts" | "brand" | "telegram"
   >("overview");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
@@ -250,6 +251,7 @@ const Admin = () => {
             <TabsTrigger value="replacements">Replacements{counts.pending ? ` (${counts.pending})` : ""}</TabsTrigger>
             <TabsTrigger value="stock">Stock</TabsTrigger>
             <TabsTrigger value="categories">Categories & pricing</TabsTrigger>
+            <TabsTrigger value="vpn_brands">VPN brands</TabsTrigger>
             <TabsTrigger value="sellers">Seller limits</TabsTrigger>
             <TabsTrigger value="applications">Seller applications</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
@@ -263,6 +265,7 @@ const Admin = () => {
         {section === "users" && <UsersManager />}
         {section === "stock" && <StockOverview />}
         {section === "categories" && <CategoriesManager />}
+        {section === "vpn_brands" && <VpnBrandsManager />}
         {section === "sellers" && <SellerLimitsManager />}
         {section === "applications" && <SellerApplicationsManager />}
         {section === "payments" && <PaymentsManager />}
