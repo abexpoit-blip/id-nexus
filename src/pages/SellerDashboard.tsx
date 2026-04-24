@@ -2030,8 +2030,7 @@ const SellerDashboard = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </AppShell>
   );
 };
 
