@@ -11,6 +11,7 @@ import {
   ScrollText,
   LogOut,
   Menu,
+  ArrowLeftRight,
 } from "lucide-react";
 import {
   Sidebar,
@@ -31,12 +32,19 @@ import { Button } from "@/components/ui/button";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type NavItem = {
   label: string;
   to: string;
   icon: typeof LayoutDashboard;
   match?: (path: string) => boolean;
+  /**
+   * When true, this tab is a deliberate "switch app mode" action
+   * (e.g. seller → buyer area). It must NEVER show as active in the
+   * current mode and requires a confirm tap before navigating.
+   */
+  switchMode?: boolean;
 };
 
 const buyerNav: NavItem[] = [
@@ -69,6 +77,9 @@ interface AppShellProps {
 }
 
 function isActive(path: string, item: NavItem) {
+  // Hard guard: switchMode tabs can never appear active — they belong
+  // to the *other* mode and must remain visually neutral.
+  if (item.switchMode) return false;
   return item.match ? item.match(path) : path === item.to;
 }
 
@@ -184,6 +195,7 @@ function SideNav({ mode }: { mode: AppShellMode }) {
 
 function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { roles } = useAuth();
   const isAdmin = roles.includes("admin");
   // Pick 4 most useful tabs for mobile
@@ -195,7 +207,7 @@ function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
           { label: "Browse", to: "/browse", icon: ShoppingBag, match: (p) => p.startsWith("/browse") },
           isAdmin
             ? { label: "Admin", to: "/admin", icon: Shield, match: (p) => p === "/admin" }
-            : { label: "Buyer", to: "/dashboard", icon: ShoppingBag, match: () => false },
+            : { label: "Buyer", to: "/dashboard", icon: ArrowLeftRight, match: () => false, switchMode: true },
         ]
       : [
           { label: "Home", to: "/dashboard", icon: LayoutDashboard, match: (p) => p === "/dashboard" },
@@ -210,20 +222,43 @@ function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
         {items.map((item) => {
           const active = isActive(location.pathname, item);
           const Icon = item.icon;
+          const isSwitch = !!item.switchMode;
           return (
             <li key={`${item.label}-${item.to}`}>
-              <Link
-                to={item.to}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors",
-                  active
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_8px_hsl(var(--primary)/0.55)]")} />
-                <span>{item.label}</span>
-              </Link>
+              {isSwitch ? (
+                <button
+                  type="button"
+                  aria-label={`Switch to ${item.label} area`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    // Deliberate confirmation prevents accidental navigation
+                    // away from seller mode via a stray tap.
+                    toast(`Switch to ${item.label} area?`, {
+                      action: {
+                        label: "Switch",
+                        onClick: () => navigate(item.to),
+                      },
+                    });
+                  }}
+                  className="flex w-full flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{item.label}</span>
+                </button>
+              ) : (
+                <Link
+                  to={item.to}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors",
+                    active
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_8px_hsl(var(--primary)/0.55)]")} />
+                  <span>{item.label}</span>
+                </Link>
+              )}
             </li>
           );
         })}
