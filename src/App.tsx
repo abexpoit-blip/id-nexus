@@ -28,6 +28,7 @@ const Replacements = lazy(() => import("./pages/Replacements.tsx"));
 const Admin = lazy(() => import("./pages/Admin.tsx"));
 const Wallet = lazy(() => import("./pages/Wallet.tsx"));
 const AuditLog = lazy(() => import("./pages/AuditLog.tsx"));
+const Vpn = lazy(() => import("./pages/Vpn.tsx"));
 
 // Auto-recover from stale chunk errors after a deploy.
 // If a dynamic import fails (chunk 404 / network), reload once.
@@ -98,6 +99,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Browse />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vpn"
+              element={
+                <ProtectedRoute>
+                  <Vpn />
                 </ProtectedRoute>
               }
             />
