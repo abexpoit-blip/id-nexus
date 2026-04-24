@@ -91,6 +91,7 @@ export const VpnBrandsManager = () => {
 
   const openNew = () => {
     setForm({ ...emptyForm, sort_order: brands.length });
+    setLogoMeta(null);
     setOpen(true);
   };
 
@@ -104,6 +105,7 @@ export const VpnBrandsManager = () => {
       is_active: b.is_active,
       sort_order: b.sort_order,
     });
+    setLogoMeta(null);
     setOpen(true);
   };
 
