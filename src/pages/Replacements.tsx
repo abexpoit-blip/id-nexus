@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,10 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Upload, RefreshCcw } from "lucide-react";
+import { Loader2, Upload, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { NotificationsBell } from "@/components/NotificationsBell";
+import { AppShell } from "@/components/layout/AppShell";
 
 interface Item {
   id: string;
@@ -143,28 +141,11 @@ const Replacements = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="inline h-4 w-4" /> Dashboard
-            </Link>
-            <Logo size="sm" showTagline={false} />
-          </div>
-          <NotificationsBell />
-        </div>
-      </header>
-
-      <main className="container py-8">
-        <div className="mb-6">
-          <h1 className="font-display text-2xl font-bold">Replacement requests</h1>
-          <p className="text-sm text-muted-foreground">
-            Paste UIDs of bad IDs, or upload a .txt / .csv / .xlsx file. Our system auto-detects which
-            UIDs belong to your orders. Window: <b>2 hours</b> for orders ≤ 10 IDs, <b>6 hours</b> for larger orders.
-          </p>
-        </div>
-
+    <AppShell
+      mode="buyer"
+      title="Replacement requests"
+      subtitle="Paste UIDs of bad IDs, or upload a .txt / .csv / .xlsx file. Window: 2h (≤10 IDs) / 6h (larger)."
+    >
         <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
           <Textarea
             value={text}
@@ -271,8 +252,7 @@ const Replacements = () => {
             </div>
           )}
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 };
 

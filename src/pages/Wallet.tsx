@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,10 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { toast } from "sonner";
-import { NotificationsBell } from "@/components/NotificationsBell";
 import { DepositWizard } from "@/components/wallet/DepositWizard";
+import { AppShell } from "@/components/layout/AppShell";
 
 type Method = "bkash" | "nagad" | "binance";
 
@@ -110,34 +109,19 @@ const Wallet = () => {
   if (!user) return <Navigate to="/login" replace />;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="inline h-4 w-4" /> Dashboard
-            </Link>
-            <Logo size="sm" showTagline={false} />
-            <Badge variant="outline">Wallet</Badge>
+    <AppShell
+      mode={isSeller ? "seller" : "buyer"}
+      title="Wallet"
+      subtitle="Top-up via bKash/Nagad. Sellers can request payouts."
+      actions={
+        <Card className="border-border/60 bg-gradient-card p-3">
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Current balance</div>
+          <div className="mt-1 flex items-center gap-2 font-display text-xl font-bold text-primary">
+            <WalletIcon className="h-5 w-5" /> ৳ {balance.toFixed(2)}
           </div>
-          <NotificationsBell />
-        </div>
-      </header>
-
-      <main className="container py-8">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="font-display text-2xl font-bold md:text-3xl">Wallet</h1>
-            <p className="text-sm text-muted-foreground">Top-up via bKash/Nagad. Sellers can request payouts.</p>
-          </div>
-          <Card className="border-border/60 bg-gradient-card p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Current balance</div>
-            <div className="mt-1 flex items-center gap-2 font-display text-3xl font-bold text-primary">
-              <WalletIcon className="h-6 w-6" /> ৳ {balance.toFixed(2)}
-            </div>
-          </Card>
-        </div>
-
+        </Card>
+      }
+    >
         <Tabs defaultValue="topup">
           <TabsList>
             <TabsTrigger value="topup"><ArrowDownToLine className="mr-2 h-4 w-4" />Top-up</TabsTrigger>
@@ -237,8 +221,7 @@ const Wallet = () => {
             )}
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+    </AppShell>
   );
 };
 
