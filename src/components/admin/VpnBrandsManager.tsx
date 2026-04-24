@@ -235,18 +235,31 @@ export const VpnBrandsManager = () => {
                   )}
                 </div>
               </div>
-              <div className="mt-3 flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => openEdit(b)} className="gap-1">
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDeleteTarget(b)}
-                  className="gap-1 text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Delete
-                </Button>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={b.is_active}
+                    disabled={togglingId === b.id}
+                    onCheckedChange={() => toggleActive(b)}
+                    aria-label={`Toggle ${b.name}`}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {togglingId === b.id ? "Saving…" : b.is_active ? "On" : "Off"}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => openEdit(b)} className="gap-1">
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeleteTarget(b)}
+                    className="gap-1 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </Button>
+                </div>
               </div>
             </Card>
           ))}
