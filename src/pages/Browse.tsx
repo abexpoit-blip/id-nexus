@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Logo } from "@/components/Logo";
-import { BrandFooter } from "@/components/BrandFooter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,8 +14,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, ShoppingCart, Loader2, ShieldCheck, Zap, Globe } from "lucide-react";
+import { ShoppingCart, Loader2, ShieldCheck, Zap, Globe } from "lucide-react";
 import { toast } from "sonner";
+import { AppShell } from "@/components/layout/AppShell";
 
 interface Category {
   id: string;
@@ -30,7 +29,7 @@ interface Category {
 }
 
 const Browse = () => {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [balance, setBalance] = useState<number>(0);
@@ -132,30 +131,17 @@ const Browse = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="inline h-4 w-4" /> Dashboard
-            </Link>
-            <Logo size="sm" showTagline={false} />
-          </div>
-          <div className="text-sm">
-            <span className="text-muted-foreground">Balance:</span>{" "}
-            <span className="font-display font-semibold text-primary">৳ {balance.toFixed(2)}</span>
-          </div>
+    <AppShell
+      mode={roles.includes("seller") && !roles.includes("buyer") ? "seller" : "buyer"}
+      title="Browse stock"
+      subtitle="Live prices set by admin. Stock updates in real-time as sellers upload."
+      actions={
+        <div className="text-sm">
+          <span className="text-muted-foreground">Balance:</span>{" "}
+          <span className="font-display font-semibold text-primary">৳ {balance.toFixed(2)}</span>
         </div>
-      </header>
-
-      <main className="container py-8">
-        <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold md:text-4xl">Browse stock</h1>
-          <p className="text-sm text-muted-foreground">
-            Live prices set by admin. Stock updates in real-time as sellers upload.
-          </p>
-        </div>
-
+      }
+    >
         {loading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -210,7 +196,6 @@ const Browse = () => {
             })}
           </div>
         )}
-      </main>
 
       {/* Buy dialog */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
@@ -273,8 +258,7 @@ const Browse = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <BrandFooter />
-    </div>
+    </AppShell>
   );
 };
 
