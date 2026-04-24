@@ -14,7 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ShoppingCart, Loader2, ShieldCheck, Zap, Globe } from "lucide-react";
+import { ShoppingCart, Loader2, Globe, Shield, Zap, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 
@@ -28,7 +28,15 @@ interface Category {
   stock?: number;
 }
 
-const Browse = () => {
+const slugIcon = (slug: string) => {
+  if (slug.includes("nord")) return Shield;
+  if (slug.includes("express")) return Zap;
+  if (slug.includes("surf")) return Globe;
+  if (slug.includes("proton")) return Lock;
+  return Globe;
+};
+
+const Vpn = () => {
   const { user, roles } = useAuth();
   const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -45,13 +53,11 @@ const Browse = () => {
         .from("categories")
         .select("id, slug, name, description, price_bdt, kind")
         .eq("is_active", true)
-        .eq("kind", "fb_account")
+        .eq("kind", "vpn")
         .order("sort_order", { ascending: true }),
       user
-        ? supabase.from("profiles").select("balance_bdt").eq("id", user.id).single()
+        ? supabase.from("profiles").select("balance_bdt").eq("id", user.id).maybeSingle()
         : Promise.resolve({ data: null } as any),
-      // Stock per category — works because RLS lets sellers/admins see only theirs.
-      // For public stock count we use an RPC-free trick: count via head request grouped by category
       supabase.rpc("get_public_stock_counts" as any).then(
         (r: any) => r,
         () => ({ data: null }),
@@ -73,7 +79,7 @@ const Browse = () => {
   useEffect(() => {
     loadAll();
     const channel = supabase
-      .channel("accounts-stock")
+      .channel("accounts-stock-vpn")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "accounts" },
@@ -120,22 +126,16 @@ const Browse = () => {
       return;
     }
     const result = data as any;
-    toast.success(`Order placed! ${result.quantity} IDs delivered for ৳${result.total}`);
+    toast.success(`Order placed! ${result.quantity} VPN account${result.quantity > 1 ? "s" : ""} delivered for ৳${result.total}`);
     setSelected(null);
     navigate(`/orders/${result.order_id}`);
-  };
-
-  const iconFor = (cat: Category) => {
-    if (cat.kind === "vpn") return Globe;
-    if (cat.slug.includes("1000")) return Zap;
-    return ShieldCheck;
   };
 
   return (
     <AppShell
       mode={roles.includes("seller") && !roles.includes("buyer") ? "seller" : "buyer"}
-      title="Browse stock"
-      subtitle="Live prices set by admin. Stock updates in real-time as sellers upload."
+      title="VPN services"
+      subtitle="Premium VPN accounts — instant delivery. Note: VPN orders are final and not eligible for replacement."
       actions={
         <div className="text-sm">
           <span className="text-muted-foreground">Balance:</span>{" "}
@@ -143,68 +143,70 @@ const Browse = () => {
         </div>
       }
     >
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : categories.length === 0 ? (
-          <Card className="p-8 text-center text-muted-foreground">No categories yet.</Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {categories.map((cat) => {
-              const Icon = iconFor(cat);
-              return (
-                <Card
-                  key={cat.id}
-                  className="border-border/60 bg-gradient-card p-6 shadow-card transition hover:-translate-y-0.5 hover:shadow-glow"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="rounded-lg bg-gradient-brand p-2 text-primary-foreground">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <Badge
-                      className={
-                        (cat.stock ?? 0) > 0
-                          ? "bg-success/20 text-success hover:bg-success/20"
-                          : "bg-muted text-muted-foreground"
-                      }
-                    >
-                      {cat.stock ?? 0} in stock
-                    </Badge>
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : categories.length === 0 ? (
+        <Card className="p-8 text-center text-muted-foreground">
+          No VPN services available right now. Check back soon.
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {categories.map((cat) => {
+            const Icon = slugIcon(cat.slug);
+            return (
+              <Card
+                key={cat.id}
+                className="border-border/60 bg-gradient-card p-6 shadow-card transition hover:-translate-y-0.5 hover:shadow-glow"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="rounded-lg bg-gradient-brand p-2 text-primary-foreground">
+                    <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-4 font-display text-lg font-semibold">{cat.name}</h3>
-                  {cat.description && (
-                    <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{cat.description}</p>
-                  )}
-                  <div className="mt-4 flex items-end justify-between">
-                    <div>
-                      <div className="font-display text-2xl font-bold text-primary">
-                        ৳ {Number(cat.price_bdt).toFixed(0)}
-                      </div>
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">per pc</div>
+                  <Badge
+                    className={
+                      (cat.stock ?? 0) > 0
+                        ? "bg-success/20 text-success hover:bg-success/20"
+                        : "bg-muted text-muted-foreground"
+                    }
+                  >
+                    {cat.stock ?? 0} in stock
+                  </Badge>
+                </div>
+                <h3 className="mt-4 font-display text-lg font-semibold">{cat.name}</h3>
+                {cat.description && (
+                  <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{cat.description}</p>
+                )}
+                <div className="mt-4 flex items-end justify-between">
+                  <div>
+                    <div className="font-display text-2xl font-bold text-primary">
+                      ৳ {Number(cat.price_bdt).toFixed(0)}
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => openBuy(cat)}
-                      disabled={(cat.stock ?? 0) === 0}
-                      className="bg-gradient-brand text-primary-foreground hover:opacity-90"
-                    >
-                      <ShoppingCart className="mr-1.5 h-4 w-4" /> Buy
-                    </Button>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">per pc</div>
                   </div>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                  <Button
+                    size="sm"
+                    onClick={() => openBuy(cat)}
+                    disabled={(cat.stock ?? 0) === 0}
+                    className="bg-gradient-brand text-primary-foreground hover:opacity-90"
+                  >
+                    <ShoppingCart className="mr-1.5 h-4 w-4" /> Buy
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Buy dialog */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="bg-card">
           <DialogHeader>
             <DialogTitle>Buy {selected?.name}</DialogTitle>
             <DialogDescription>
-              Pay from your wallet. Delivery is instant — IDs appear in your order page.
+              Pay from your wallet. Delivery is instant.{" "}
+              <span className="text-warning">VPN purchases are final — no replacements.</span>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -263,4 +265,4 @@ const Browse = () => {
   );
 };
 
-export default Browse;
+export default Vpn;

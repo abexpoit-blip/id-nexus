@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   ArrowLeftRight,
+  Globe,
 } from "lucide-react";
 import {
   Sidebar,
@@ -50,6 +51,7 @@ type NavItem = {
 const buyerNav: NavItem[] = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard, match: (p) => p === "/dashboard" },
   { label: "Browse", to: "/browse", icon: ShoppingBag, match: (p) => p.startsWith("/browse") },
+  { label: "VPN", to: "/vpn", icon: Globe, match: (p) => p.startsWith("/vpn") },
   { label: "Wallet", to: "/wallet", icon: Wallet, match: (p) => p.startsWith("/wallet") },
   { label: "Replacements", to: "/replacements", icon: RefreshCcw, match: (p) => p.startsWith("/replacements") },
 ];
@@ -59,6 +61,7 @@ const sellerNav: NavItem[] = [
   { label: "Upload", to: "/seller", icon: Upload, match: () => false },
   { label: "Wallet", to: "/wallet", icon: Wallet, match: (p) => p.startsWith("/wallet") },
   { label: "Browse", to: "/browse", icon: ShoppingBag, match: (p) => p.startsWith("/browse") },
+  { label: "VPN", to: "/vpn", icon: Globe, match: (p) => p.startsWith("/vpn") },
 ];
 
 const adminExtras: NavItem[] = [
