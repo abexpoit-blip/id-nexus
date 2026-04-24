@@ -165,6 +165,27 @@ export const VpnBrandsManager = () => {
     load();
   };
 
+  const toggleActive = async (b: VpnBrand) => {
+    setTogglingId(b.id);
+    setBrands((prev) => prev.map((x) => (x.id === b.id ? { ...x, is_active: !x.is_active } : x)));
+    const { error } = await supabase.rpc("admin_upsert_vpn_brand", {
+      p_id: b.id,
+      p_name: b.name,
+      p_slug: b.slug,
+      p_description: b.description,
+      p_logo_url: b.logo_url,
+      p_is_active: !b.is_active,
+      p_sort_order: b.sort_order,
+    });
+    setTogglingId(null);
+    if (error) {
+      setBrands((prev) => prev.map((x) => (x.id === b.id ? { ...x, is_active: b.is_active } : x)));
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`${b.name} ${!b.is_active ? "activated" : "hidden"}`);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
