@@ -196,6 +196,36 @@ export const VpnBrandsManager = () => {
     toast.success(`${b.name} ${!b.is_active ? "activated" : "hidden"}`);
   };
 
+  const filteredBrands = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = brands.filter((b) => {
+      if (statusFilter === "active" && !b.is_active) return false;
+      if (statusFilter === "hidden" && b.is_active) return false;
+      if (!q) return true;
+      return (
+        b.name.toLowerCase().includes(q) ||
+        b.slug.toLowerCase().includes(q) ||
+        (b.description ?? "").toLowerCase().includes(q)
+      );
+    });
+    list = [...list].sort((a, b) => {
+      switch (sortBy) {
+        case "name_asc":
+          return a.name.localeCompare(b.name);
+        case "name_desc":
+          return b.name.localeCompare(a.name);
+        case "newest":
+          return b.id.localeCompare(a.id);
+        case "oldest":
+          return a.id.localeCompare(b.id);
+        case "sort_asc":
+        default:
+          return a.sort_order - b.sort_order || a.name.localeCompare(b.name);
+      }
+    });
+    return list;
+  }, [brands, search, statusFilter, sortBy]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -210,6 +240,56 @@ export const VpnBrandsManager = () => {
         </Button>
       </div>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, slug, or description…"
+            className="pl-9 pr-9"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+          <SelectTrigger className="w-full sm:w-[150px]">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="active">Active only</SelectItem>
+            <SelectItem value="hidden">Hidden only</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="sort_asc">Custom order</SelectItem>
+            <SelectItem value="name_asc">Name (A → Z)</SelectItem>
+            <SelectItem value="name_desc">Name (Z → A)</SelectItem>
+            <SelectItem value="newest">Newest first</SelectItem>
+            <SelectItem value="oldest">Oldest first</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {!loading && brands.length > 0 && (
+        <div className="text-xs text-muted-foreground">
+          Showing {filteredBrands.length} of {brands.length} brand{brands.length === 1 ? "" : "s"}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -218,9 +298,13 @@ export const VpnBrandsManager = () => {
         <Card className="border-dashed border-border/60 p-8 text-center text-sm text-muted-foreground">
           No VPN brands yet. Create your first brand to get started.
         </Card>
+      ) : filteredBrands.length === 0 ? (
+        <Card className="border-dashed border-border/60 p-8 text-center text-sm text-muted-foreground">
+          No brands match your filters.
+        </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {brands.map((b) => (
+          {filteredBrands.map((b) => (
             <Card key={b.id} className="border-border/60 bg-gradient-card p-4">
               <div className="flex items-start gap-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-background">
