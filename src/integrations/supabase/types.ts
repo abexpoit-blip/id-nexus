@@ -802,6 +802,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_adjust_balance: {
+        Args: { p_amount: number; p_reason: string; p_user_id: string }
+        Returns: Json
+      }
       admin_approve_seller_application: {
         Args: { p_id: string; p_note?: string }
         Returns: Json
@@ -811,6 +815,15 @@ export type Database = {
         Returns: Json
       }
       admin_clear_seller_limit: { Args: { p_seller_id: string }; Returns: Json }
+      admin_manage_role: {
+        Args: {
+          p_action: string
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      admin_overview_stats: { Args: never; Returns: Json }
       admin_pay_withdraw: {
         Args: { p_id: string; p_note?: string; p_payout_txn: string }
         Returns: Json
@@ -851,6 +864,18 @@ export type Database = {
       admin_save_payment_accounts: {
         Args: { p_accounts: Json; p_min_deposit: Json }
         Returns: Json
+      }
+      admin_search_users: {
+        Args: { p_query?: string }
+        Returns: {
+          balance_bdt: number
+          created_at: string
+          display_name: string
+          email: string
+          is_banned: boolean
+          roles: string[]
+          user_id: string
+        }[]
       }
       admin_set_default_daily_limit: {
         Args: { p_limit: number }
