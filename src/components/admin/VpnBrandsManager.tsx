@@ -65,6 +65,12 @@ export const VpnBrandsManager = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "hidden">("all");
   const [sortBy, setSortBy] = useState<"sort_asc" | "name_asc" | "name_desc" | "newest" | "oldest">("sort_asc");
+  const [logoMeta, setLogoMeta] = useState<{
+    width: number;
+    height: number;
+    sizeKb: number;
+    type: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -111,6 +117,20 @@ export const VpnBrandsManager = () => {
       return;
     }
     setUploading(true);
+    // Read dimensions locally for preview hints
+    const dims = await new Promise<{ w: number; h: number } | null>((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        resolve({ w: img.naturalWidth, h: img.naturalHeight });
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      img.src = url;
+    });
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
       const baseSlug = slugify(form.slug || form.name || "brand") || "brand";
@@ -121,6 +141,12 @@ export const VpnBrandsManager = () => {
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from("vpn-logos").getPublicUrl(path);
       setForm((f) => ({ ...f, logo_url: pub.publicUrl }));
+      setLogoMeta({
+        width: dims?.w ?? 0,
+        height: dims?.h ?? 0,
+        sizeKb: Math.round(file.size / 1024),
+        type: file.type.replace("image/", "").toUpperCase(),
+      });
       toast.success("Logo uploaded");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
