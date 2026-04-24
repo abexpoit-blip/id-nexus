@@ -933,41 +933,21 @@ const SellerDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="inline h-4 w-4" /> Dashboard
-            </Link>
-            <Logo size="sm" showTagline={false} />
-            <Badge variant="outline" className="border-secondary/40 text-secondary">Seller</Badge>
-            <Link to="/wallet" className="ml-2 text-sm text-muted-foreground hover:text-foreground">
-              Wallet
-            </Link>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/seller/onboarding")}
-              className="border-primary/40 text-primary hover:bg-primary/10"
-            >
-              <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Setup wizard
-            </Button>
-            <NotificationsBell />
-          </div>
-        </div>
-      </header>
-
-      <main className="container py-8">
-        <div className="mb-8">
-          <h1 className="font-display text-2xl font-bold md:text-3xl">Seller workspace</h1>
-          <p className="text-sm text-muted-foreground">
-            Upload your stock as Excel — UID + Password required, 2FA & email optional. Globally
-            duplicate UIDs are skipped automatically.
-          </p>
-        </div>
+    <AppShell
+      mode="seller"
+      title="Seller workspace"
+      subtitle="Upload your stock as Excel — UID + Password required, 2FA & email optional. Globally duplicate UIDs are skipped automatically."
+      actions={
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/seller/onboarding")}
+          className="border-primary/40 text-primary hover:bg-primary/10"
+        >
+          <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Setup wizard
+        </Button>
+      }
+    >
 
         {/* Stats */}
         <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
