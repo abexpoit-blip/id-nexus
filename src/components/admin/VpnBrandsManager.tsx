@@ -62,6 +62,9 @@ export const VpnBrandsManager = () => {
   const [deleteTarget, setDeleteTarget] = useState<VpnBrand | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "hidden">("all");
+  const [sortBy, setSortBy] = useState<"sort_asc" | "name_asc" | "name_desc" | "newest" | "oldest">("sort_asc");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
