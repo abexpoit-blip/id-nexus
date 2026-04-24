@@ -4,9 +4,10 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Loader2 } from "lucide-react";
 import { AuthProvider } from "./hooks/useAuth";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { RouteFallback } from "./components/RouteFallback";
 
 // Eager — landing & auth routes (small, needed immediately)
 import Index from "./pages/Index.tsx";
@@ -28,22 +29,46 @@ const Admin = lazy(() => import("./pages/Admin.tsx"));
 const Wallet = lazy(() => import("./pages/Wallet.tsx"));
 const AuditLog = lazy(() => import("./pages/AuditLog.tsx"));
 
+// Auto-recover from stale chunk errors after a deploy.
+// If a dynamic import fails (chunk 404 / network), reload once.
+const CHUNK_RELOAD_KEY = "__chunkReloadAt";
+if (typeof window !== "undefined") {
+  window.addEventListener("error", (e) => {
+    const msg = String(e?.message || "");
+    if (/Loading chunk|Failed to fetch dynamically imported module|ChunkLoadError/i.test(msg)) {
+      const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0);
+      if (Date.now() - last > 30_000) {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
+        window.location.reload();
+      }
+    }
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const msg = String((e?.reason as any)?.message || e?.reason || "");
+    if (/Loading chunk|Failed to fetch dynamically imported module|ChunkLoadError/i.test(msg)) {
+      const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0);
+      if (Date.now() - last > 30_000) {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
+        window.location.reload();
+      }
+    }
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
       gcTime: 5 * 60_000,
       refetchOnWindowFocus: false,
-      retry: 1,
+      retry: 2,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    },
+    mutations: {
+      retry: 0,
     },
   },
 });
-
-const RouteFallback = () => (
-  <div className="flex min-h-screen items-center justify-center bg-background">
-    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-  </div>
-);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -52,6 +77,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <ErrorBoundary>
           <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -144,6 +170,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
+          </ErrorBoundary>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
