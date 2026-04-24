@@ -54,6 +54,7 @@ export const VpnBrandsManager = () => {
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<VpnBrand | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -164,6 +165,27 @@ export const VpnBrandsManager = () => {
     load();
   };
 
+  const toggleActive = async (b: VpnBrand) => {
+    setTogglingId(b.id);
+    setBrands((prev) => prev.map((x) => (x.id === b.id ? { ...x, is_active: !x.is_active } : x)));
+    const { error } = await supabase.rpc("admin_upsert_vpn_brand", {
+      p_id: b.id,
+      p_name: b.name,
+      p_slug: b.slug,
+      p_description: b.description,
+      p_logo_url: b.logo_url,
+      p_is_active: !b.is_active,
+      p_sort_order: b.sort_order,
+    });
+    setTogglingId(null);
+    if (error) {
+      setBrands((prev) => prev.map((x) => (x.id === b.id ? { ...x, is_active: b.is_active } : x)));
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`${b.name} ${!b.is_active ? "activated" : "hidden"}`);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -213,18 +235,31 @@ export const VpnBrandsManager = () => {
                   )}
                 </div>
               </div>
-              <div className="mt-3 flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => openEdit(b)} className="gap-1">
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDeleteTarget(b)}
-                  className="gap-1 text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Delete
-                </Button>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={b.is_active}
+                    disabled={togglingId === b.id}
+                    onCheckedChange={() => toggleActive(b)}
+                    aria-label={`Toggle ${b.name}`}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {togglingId === b.id ? "Saving…" : b.is_active ? "On" : "Off"}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => openEdit(b)} className="gap-1">
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeleteTarget(b)}
+                    className="gap-1 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </Button>
+                </div>
               </div>
             </Card>
           ))}
