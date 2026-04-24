@@ -3,6 +3,8 @@
 Self-hosted Express + PostgreSQL backend for buy.nexus-x.cloud.
 Replaces Supabase. Runs on Contabo VPS via PM2 + Nginx.
 
+> Sync trigger: 2026-04-24
+
 ## Quick start (VPS)
 
 ```bash
