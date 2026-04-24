@@ -45,6 +45,7 @@ const Browse = () => {
         .from("categories")
         .select("id, slug, name, description, price_bdt, kind")
         .eq("is_active", true)
+        .eq("kind", "fb_account")
         .order("sort_order", { ascending: true }),
       user
         ? supabase.from("profiles").select("balance_bdt").eq("id", user.id).single()
