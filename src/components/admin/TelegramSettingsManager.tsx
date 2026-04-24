@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Send, RefreshCcw, CheckCircle2, XCircle, Info } from "lucide-react";
+import { Loader2, Send, RefreshCcw, CheckCircle2, XCircle, Info, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 
 interface Status {
@@ -18,6 +18,7 @@ export const TelegramSettingsManager = () => {
   const [status, setStatus] = useState<Status | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [forwarding, setForwarding] = useState(false);
   const [testText, setTestText] = useState(
     "✅ NexusX admin test — deposits will land here.",
   );
@@ -50,6 +51,25 @@ export const TelegramSettingsManager = () => {
       toast.success(`Test message delivered to ${(data as any).chat_id_preview}`);
     } else {
       toast.error((data as any)?.error || "Test failed");
+    }
+  };
+
+  const sendDemoForward = async () => {
+    setForwarding(true);
+    const { data, error } = await supabase.functions.invoke("admin-telegram-test", {
+      body: { action: "forward_demo", amount: 10 },
+    });
+    setForwarding(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    if ((data as any)?.ok) {
+      toast.success(
+        `Demo deposit forwarded to ${(data as any).chat_id_preview} — tap Approve/Reject in Telegram to verify.`,
+      );
+    } else {
+      toast.error((data as any)?.error || "Forward failed");
     }
   };
 
@@ -123,6 +143,32 @@ export const TelegramSettingsManager = () => {
               <Send className="mr-2 h-4 w-4" />
             )}
             Send test to admin group
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="border-border/60 bg-gradient-card p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-display text-lg font-semibold">End-to-end deposit test</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Creates a real <b>pending</b> top-up request (৳10, marked <code>admin-test</code>) under
+              your account, posts the screenshot + Approve/Reject buttons to the admin group, and lets
+              you verify the full callback flow. Approving will credit ৳10 to your balance; rejecting
+              will close the request.
+            </p>
+          </div>
+          <Button
+            onClick={sendDemoForward}
+            disabled={forwarding || loading || !status?.admin_chat_id_set || !status?.bot_token_set}
+            variant="secondary"
+          >
+            {forwarding ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FlaskConical className="mr-2 h-4 w-4" />
+            )}
+            Forward fake deposit
           </Button>
         </div>
       </Card>
