@@ -43,6 +43,17 @@ Deno.serve(async (req) => {
       return json(out);
     }
 
+    // Special: website top-up notifications to admin → also forward to ADMIN GROUP
+    // (so any admin in the group can approve/reject without opening the website)
+    if (n.kind === 'system' && n.reference_id && /top-up request/i.test(n.title)) {
+      // Best-effort: don't block the user-DM if group post fails
+      try {
+        await forwardTopupToAdminGroup(admin, token, n.reference_id);
+      } catch (e) {
+        console.error('forwardTopupToAdminGroup failed', e);
+      }
+    }
+
     const text = `<b>${escapeHtml(n.title)}</b>${n.body ? `\n${escapeHtml(n.body)}` : ''}`;
     const tg = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
@@ -70,6 +81,110 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+// ============= Admin-group mirror for top-up screenshots =============
+// Posts the deposit screenshot + meta + Approve/Reject buttons to the admin
+// group configured via env `TELEGRAM_ADMIN_CHAT_ID`. The bot poller already
+// handles `approve:<id>` / `reject:<id>` callbacks coming from that group.
+//
+// Idempotency: we tag a row in topup_requests.admin_note once posted, so
+// repeated trigger fires for the same request won't spam the group.
+async function forwardTopupToAdminGroup(admin: any, token: string, requestId: string) {
+  const adminChat = Deno.env.get('TELEGRAM_ADMIN_CHAT_ID');
+  if (!adminChat) return; // not configured — silently skip
+
+  // Read the request + user info
+  const { data: req } = await admin
+    .from('topup_requests')
+    .select('id, user_id, amount_bdt, method, sender_number, txn_id, screenshot_url, screenshot_path, status, source, admin_note')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (!req) return;
+  if (req.status !== 'pending') return; // already processed
+  if (req.admin_note && req.admin_note.includes('[group_posted]')) return; // already posted
+
+  const { data: prof } = await admin
+    .from('profiles')
+    .select('display_name, email, balance_bdt')
+    .eq('id', req.user_id)
+    .maybeSingle();
+
+  const who = prof?.display_name || prof?.email || String(req.user_id).slice(0, 8);
+  const caption =
+    `💰 <b>New top-up (${escapeHtml(req.source || 'website')})</b>\n` +
+    `User: ${escapeHtml(who)}\n` +
+    `Amount: ৳${req.amount_bdt} via ${escapeHtml(req.method)}\n` +
+    `Sender: <code>${escapeHtml(req.sender_number)}</code>\n` +
+    `TxnID: <code>${escapeHtml(req.txn_id)}</code>\n` +
+    `Current balance: ৳${prof?.balance_bdt ?? 0}`;
+
+  const replyMarkup = {
+    inline_keyboard: [[
+      { text: '✅ Approve', callback_data: `approve:${req.id}` },
+      { text: '❌ Reject', callback_data: `reject:${req.id}` },
+    ]],
+  };
+
+  let posted = false;
+
+  // Prefer photo if a public URL exists
+  if (req.screenshot_url) {
+    const r = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: adminChat,
+        photo: req.screenshot_url,
+        caption,
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup,
+      }),
+    });
+    posted = r.ok;
+  }
+
+  // If no public URL, try a signed URL from Supabase Storage
+  if (!posted && req.screenshot_path) {
+    const { data: signed } = await admin.storage
+      .from('topup-screenshots')
+      .createSignedUrl(req.screenshot_path, 60 * 60 * 24);
+    if (signed?.signedUrl) {
+      const r = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: adminChat,
+          photo: signed.signedUrl,
+          caption,
+          parse_mode: 'HTML',
+          reply_markup: replyMarkup,
+        }),
+      });
+      posted = r.ok;
+    }
+  }
+
+  // Fall back to text-only message if no screenshot reachable
+  if (!posted) {
+    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: adminChat,
+        text: `${caption}\n\n⚠️ <i>No screenshot attached</i>`,
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup,
+      }),
+    });
+    posted = r.ok;
+  }
+
+  if (posted) {
+    await admin.from('topup_requests').update({
+      admin_note: ((req.admin_note ?? '') + ' [group_posted]').trim(),
+    }).eq('id', req.id);
+  }
 }
 
 // ============= Order delivery: 3 stages with CSV =============
