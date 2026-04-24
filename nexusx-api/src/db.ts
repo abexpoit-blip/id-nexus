@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, QueryResultRow } from "pg";
 import "dotenv/config";
 
 export const pool = new Pool({
@@ -6,5 +6,5 @@ export const pool = new Pool({
   max: 10,
 });
 
-export const q = <T = any>(text: string, params?: any[]) =>
+export const q = <T extends QueryResultRow = any>(text: string, params?: any[]) =>
   pool.query<T>(text, params).then((r) => r.rows);
