@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Check, X, Banknote, Image as ImageIcon } from "lucide-react";
+import { Loader2, Check, X, Banknote, Image as ImageIcon, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Topup {
@@ -48,6 +48,15 @@ export const PaymentsManager = () => {
   const [rejTarget, setRejTarget] = useState<{ kind: "topup" | "withdraw"; id: string } | null>(null);
   const [rejNote, setRejNote] = useState("");
 
+  // Approve confirmation modal
+  const [approvedInfo, setApprovedInfo] = useState<{
+    userLabel: string;
+    method: string;
+    txnId: string;
+    amount: number;
+    newBalance: number | null;
+  } | null>(null);
+
   const loadAll = async () => {
     setLoading(true);
     const [{ data: tp }, { data: wd }] = await Promise.all([
@@ -76,11 +85,35 @@ export const PaymentsManager = () => {
   }, []);
 
   const approveTopup = async (id: string) => {
+    const row = topups.find((t) => t.id === id);
     setBusy(id);
     const { error } = await supabase.rpc("admin_approve_topup", { p_id: id, p_note: null });
+    if (error) {
+      setBusy(null);
+      return toast.error(error.message);
+    }
+    // Fetch the user's fresh balance immediately for the confirmation modal
+    let newBalance: number | null = null;
+    if (row) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("balance_bdt")
+        .eq("id", row.user_id)
+        .maybeSingle();
+      newBalance = prof ? Number(prof.balance_bdt) : null;
+    }
     setBusy(null);
-    if (error) return toast.error(error.message);
-    toast.success("Top-up approved · balance credited");
+    if (row) {
+      setApprovedInfo({
+        userLabel: userLabel(row.user_id),
+        method: row.method,
+        txnId: row.txn_id,
+        amount: Number(row.amount_bdt),
+        newBalance,
+      });
+    } else {
+      toast.success("Top-up approved · balance credited");
+    }
     loadAll();
   };
 
@@ -247,6 +280,54 @@ export const PaymentsManager = () => {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setRejOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={submitReject} disabled={busy !== null}>Reject</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approve confirmation modal */}
+      <Dialog open={!!approvedInfo} onOpenChange={(o) => !o && setApprovedInfo(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-success" /> Top-up approved
+            </DialogTitle>
+          </DialogHeader>
+          {approvedInfo && (
+            <div className="space-y-4 py-2 text-sm">
+              <div className="rounded-lg border border-success/30 bg-success/10 p-4 text-center">
+                <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                  Credited
+                </div>
+                <div className="mt-1 font-display text-3xl font-bold text-success">
+                  ৳ {approvedInfo.amount.toFixed(0)}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-md border border-border/60 bg-background/40 p-3">
+                  <div className="text-xs text-muted-foreground">User</div>
+                  <div className="mt-1 font-medium">{approvedInfo.userLabel}</div>
+                </div>
+                <div className="rounded-md border border-border/60 bg-background/40 p-3">
+                  <div className="text-xs text-muted-foreground">New balance</div>
+                  <div className="mt-1 font-display text-lg font-semibold text-primary">
+                    {approvedInfo.newBalance === null
+                      ? "—"
+                      : `৳ ${approvedInfo.newBalance.toFixed(0)}`}
+                  </div>
+                </div>
+                <div className="rounded-md border border-border/60 bg-background/40 p-3">
+                  <div className="text-xs text-muted-foreground">Method</div>
+                  <div className="mt-1 font-medium capitalize">{approvedInfo.method}</div>
+                </div>
+                <div className="rounded-md border border-border/60 bg-background/40 p-3">
+                  <div className="text-xs text-muted-foreground">TxnID</div>
+                  <div className="mt-1 font-mono text-xs break-all">{approvedInfo.txnId}</div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setApprovedInfo(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
