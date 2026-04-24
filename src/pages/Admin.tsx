@@ -37,6 +37,7 @@ import { BrandSettingsManager } from "@/components/admin/BrandSettingsManager";
 import { PaymentAccountsManager } from "@/components/admin/PaymentAccountsManager";
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import { UsersManager } from "@/components/admin/UsersManager";
+import { TelegramSettingsManager } from "@/components/admin/TelegramSettingsManager";
 
 interface RpItem {
   id: string;
@@ -72,7 +73,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
   const [section, setSection] = useState<
-    "overview" | "users" | "replacements" | "stock" | "categories" | "sellers" | "applications" | "payments" | "accounts" | "brand"
+    "overview" | "users" | "replacements" | "stock" | "categories" | "sellers" | "applications" | "payments" | "accounts" | "brand" | "telegram"
   >("overview");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
@@ -254,6 +255,7 @@ const Admin = () => {
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="accounts">Payment accounts</TabsTrigger>
             <TabsTrigger value="brand">Brand credit</TabsTrigger>
+            <TabsTrigger value="telegram">Telegram</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -266,6 +268,7 @@ const Admin = () => {
         {section === "payments" && <PaymentsManager />}
         {section === "accounts" && <PaymentAccountsManager />}
         {section === "brand" && <BrandSettingsManager />}
+        {section === "telegram" && <TelegramSettingsManager />}
 
         {section === "replacements" && (
         <>
