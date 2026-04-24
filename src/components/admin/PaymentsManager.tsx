@@ -55,6 +55,9 @@ export const PaymentsManager = () => {
     txnId: string;
     amount: number;
     newBalance: number | null;
+    balanceError: string | null;
+    balanceLoading: boolean;
+    userId: string;
   } | null>(null);
 
   const loadAll = async () => {
@@ -84,6 +87,45 @@ export const PaymentsManager = () => {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
+  const fetchBalanceWithRetry = async (
+    userId: string,
+    attempts = 3,
+  ): Promise<{ balance: number | null; error: string | null }> => {
+    let lastErr: string | null = null;
+    for (let i = 0; i < attempts; i++) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("balance_bdt")
+        .eq("id", userId)
+        .maybeSingle();
+      if (!error && data) {
+        return { balance: Number(data.balance_bdt), error: null };
+      }
+      lastErr = error?.message ?? (data ? null : "Profile not found");
+      // exponential backoff: 300ms, 700ms, 1500ms
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 300 + i * 400 + i * i * 200));
+      }
+    }
+    return { balance: null, error: lastErr ?? "Unknown error" };
+  };
+
+  const refreshApprovedBalance = async () => {
+    if (!approvedInfo) return;
+    setApprovedInfo({ ...approvedInfo, balanceLoading: true, balanceError: null });
+    const res = await fetchBalanceWithRetry(approvedInfo.userId, 3);
+    setApprovedInfo((prev) =>
+      prev
+        ? {
+            ...prev,
+            balanceLoading: false,
+            newBalance: res.balance,
+            balanceError: res.error,
+          }
+        : prev,
+    );
+  };
+
   const approveTopup = async (id: string) => {
     const row = topups.find((t) => t.id === id);
     setBusy(id);
@@ -92,25 +134,33 @@ export const PaymentsManager = () => {
       setBusy(null);
       return toast.error(error.message);
     }
-    // Fetch the user's fresh balance immediately for the confirmation modal
-    let newBalance: number | null = null;
-    if (row) {
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("balance_bdt")
-        .eq("id", row.user_id)
-        .maybeSingle();
-      newBalance = prof ? Number(prof.balance_bdt) : null;
-    }
     setBusy(null);
     if (row) {
+      // Open modal in loading state, then fetch balance with retries
       setApprovedInfo({
         userLabel: userLabel(row.user_id),
         method: row.method,
         txnId: row.txn_id,
         amount: Number(row.amount_bdt),
-        newBalance,
+        newBalance: null,
+        balanceError: null,
+        balanceLoading: true,
+        userId: row.user_id,
       });
+      const res = await fetchBalanceWithRetry(row.user_id, 3);
+      setApprovedInfo({
+        userLabel: userLabel(row.user_id),
+        method: row.method,
+        txnId: row.txn_id,
+        amount: Number(row.amount_bdt),
+        newBalance: res.balance,
+        balanceError: res.error,
+        balanceLoading: false,
+        userId: row.user_id,
+      });
+      if (res.error) {
+        toast.error(`Approved, but balance fetch failed: ${res.error}`);
+      }
     } else {
       toast.success("Top-up approved · balance credited");
     }
@@ -309,11 +359,32 @@ export const PaymentsManager = () => {
                 </div>
                 <div className="rounded-md border border-border/60 bg-background/40 p-3">
                   <div className="text-xs text-muted-foreground">New balance</div>
-                  <div className="mt-1 font-display text-lg font-semibold text-primary">
-                    {approvedInfo.newBalance === null
-                      ? "—"
-                      : `৳ ${approvedInfo.newBalance.toFixed(0)}`}
-                  </div>
+                  {approvedInfo.balanceLoading ? (
+                    <div className="mt-1 flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-xs">Fetching…</span>
+                    </div>
+                  ) : approvedInfo.balanceError ? (
+                    <div className="mt-1 space-y-1">
+                      <div className="text-xs text-destructive">
+                        Failed: {approvedInfo.balanceError}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={refreshApprovedBalance}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  ) : approvedInfo.newBalance === null ? (
+                    <div className="mt-1 text-muted-foreground">—</div>
+                  ) : (
+                    <div className="mt-1 font-display text-lg font-semibold text-primary">
+                      ৳ {approvedInfo.newBalance.toFixed(0)}
+                    </div>
+                  )}
                 </div>
                 <div className="rounded-md border border-border/60 bg-background/40 p-3">
                   <div className="text-xs text-muted-foreground">Method</div>
