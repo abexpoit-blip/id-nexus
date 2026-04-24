@@ -887,8 +887,8 @@ const SellerDashboard = () => {
         server_response: r,
       });
       loadAudits();
-    } catch (auditErr) {
-      console.warn("audit insert failed", auditErr);
+    } catch {
+      // audit insert is best-effort; ignore failures silently
     }
 
     setParsed(null);
