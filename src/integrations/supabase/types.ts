@@ -168,8 +168,10 @@ export type Database = {
       }
       categories: {
         Row: {
+          brand_id: string | null
           created_at: string
           description: string | null
+          duration_days: number | null
           id: string
           is_active: boolean
           kind: Database["public"]["Enums"]["category_kind"]
@@ -180,8 +182,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          brand_id?: string | null
           created_at?: string
           description?: string | null
+          duration_days?: number | null
           id?: string
           is_active?: boolean
           kind?: Database["public"]["Enums"]["category_kind"]
@@ -192,8 +196,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          brand_id?: string | null
           created_at?: string
           description?: string | null
+          duration_days?: number | null
           id?: string
           is_active?: boolean
           kind?: Database["public"]["Enums"]["category_kind"]
@@ -203,7 +209,15 @@ export type Database = {
           sort_order?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categories_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "vpn_brands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -749,6 +763,42 @@ export type Database = {
         }
         Relationships: []
       }
+      vpn_brands: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       withdraw_requests: {
         Row: {
           admin_note: string | null
@@ -815,6 +865,7 @@ export type Database = {
         Returns: Json
       }
       admin_clear_seller_limit: { Args: { p_seller_id: string }; Returns: Json }
+      admin_delete_vpn_brand: { Args: { p_id: string }; Returns: Json }
       admin_manage_role: {
         Args: {
           p_action: string
@@ -898,14 +949,42 @@ export type Database = {
           total: number
         }[]
       }
-      admin_upsert_category: {
+      admin_upsert_category:
+        | {
+            Args: {
+              p_description: string
+              p_id: string
+              p_is_active: boolean
+              p_kind: Database["public"]["Enums"]["category_kind"]
+              p_name: string
+              p_price_bdt: number
+              p_slug: string
+              p_sort_order: number
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_brand_id?: string
+              p_description: string
+              p_duration_days?: number
+              p_id: string
+              p_is_active: boolean
+              p_kind: Database["public"]["Enums"]["category_kind"]
+              p_name: string
+              p_price_bdt: number
+              p_slug: string
+              p_sort_order: number
+            }
+            Returns: Json
+          }
+      admin_upsert_vpn_brand: {
         Args: {
           p_description: string
           p_id: string
           p_is_active: boolean
-          p_kind: Database["public"]["Enums"]["category_kind"]
+          p_logo_url: string
           p_name: string
-          p_price_bdt: number
           p_slug: string
           p_sort_order: number
         }
