@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Logo } from "@/components/Logo";
 import { BrandFooter } from "@/components/BrandFooter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,12 +13,11 @@ import {
   Upload,
   Bot,
   Copy,
-  LogOut,
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { NotificationsBell } from "@/components/NotificationsBell";
 import { RecentOrdersPanel } from "@/components/buyer/RecentOrdersPanel";
+import { AppShell } from "@/components/layout/AppShell";
 
 interface Profile {
   display_name: string | null;
@@ -31,7 +29,7 @@ interface Profile {
 }
 
 const Dashboard = () => {
-  const { user, roles, signOut } = useAuth();
+  const { user, roles } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,39 +84,11 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Top bar */}
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="container flex h-16 items-center justify-between">
-          <Link to="/">
-            <Logo size="sm" showTagline={false} />
-          </Link>
-          <div className="flex items-center gap-3">
-            <NotificationsBell />
-            <Badge variant="outline" className="border-primary/40 capitalize text-primary">
-              {primaryRole}
-            </Badge>
-            <span className="hidden text-sm text-muted-foreground sm:inline">
-              {profile?.display_name ?? profile?.email}
-            </span>
-            <Button variant="ghost" size="sm" onClick={signOut}>
-              <LogOut className="mr-2 h-4 w-4" /> Sign out
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="container py-8">
-        {/* Welcome */}
-        <div className="mb-8">
-          <h1 className="font-display text-2xl font-bold md:text-3xl">
-            Welcome back, {profile?.display_name ?? "trader"}.
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Manage your purchases, replacements, and Telegram bot link from here.
-          </p>
-        </div>
-
+    <AppShell
+      mode="buyer"
+      title={`Welcome back, ${profile?.display_name ?? "trader"}.`}
+      subtitle="Manage your purchases, replacements, and Telegram bot link from here."
+    >
         {/* Stat cards */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
@@ -298,9 +268,8 @@ const Dashboard = () => {
             template={template}
           />
         )}
-      </main>
       <BrandFooter />
-    </div>
+    </AppShell>
   );
 };
 

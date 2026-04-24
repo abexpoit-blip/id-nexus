@@ -51,21 +51,15 @@ All colors MUST be HSL.
     --shadow-glow: 0 0 60px -10px hsl(174 84% 50% / 0.45);
     --shadow-card: 0 10px 40px -15px hsl(224 80% 2% / 0.6);
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar — match Nexus X dark theme */
+    --sidebar-background: 224 44% 7%;
+    --sidebar-foreground: 210 40% 92%;
+    --sidebar-primary: 174 84% 50%;
+    --sidebar-primary-foreground: 224 47% 6%;
+    --sidebar-accent: 224 30% 14%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 224 30% 16%;
+    --sidebar-ring: 174 84% 50%;
   }
 
   .dark {
