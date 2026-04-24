@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -14,44 +15,53 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ShoppingCart, Loader2, Globe, Shield, Zap, Lock } from "lucide-react";
+import { ShoppingCart, Loader2, Globe, ShieldCheck, Sparkles, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 
-interface Category {
+interface PlanCategory {
   id: string;
   slug: string;
   name: string;
   description: string | null;
   price_bdt: number;
   kind: "fb_account" | "vpn";
+  brand_id: string | null;
+  duration_days: number | null;
   stock?: number;
 }
 
-const slugIcon = (slug: string) => {
-  if (slug.includes("nord")) return Shield;
-  if (slug.includes("express")) return Zap;
-  if (slug.includes("surf")) return Globe;
-  if (slug.includes("proton")) return Lock;
-  return Globe;
-};
+interface Brand {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  description: string | null;
+  sort_order: number;
+}
 
 const Vpn = () => {
   const { user, roles } = useAuth();
   const navigate = useNavigate();
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [plans, setPlans] = useState<PlanCategory[]>([]);
   const [balance, setBalance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Category | null>(null);
+  const [selected, setSelected] = useState<PlanCategory | null>(null);
   const [qty, setQty] = useState<number>(1);
   const [placing, setPlacing] = useState(false);
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: cats }, profileRes, stockRes] = await Promise.all([
+    const [{ data: brandRows }, { data: cats }, profileRes, stockRes] = await Promise.all([
+      supabase
+        .from("vpn_brands")
+        .select("id, name, slug, logo_url, description, sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
       supabase
         .from("categories")
-        .select("id, slug, name, description, price_bdt, kind")
+        .select("id, slug, name, description, price_bdt, kind, brand_id, duration_days")
         .eq("is_active", true)
         .eq("kind", "vpn")
         .order("sort_order", { ascending: true }),
@@ -69,7 +79,8 @@ const Vpn = () => {
       stockMap[row.category_id] = Number(row.available);
     });
 
-    setCategories((cats ?? []).map((c) => ({ ...c, stock: stockMap[c.id] ?? 0 } as Category)));
+    setBrands((brandRows ?? []) as Brand[]);
+    setPlans((cats ?? []).map((c: any) => ({ ...c, stock: stockMap[c.id] ?? 0 } as PlanCategory)));
     if (profileRes && (profileRes as any).data) {
       setBalance(Number((profileRes as any).data.balance_bdt));
     }
@@ -92,7 +103,7 @@ const Vpn = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const openBuy = (cat: Category) => {
+  const openBuy = (cat: PlanCategory) => {
     if (!user) {
       navigate("/login");
       return;
@@ -100,6 +111,26 @@ const Vpn = () => {
     setSelected(cat);
     setQty(1);
   };
+
+  // Group plans by brand. Plans without a brand_id fall under "Other VPNs".
+  const grouped = useMemo(() => {
+    const map: Record<string, PlanCategory[]> = {};
+    for (const p of plans) {
+      const key = p.brand_id ?? "__other__";
+      (map[key] ||= []).push(p);
+    }
+    // Sort each brand's plans by duration ascending
+    for (const k of Object.keys(map)) {
+      map[k].sort((a, b) => (a.duration_days ?? 0) - (b.duration_days ?? 0));
+    }
+    return map;
+  }, [plans]);
+
+  const visibleBrands = useMemo(
+    () => brands.filter((b) => (grouped[b.id] ?? []).length > 0),
+    [brands, grouped],
+  );
+  const otherPlans = grouped["__other__"] ?? [];
 
   const placeOrder = async () => {
     if (!selected) return;
@@ -126,16 +157,18 @@ const Vpn = () => {
       return;
     }
     const result = data as any;
-    toast.success(`Order placed! ${result.quantity} VPN account${result.quantity > 1 ? "s" : ""} delivered for ৳${result.total}`);
+    toast.success(
+      `Order placed! ${result.quantity} VPN account${result.quantity > 1 ? "s" : ""} delivered for ৳${result.total}`,
+    );
     setSelected(null);
-    navigate(`/orders/${result.order_id}`);
+    navigate(`/vpn-orders/${result.order_id}`);
   };
 
   return (
     <AppShell
       mode={roles.includes("seller") && !roles.includes("buyer") ? "seller" : "buyer"}
-      title="VPN services"
-      subtitle="Premium VPN accounts — instant delivery. Note: VPN orders are final and not eligible for replacement."
+      title="Premium VPN services"
+      subtitle="Trusted brands · Instant delivery · 7 / 15 / 30 day plans. VPN purchases are final — no replacements."
       actions={
         <div className="text-sm">
           <span className="text-muted-foreground">Balance:</span>{" "}
@@ -147,66 +180,42 @@ const Vpn = () => {
         <div className="flex justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : categories.length === 0 ? (
+      ) : visibleBrands.length === 0 && otherPlans.length === 0 ? (
         <Card className="p-8 text-center text-muted-foreground">
           No VPN services available right now. Check back soon.
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {categories.map((cat) => {
-            const Icon = slugIcon(cat.slug);
-            return (
-              <Card
-                key={cat.id}
-                className="border-border/60 bg-gradient-card p-6 shadow-card transition hover:-translate-y-0.5 hover:shadow-glow"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="rounded-lg bg-gradient-brand p-2 text-primary-foreground">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <Badge
-                    className={
-                      (cat.stock ?? 0) > 0
-                        ? "bg-success/20 text-success hover:bg-success/20"
-                        : "bg-muted text-muted-foreground"
-                    }
-                  >
-                    {cat.stock ?? 0} in stock
-                  </Badge>
-                </div>
-                <h3 className="mt-4 font-display text-lg font-semibold">{cat.name}</h3>
-                {cat.description && (
-                  <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{cat.description}</p>
-                )}
-                <div className="mt-4 flex items-end justify-between">
-                  <div>
-                    <div className="font-display text-2xl font-bold text-primary">
-                      ৳ {Number(cat.price_bdt).toFixed(0)}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">per pc</div>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => openBuy(cat)}
-                    disabled={(cat.stock ?? 0) === 0}
-                    className="bg-gradient-brand text-primary-foreground hover:opacity-90"
-                  >
-                    <ShoppingCart className="mr-1.5 h-4 w-4" /> Buy
-                  </Button>
-                </div>
-              </Card>
-            );
+        <div className="space-y-8">
+          {visibleBrands.map((brand) => {
+            const planList = grouped[brand.id] ?? [];
+            return <BrandSection key={brand.id} brand={brand} plans={planList} onBuy={openBuy} />;
           })}
+          {otherPlans.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Globe className="h-5 w-5 text-muted-foreground" />
+                <h2 className="font-display text-xl font-semibold">Other VPNs</h2>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {otherPlans.map((p) => (
+                  <PlanCard key={p.id} plan={p} onBuy={openBuy} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="bg-card">
           <DialogHeader>
-            <DialogTitle>Buy {selected?.name}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Crown className="h-4 w-4 text-primary" />
+              Buy {selected?.name}
+            </DialogTitle>
             <DialogDescription>
               Pay from your wallet. Delivery is instant.{" "}
-              <span className="text-warning">VPN purchases are final — no replacements.</span>
+              <span className="text-warning font-medium">VPN purchases are final — no replacements.</span>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -262,6 +271,102 @@ const Vpn = () => {
         </DialogContent>
       </Dialog>
     </AppShell>
+  );
+};
+
+const BrandSection = ({
+  brand,
+  plans,
+  onBuy,
+}: {
+  brand: Brand;
+  plans: PlanCategory[];
+  onBuy: (p: PlanCategory) => void;
+}) => {
+  const totalStock = plans.reduce((s, p) => s + (p.stock ?? 0), 0);
+  return (
+    <Card className="overflow-hidden border-border/60 bg-gradient-card shadow-card">
+      <div className="flex flex-col gap-4 border-b border-border/40 p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-background/60 shadow-inner">
+            {brand.logo_url ? (
+              <img
+                src={brand.logo_url}
+                alt={`${brand.name} logo`}
+                width={64}
+                height={64}
+                loading="lazy"
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <ShieldCheck className="h-8 w-8 text-primary" />
+            )}
+          </div>
+          <div>
+            <h2 className="font-display text-xl font-semibold">{brand.name}</h2>
+            {brand.description && (
+              <p className="mt-0.5 text-sm text-muted-foreground line-clamp-1">{brand.description}</p>
+            )}
+          </div>
+        </div>
+        <Badge
+          className={
+            totalStock > 0
+              ? "bg-success/20 text-success hover:bg-success/20"
+              : "bg-muted text-muted-foreground"
+          }
+        >
+          {totalStock} total in stock
+        </Badge>
+      </div>
+      <div className="grid gap-3 p-4 sm:p-6 md:grid-cols-3">
+        {plans.map((plan) => (
+          <PlanCard key={plan.id} plan={plan} onBuy={onBuy} />
+        ))}
+      </div>
+    </Card>
+  );
+};
+
+const PlanCard = ({ plan, onBuy }: { plan: PlanCategory; onBuy: (p: PlanCategory) => void }) => {
+  const isMonth = plan.duration_days === 30;
+  return (
+    <div
+      className={`relative rounded-xl border p-4 transition hover:-translate-y-0.5 ${
+        isMonth
+          ? "border-primary/40 bg-gradient-to-br from-primary/10 via-card to-card shadow-glow"
+          : "border-border/60 bg-background/40"
+      }`}
+    >
+      {isMonth && (
+        <div className="absolute -top-2 right-3 flex items-center gap-1 rounded-full bg-gradient-brand px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow">
+          <Sparkles className="h-3 w-3" /> Best value
+        </div>
+      )}
+      <div className="flex items-baseline justify-between">
+        <div className="font-display text-lg font-semibold">
+          {plan.duration_days ? `${plan.duration_days} days` : plan.name}
+        </div>
+        <Badge variant="outline" className="text-[10px]">
+          {plan.stock ?? 0} left
+        </Badge>
+      </div>
+      <div className="mt-2 flex items-end gap-1">
+        <span className="font-display text-3xl font-bold text-primary">
+          ৳{Number(plan.price_bdt).toFixed(0)}
+        </span>
+        <span className="mb-1 text-xs text-muted-foreground">/ account</span>
+      </div>
+      <Button
+        size="sm"
+        onClick={() => onBuy(plan)}
+        disabled={(plan.stock ?? 0) === 0}
+        className="mt-3 w-full bg-gradient-brand text-primary-foreground hover:opacity-90"
+      >
+        <ShoppingCart className="mr-1.5 h-4 w-4" />
+        {(plan.stock ?? 0) === 0 ? "Out of stock" : "Buy now"}
+      </Button>
+    </div>
   );
 };
 
