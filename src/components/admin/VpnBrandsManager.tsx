@@ -54,6 +54,7 @@ export const VpnBrandsManager = () => {
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<VpnBrand | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
