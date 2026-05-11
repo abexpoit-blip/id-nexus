@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { RecentOrdersPanel } from "@/components/buyer/RecentOrdersPanel";
 import { SupportTickets } from "@/components/SupportTickets";
 import { NotificationPrefsPanel } from "@/components/NotificationPrefsPanel";
+import { NoticesBoard } from "@/components/NoticesBoard";
 import { AppShell } from "@/components/layout/AppShell";
 
 interface Profile {
@@ -256,7 +257,10 @@ const Dashboard = () => {
         )}
 
         {user && (
-          <RecentOrdersPanel userId={user.id} />
+          <>
+            <div className="mb-6"><NoticesBoard title="Buyer notices" /></div>
+            <RecentOrdersPanel userId={user.id} />
+          </>
         )}
         {user && (
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
