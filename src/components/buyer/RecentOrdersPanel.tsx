@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +57,7 @@ interface Props {
   userId: string;
 }
 
-export const RecentOrdersPanel = ({ userId }: Props) => {
+export const RecentOrdersPanel = ({ userId: _userId }: Props) => {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -65,45 +65,43 @@ export const RecentOrdersPanel = ({ userId }: Props) => {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-      const { data, error } = await supabase
-        .from("orders")
-        .select("id, created_at, quantity, total_bdt, unit_price_bdt, category_id, categories(name)")
-        .eq("buyer_id", userId)
-        .gte("created_at", since)
-        .order("created_at", { ascending: false });
-      if (error) {
+      try {
+        const res = await api.get<{ orders: any[] }>("/api/orders");
+        const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+        const recent = (res.orders ?? [])
+          .filter((o) => new Date(o.created_at).getTime() >= cutoff)
+          .map((o) => ({
+            id: o.id,
+            created_at: o.created_at,
+            quantity: Number(o.quantity),
+            total_bdt: Number(o.total_bdt),
+            unit_price_bdt: Number(o.unit_price_bdt),
+            category_name: o.category_name ?? "—",
+          }));
+        setOrders(recent);
+      } catch {
         toast.error("Could not load recent orders");
+      } finally {
         setLoading(false);
-        return;
       }
-      setOrders(
-        (data ?? []).map((o: any) => ({
-          id: o.id,
-          created_at: o.created_at,
-          quantity: o.quantity,
-          total_bdt: Number(o.total_bdt),
-          unit_price_bdt: Number(o.unit_price_bdt),
-          category_name: o.categories?.name ?? "—",
-        })),
-      );
-      setLoading(false);
     };
     load();
-  }, [userId]);
+  }, []);
 
   const fetchAccounts = async (orderId: string): Promise<AccountRow[] | null> => {
-    const { data, error } = await supabase
-      .from("order_items")
-      .select("accounts(uid, password, two_fa, email, email_password)")
-      .eq("order_id", orderId);
-    if (error) {
+    try {
+      const res = await api.get<{ items: any[] }>(`/api/orders/${orderId}`);
+      return (res.items ?? []).map((it) => ({
+        uid: it.uid,
+        password: it.password,
+        two_fa: it.two_fa ?? null,
+        email: it.email ?? null,
+        email_password: it.email_password ?? null,
+      }));
+    } catch {
       toast.error("Could not load order details");
       return null;
     }
-    return (data ?? [])
-      .map((row: any) => row.accounts)
-      .filter(Boolean) as AccountRow[];
   };
 
   const handleDownload = async (order: OrderRow) => {
@@ -185,12 +183,7 @@ export const RecentOrdersPanel = ({ userId }: Props) => {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleCopy(o)}
-                  disabled={busyId === o.id}
-                >
+                <Button size="sm" variant="outline" onClick={() => handleCopy(o)} disabled={busyId === o.id}>
                   <Copy className="mr-2 h-3.5 w-3.5" /> Copy UID:PASS
                 </Button>
                 <Button
