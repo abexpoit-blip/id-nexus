@@ -1,5 +1,29 @@
-const envApiBase = (import.meta as any).env?.VITE_API_BASE_URL?.replace(/\/$/, "");
-const API_BASE = envApiBase || ((import.meta as any).env?.DEV ? "" : "https://api.nexus-x.cloud");
+// Environment-aware API base URL.
+// - Local dev (`bun dev`)              → "" (Vite proxy /api → api.nexus-x.cloud)
+// - Lovable preview / sandbox          → "" (Vite proxy too — avoids CORS)
+// - Production build on buy.nexus-x... → "https://api.nexus-x.cloud"
+// - Override anywhere with VITE_API_BASE_URL
+function resolveApiBase(): string {
+  const env = (import.meta as any).env || {};
+  const override = env.VITE_API_BASE_URL?.replace(/\/$/, "");
+  if (override) return override;
+  if (env.DEV) return "";
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    // Lovable preview / sandbox / lovable.app domains must use the proxy
+    if (
+      host.endsWith(".lovableproject.com") ||
+      host.endsWith(".lovable.app") ||
+      host.endsWith(".lovable.dev") ||
+      host === "localhost" ||
+      host === "127.0.0.1"
+    ) {
+      return "";
+    }
+  }
+  return "https://api.nexus-x.cloud";
+}
+const API_BASE = resolveApiBase();
 
 export class ApiError extends Error {
   status: number;
