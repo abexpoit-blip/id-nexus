@@ -463,30 +463,27 @@ const SellerDashboard = () => {
       const CHUNK = 500;
       for (let i = 0; i < uidList.length; i += CHUNK) {
         const slice = uidList.slice(i, i + CHUNK);
-        // Check across ALL sellers for "replaced" status (UID was already swapped out
-        // somewhere in the system — must never re-enter live stock).
-        const { data: existing, error: dupErr } = await supabase
-          .from("accounts")
-          .select("uid, status, seller_id")
-          .in("uid", slice);
-        if (dupErr) {
-          const msg = "Could not verify duplicates: " + dupErr.message;
+        try {
+          const { rows: existing, self_id } = await api.post<{
+            rows: { uid: string; status: string; seller_id: string }[];
+            self_id: string;
+          }>("/api/seller/check-uids", { uids: slice });
+          for (const row of existing ?? []) {
+            const uid = String(row.uid);
+            if (row.status === "replaced") {
+              dupReplaced.add(uid);
+            } else if (row.seller_id === self_id) {
+              dupInStock.add(uid);
+            } else {
+              dupInStock.add(uid);
+            }
+          }
+        } catch (e: any) {
+          const msg = "Could not verify duplicates: " + (e?.message || "error");
           setParseError(msg);
           setUploadStep("error");
           toast.error(msg);
           return null;
-        }
-        for (const row of existing ?? []) {
-          const uid = String(row.uid);
-          if (row.status === "replaced") {
-            dupReplaced.add(uid);
-          } else if (row.seller_id === user.id) {
-            // Counts only seller's own active rows for the "in stock" rule.
-            dupInStock.add(uid);
-          } else {
-            // Another seller already owns this UID — treat as in-stock collision so it's blocked.
-            dupInStock.add(uid);
-          }
         }
       }
     }
