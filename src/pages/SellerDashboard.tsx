@@ -522,18 +522,14 @@ const SellerDashboard = () => {
   const loadAudits = async () => {
     if (!user) return;
     setAuditsLoading(true);
-    const { data, error } = await supabase
-      .from("seller_upload_audits")
-      .select("*")
-      .eq("seller_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    setAuditsLoading(false);
-    if (error) {
-      toast.error("Failed to load upload history: " + error.message);
-      return;
+    try {
+      const { audits } = await api.get<{ audits: any[] }>("/api/seller/uploads");
+      setAudits(audits ?? []);
+    } catch (e: any) {
+      toast.error("Failed to load upload history: " + (e?.message || "error"));
+    } finally {
+      setAuditsLoading(false);
     }
-    setAudits(data ?? []);
   };
 
   useEffect(() => {
@@ -757,54 +753,42 @@ const SellerDashboard = () => {
     const tick = window.setInterval(() => {
       setUploadProgress((p) => (p < 90 ? p + 7 : p));
     }, 250);
-    const { data, error } = await supabase.rpc("seller_upload_accounts", {
-      p_category_id: categoryId,
-      p_rows: rowsToSend as any,
-    });
+    let r: any;
+    try {
+      r = await api.post<any>("/api/seller/accounts", {
+        category_id: categoryId,
+        rows: rowsToSend,
+        file_name: fileName || undefined,
+        skip_duplicates: skipDuplicates,
+      });
+    } catch (e: any) {
+      window.clearInterval(tick);
+      setUploading(false);
+      const m = e?.message || "Upload failed";
+      setUploadError(m);
+      setUploadStep("error");
+      toast.error(m);
+      return;
+    }
     window.clearInterval(tick);
     setUploadProgress(100);
     setUploadStep("confirming");
     setUploading(false);
-    if (error) {
-      setUploadError(error.message);
-      setUploadStep("error");
-      toast.error(error.message);
-      return;
-    }
-    const r = data as any;
     const overLimit = Number(r.over_limit_skipped ?? 0);
-    const remaining = Number(r.remaining_after ?? 0);
-    let msg = `Inserted ${r.inserted} new IDs. Duplicates: ${r.duplicate_count ?? 0}, invalid: ${r.invalid_count ?? 0}.`;
+    const inserted = Number(r.rows_inserted ?? 0);
+    const dupCount =
+      Number(r.duplicates_in_file ?? 0) +
+      Number(r.duplicates_in_stock ?? 0) +
+      Number(r.duplicates_already_replaced ?? 0);
+    const invalid = Number(r.invalid_rows ?? 0);
+    let msg = `Inserted ${inserted} new IDs. Duplicates: ${dupCount}, invalid: ${invalid}.`;
     if (overLimit > 0) {
       msg += ` ${overLimit} rows skipped — daily limit reached.`;
       toast.warning(msg);
     } else {
-      toast.success(msg + (remaining >= 0 ? ` ${remaining} uploads left today.` : ""));
+      toast.success(msg);
     }
-
-    // Persist audit log row (best-effort — failure shouldn't block UX)
-    try {
-      const catName = categories.find((c) => c.id === categoryId)?.name ?? null;
-      await supabase.from("seller_upload_audits").insert({
-        seller_id: user!.id,
-        category_id: categoryId,
-        category_name: catName,
-        file_name: fileName || null,
-        rows_in_file: parsed.length,
-        rows_sent: rowsToSend.length,
-        rows_inserted: Number(r.inserted ?? 0),
-        duplicates_in_stock: fresh.duplicatesInStock.length,
-        duplicates_in_file: fresh.duplicatesInFile.length,
-        duplicates_already_replaced: fresh.duplicatesReplaced.length,
-        invalid_rows: Number(r.invalid_count ?? 0),
-        over_limit_skipped: overLimit,
-        skip_duplicates_setting: skipDuplicates,
-        server_response: r,
-      });
-      loadAudits();
-    } catch {
-      // audit insert is best-effort; ignore failures silently
-    }
+    loadAudits();
 
     setParsed(null);
     setFileName("");
