@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Check, X, Banknote, Image as ImageIcon, CheckCircle2 } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import {
+  Loader2, Check, X, Banknote, Image as ImageIcon, CheckCircle2,
+  Search, CalendarIcon, RotateCcw, ChevronLeft, ChevronRight,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface Topup {
@@ -31,11 +41,31 @@ const statusBadge = (s: string) => {
 };
 
 export const PaymentsManager = () => {
+  type TabKind = "topups" | "withdraws";
+  const [tab, setTab] = useState<TabKind>("topups");
   const [topups, setTopups] = useState<Topup[]>([]);
   const [withdraws, setWithdraws] = useState<Withdraw[]>([]);
+  const [topupsTotal, setTopupsTotal] = useState(0);
+  const [withdrawsTotal, setWithdrawsTotal] = useState(0);
+  const [pendingCounts, setPendingCounts] = useState({ topups: 0, withdraws: 0 });
   const [profiles, setProfiles] = useState<Record<string, { display_name: string | null; email: string | null }>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+
+  // Filters per tab
+  type Filter = {
+    q: string;
+    status: string; // "" = all
+    from?: Date;
+    to?: Date;
+    page: number;
+    pageSize: number;
+  };
+  const defaultFilter = (): Filter => ({ q: "", status: "all", page: 1, pageSize: 25 });
+  const [topupsFilter, setTopupsFilter] = useState<Filter>(defaultFilter());
+  const [withdrawsFilter, setWithdrawsFilter] = useState<Filter>(defaultFilter());
+  const [topupsSearchInput, setTopupsSearchInput] = useState("");
+  const [withdrawsSearchInput, setWithdrawsSearchInput] = useState("");
 
   // Pay dialog
   const [payOpen, setPayOpen] = useState(false);
@@ -60,32 +90,114 @@ export const PaymentsManager = () => {
     userId: string;
   } | null>(null);
 
-  const loadAll = async () => {
-    try {
-      const data = await api.get<{ topups: any[]; withdraws: any[] }>("/api/admin/payments");
-      const tp = data.topups ?? [];
-      const wd = data.withdraws ?? [];
-      setTopups(tp as Topup[]);
-      setWithdraws(wd as Withdraw[]);
-      const map: Record<string, any> = {};
-      [...tp, ...wd].forEach((r: any) => {
-        if (r.user_id && !map[r.user_id]) {
-          map[r.user_id] = { display_name: r.display_name ?? null, email: r.email ?? null };
+  const buildQuery = (kind: TabKind, f: Filter) => {
+    const q: Record<string, any> = {
+      kind,
+      page: f.page,
+      page_size: f.pageSize,
+    };
+    if (f.q.trim()) q.q = f.q.trim();
+    if (f.status && f.status !== "all") q.status = f.status;
+    if (f.from) q.from = f.from.toISOString();
+    if (f.to) {
+      // Include the entire "to" day (end of day)
+      const end = new Date(f.to);
+      end.setHours(23, 59, 59, 999);
+      q.to = end.toISOString();
+    }
+    return q;
+  };
+
+  const mergeProfiles = (rows: any[]) => {
+    setProfiles((prev) => {
+      const next = { ...prev };
+      rows.forEach((r: any) => {
+        if (r.user_id) {
+          next[r.user_id] = {
+            display_name: r.display_name ?? next[r.user_id]?.display_name ?? null,
+            email: r.user_email ?? r.email ?? next[r.user_id]?.email ?? null,
+          };
         }
       });
-      setProfiles(map);
+      return next;
+    });
+  };
+
+  const loadTab = async (kind: TabKind, opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoading(true);
+    try {
+      const f = kind === "topups" ? topupsFilter : withdrawsFilter;
+      const data = await api.get<{ rows: any[]; total: number }>(
+        "/api/admin/payments",
+        buildQuery(kind, f)
+      );
+      const rows = data.rows ?? [];
+      mergeProfiles(rows);
+      if (kind === "topups") {
+        setTopups(rows as Topup[]);
+        setTopupsTotal(data.total ?? rows.length);
+      } else {
+        setWithdraws(rows as Withdraw[]);
+        setWithdrawsTotal(data.total ?? rows.length);
+      }
     } catch (e: any) {
       toast.error(e?.message || "Failed to load payments");
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   };
 
+  const loadPendingCounts = async () => {
+    try {
+      const c = await api.get<{ topups: number; withdraws: number }>(
+        "/api/admin/payments/pending-counts"
+      );
+      setPendingCounts(c);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const loadAll = () => {
+    loadTab(tab, { silent: true });
+    loadPendingCounts();
+  };
+
+  // Reload when active tab's filters change
   useEffect(() => {
-    loadAll();
-    const id = setInterval(loadAll, 30_000);
+    loadTab("topups");
+  }, [topupsFilter]);
+  useEffect(() => {
+    loadTab("withdraws");
+  }, [withdrawsFilter]);
+
+  // Pending counts + 30s polling
+  useEffect(() => {
+    loadPendingCounts();
+    const id = setInterval(() => {
+      loadTab(tab, { silent: true });
+      loadPendingCounts();
+    }, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [tab]);
+
+  // Debounce search inputs
+  const topupsSearchTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (topupsSearchTimer.current) window.clearTimeout(topupsSearchTimer.current);
+    topupsSearchTimer.current = window.setTimeout(() => {
+      setTopupsFilter((f) => (f.q === topupsSearchInput ? f : { ...f, q: topupsSearchInput, page: 1 }));
+    }, 300);
+    return () => { if (topupsSearchTimer.current) window.clearTimeout(topupsSearchTimer.current); };
+  }, [topupsSearchInput]);
+  const withdrawsSearchTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (withdrawsSearchTimer.current) window.clearTimeout(withdrawsSearchTimer.current);
+    withdrawsSearchTimer.current = window.setTimeout(() => {
+      setWithdrawsFilter((f) => (f.q === withdrawsSearchInput ? f : { ...f, q: withdrawsSearchInput, page: 1 }));
+    }, 300);
+    return () => { if (withdrawsSearchTimer.current) window.clearTimeout(withdrawsSearchTimer.current); };
+  }, [withdrawsSearchInput]);
 
   const fetchBalanceWithRetry = async (
     userId: string,
