@@ -11,9 +11,6 @@ import {
   ShoppingBag,
   RefreshCcw,
   Upload,
-  Bot,
-  Copy,
-  CheckCircle2,
   ArrowUpRight,
   Sparkles,
   Crown,
@@ -29,9 +26,6 @@ interface Profile {
   display_name: string | null;
   email: string | null;
   balance_bdt: number;
-  telegram_link_code: string;
-  telegram_chat_id: number | null;
-  buyer_settings: { telegram_template?: "compact" | "detailed" } | null;
 }
 
 const Dashboard = () => {
@@ -45,7 +39,7 @@ const Dashboard = () => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("display_name, email, balance_bdt, telegram_link_code, telegram_chat_id, buyer_settings")
+      .select("display_name, email, balance_bdt")
       .eq("id", user.id)
       .single()
       .then(({ data, error }) => {
@@ -95,29 +89,6 @@ const Dashboard = () => {
   const isAdmin = roles.includes("admin");
   const primaryRole = isAdmin ? "admin" : isSeller ? "seller" : "buyer";
 
-  const copyTgCode = () => {
-    if (!profile) return;
-    navigator.clipboard.writeText(`/start ${profile.telegram_link_code}`);
-    toast.success("Telegram command copied");
-  };
-
-  const template: "compact" | "detailed" = profile?.buyer_settings?.telegram_template ?? "compact";
-
-  const setTemplate = async (next: "compact" | "detailed") => {
-    if (!user || !profile) return;
-    const newSettings = { ...(profile.buyer_settings ?? {}), telegram_template: next };
-    setProfile({ ...profile, buyer_settings: newSettings });
-    const { error } = await supabase
-      .from("profiles")
-      .update({ buyer_settings: newSettings })
-      .eq("id", user.id);
-    if (error) {
-      toast.error("Could not save template preference");
-    } else {
-      toast.success(`Telegram template set to ${next}`);
-    }
-  };
-
   // Simple loyalty tier from lifetime spend
   const tier =
     stats.lifetimeSpent >= 50000
@@ -141,7 +112,7 @@ const Dashboard = () => {
     <AppShell
       mode="buyer"
       title={`Welcome back, ${profile?.display_name ?? "trader"}.`}
-      subtitle="Manage your purchases, replacements, and Telegram bot link from here."
+      subtitle="Manage your purchases, replacements, and wallet from here."
     >
         {/* Hero balance card — premium */}
         <Card className="relative overflow-hidden rounded-2xl border-border/60 bg-gradient-card p-6 shadow-card md:p-8">
