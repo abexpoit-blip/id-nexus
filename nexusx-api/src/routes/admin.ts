@@ -931,4 +931,80 @@ router.post("/seller-applications/bulk", async (req: AuthedReq, res) => {
   res.json({ results });
 });
 
+// ===== SELLER LEADERBOARD with badge tiers =====
+// Tier rules (by completed sales count, lifetime):
+//   bronze:   1+    silver: 50+   gold: 250+   platinum: 1000+
+// Optional bonus_eligible flag for current month top performer.
+router.get("/sellers/leaderboard", async (req, res) => {
+  const days = Math.min(365, Math.max(1, parseInt(String(req.query.days || "30"), 10) || 30));
+  const sellers = await q(
+    `SELECT u.id AS seller_id, u.email, p.display_name, p.is_banned,
+        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id), 0) AS sales_lifetime,
+        COALESCE((SELECT SUM(oi.unit_price_bdt)::float FROM order_items oi WHERE oi.seller_id=u.id), 0) AS revenue_lifetime,
+        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id
+                  AND oi.created_at >= now() - ($1 || ' days')::interval), 0) AS sales_period,
+        COALESCE((SELECT SUM(oi.unit_price_bdt)::float FROM order_items oi WHERE oi.seller_id=u.id
+                  AND oi.created_at >= now() - ($1 || ' days')::interval), 0) AS revenue_period,
+        COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.seller_id=u.id), 0) AS replacements_total,
+        COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.seller_id=u.id
+                  AND ri.outcome IN ('replaced','refunded')), 0) AS replacements_upheld
+      FROM users u
+      JOIN user_roles r ON r.user_id=u.id AND r.role='seller'
+      LEFT JOIN profiles p ON p.id=u.id
+      ORDER BY sales_period DESC NULLS LAST
+      LIMIT 100`,
+    [String(days)]
+  );
+  const tierFor = (n: number): "platinum" | "gold" | "silver" | "bronze" | "none" => {
+    if (n >= 1000) return "platinum";
+    if (n >= 250) return "gold";
+    if (n >= 50) return "silver";
+    if (n >= 1) return "bronze";
+    return "none";
+  };
+  const enriched = sellers.map((s: any, i: number) => {
+    const sales = Number(s.sales_lifetime || 0);
+    const upheldRate = sales > 0 ? Number(s.replacements_upheld || 0) / sales : 0;
+    let risk: "low" | "medium" | "high" = "low";
+    if (sales >= 10 && upheldRate >= 0.15) risk = "high";
+    else if (sales >= 10 && upheldRate >= 0.07) risk = "medium";
+    return {
+      ...s,
+      rank: i + 1,
+      tier: tierFor(sales),
+      risk_level: risk,
+      bonus_eligible: i < 3 && Number(s.sales_period) > 0,
+    };
+  });
+  res.json({ sellers: enriched, period_days: days });
+});
+
+// Pay a discretionary bonus to a seller (top performer reward, etc.)
+router.post("/sellers/:id/bonus", async (req: AuthedReq, res) => {
+  const amount = Number(req.body?.amount_bdt);
+  const note = typeof req.body?.note === "string" ? req.body.note : "Top seller bonus";
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: "invalid_amount" });
+  const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1 FOR UPDATE`, [req.params.id]);
+  if (!p) return res.status(404).json({ error: "user_not_found" });
+  const newBal = Number(p.balance_bdt) + amount;
+  await q(`UPDATE profiles SET balance_bdt=$1 WHERE id=$2`, [newBal, req.params.id]);
+  await q(
+    `INSERT INTO balance_ledger(user_id, kind, amount_bdt, balance_after, note)
+       VALUES($1,'admin_adjustment',$2,$3,$4)`,
+    [req.params.id, amount, newBal, note]
+  );
+  await q(
+    `INSERT INTO notifications(user_id, kind, title, body)
+       VALUES($1,'bonus',$2,$3)`,
+    [req.params.id, `🎉 Bonus credited: ৳${amount.toFixed(2)}`, note]
+  );
+  await q(
+    `INSERT INTO audit_logs(actor_id, actor_email, event_type, entity_type, entity_id, summary, details)
+       VALUES($1,$2,'seller_bonus','user',$3,$4,$5)`,
+    [req.user!.id, req.user!.email, req.params.id,
+     `Paid bonus ৳${amount.toFixed(2)} to seller`, JSON.stringify({ amount, note })]
+  );
+  res.json({ ok: true, balance: newBal });
+});
+
 export default router;
