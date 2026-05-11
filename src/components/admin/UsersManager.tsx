@@ -12,7 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Search, Plus, Minus, Shield, ShieldOff, UserCog, LogIn, AlertTriangle, StickyNote } from "lucide-react";
+import { Loader2, Search, Plus, Minus, Shield, ShieldOff, UserCog, LogIn, AlertTriangle, StickyNote, Download } from "lucide-react";
 import { toast } from "sonner";
 import { AdminUserNotes } from "./AdminUserNotes";
 
@@ -108,6 +108,9 @@ export const UsersManager = () => {
         <Button onClick={search} disabled={loading}>
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
           Search
+        </Button>
+        <Button variant="outline" onClick={() => api.download("/api/admin/exports/users.csv", `users-${new Date().toISOString().slice(0,10)}.csv`).catch((e:any)=>toast.error(e?.message||"Export failed"))}>
+          <Download className="mr-2 h-4 w-4" /> Export CSV
         </Button>
       </div>
 

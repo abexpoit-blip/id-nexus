@@ -1276,4 +1276,55 @@ router.put("/users/:id/notes/:noteId", async (req, res) => {
   res.json({ ok: true });
 });
 
+// ===== CSV EXPORTS =====
+const csvEscape = (v: any) => {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const sendCsv = (res: any, filename: string, headers: string[], rows: any[][]) => {
+  const body = [headers.join(","), ...rows.map((r) => r.map(csvEscape).join(","))].join("\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(body);
+};
+
+router.get("/exports/users.csv", async (_req, res) => {
+  const rows = await q(
+    `SELECT u.id, u.email, p.display_name, p.balance_bdt, p.is_banned, u.created_at,
+        ARRAY(SELECT role::text FROM user_roles WHERE user_id=u.id) AS roles,
+        COALESCE((SELECT COUNT(*)::int FROM orders o WHERE o.buyer_id=u.id),0) AS orders_count,
+        COALESCE((SELECT COUNT(*)::int FROM replacement_requests r WHERE r.buyer_id=u.id),0) AS replacements_filed
+      FROM users u LEFT JOIN profiles p ON p.id=u.id
+      ORDER BY u.created_at DESC`
+  );
+  sendCsv(res, `users-${new Date().toISOString().slice(0,10)}.csv`,
+    ["user_id","email","display_name","balance_bdt","is_banned","created_at","roles","orders_count","replacements_filed"],
+    rows.map((r: any) => [r.id, r.email, r.display_name, r.balance_bdt, r.is_banned, r.created_at,
+      (r.roles || []).join("|"), r.orders_count, r.replacements_filed])
+  );
+});
+
+router.get("/exports/orders.csv", async (req, res) => {
+  const status = String(req.query.status || "").trim();
+  const where = status && status !== "all" ? `WHERE o.status=$1` : "";
+  const params = status && status !== "all" ? [status] : [];
+  const rows = await q(
+    `SELECT o.id, o.status, o.quantity, o.unit_price_bdt, o.total_bdt, o.created_at,
+        p.email AS buyer_email, p.display_name AS buyer_name,
+        c.name AS category_name
+      FROM orders o
+      LEFT JOIN profiles p ON p.id=o.buyer_id
+      LEFT JOIN categories c ON c.id=o.category_id
+      ${where}
+      ORDER BY o.created_at DESC LIMIT 10000`,
+    params
+  );
+  sendCsv(res, `orders-${new Date().toISOString().slice(0,10)}.csv`,
+    ["order_id","status","quantity","unit_price_bdt","total_bdt","created_at","buyer_email","buyer_name","category"],
+    rows.map((r: any) => [r.id, r.status, r.quantity, r.unit_price_bdt, r.total_bdt, r.created_at,
+      r.buyer_email, r.buyer_name, r.category_name])
+  );
+});
+
 export default router;

@@ -26,4 +26,25 @@ router.get("/stock", async (_req, res) => {
   res.json({ stock: rows });
 });
 
+// Public: top sellers contributing stock to a category, with tier badges
+router.get("/:id/sellers", async (req, res) => {
+  const rows = await q(
+    `SELECT u.id AS seller_id,
+        COALESCE(p.display_name, split_part(u.email,'@',1)) AS name,
+        COUNT(*) FILTER (WHERE a.status='available')::int AS available,
+        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id),0) AS sales_lifetime
+      FROM accounts a
+      JOIN users u ON u.id=a.seller_id
+      LEFT JOIN profiles p ON p.id=u.id
+      WHERE a.category_id=$1 AND COALESCE(p.is_banned,false)=false
+      GROUP BY u.id, p.display_name, u.email
+      HAVING COUNT(*) FILTER (WHERE a.status='available') > 0
+      ORDER BY available DESC, sales_lifetime DESC
+      LIMIT 8`,
+    [req.params.id]
+  );
+  const tierFor = (n: number) => n>=1000?"platinum":n>=250?"gold":n>=50?"silver":n>=1?"bronze":"none";
+  res.json({ sellers: rows.map((s: any) => ({ ...s, tier: tierFor(Number(s.sales_lifetime||0)) })) });
+});
+
 export default router;
