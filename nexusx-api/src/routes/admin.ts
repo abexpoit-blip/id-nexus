@@ -1019,4 +1019,27 @@ router.post("/sellers/:id/bonus", async (req: AuthedReq, res) => {
   res.json({ ok: true, balance: newBal });
 });
 
+// ===== DASHBOARD TIMESERIES (daily revenue + order count) =====
+router.get("/dashboard/timeseries", async (req, res) => {
+  const days = Math.min(180, Math.max(1, parseInt(String(req.query.days || "30"), 10) || 30));
+  const rows = await q<{ day: string; revenue: number; orders: number }>(
+    `WITH days AS (
+        SELECT generate_series(
+          date_trunc('day', now()) - ($1 || ' days')::interval,
+          date_trunc('day', now()),
+          interval '1 day'
+        )::date AS day
+      )
+      SELECT to_char(d.day, 'YYYY-MM-DD') AS day,
+             COALESCE(SUM(o.total_bdt) FILTER (WHERE o.status='completed'), 0)::float AS revenue,
+             COALESCE(COUNT(o.id) FILTER (WHERE o.status='completed'), 0)::int AS orders
+        FROM days d
+        LEFT JOIN orders o ON date_trunc('day', o.created_at)::date = d.day
+        GROUP BY d.day
+        ORDER BY d.day`,
+    [String(days - 1)]
+  );
+  res.json({ series: rows, days });
+});
+
 export default router;
