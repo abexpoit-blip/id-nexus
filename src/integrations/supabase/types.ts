@@ -76,6 +76,36 @@ export type Database = {
           },
         ]
       }
+      admin_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          read_at: string | null
+          sender_id: string
+          sender_is_admin: boolean
+          thread_user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_id: string
+          sender_is_admin?: boolean
+          thread_user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_id?: string
+          sender_is_admin?: boolean
+          thread_user_id?: string
+        }
+        Relationships: []
+      }
       admin_notes: {
         Row: {
           author_email: string | null
