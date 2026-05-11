@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useRef, useState } from "react";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,36 +25,33 @@ export const NotificationsBell = () => {
   const { user } = useAuth();
   const [items, setItems] = useState<Notif[]>([]);
   const [open, setOpen] = useState(false);
+  const seenIdsRef = useRef<Set<string>>(new Set());
 
   const load = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from("notifications")
-      .select("id, kind, title, body, read_at, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    setItems((data ?? []) as Notif[]);
+    try {
+      const res = await api.get<{ notifications: Notif[] }>("/api/notifications", { limit: 20 });
+      const list = res.notifications ?? [];
+      // Toast new ones we haven't shown before (skip first hydration)
+      if (seenIdsRef.current.size > 0) {
+        for (const n of list) {
+          if (!seenIdsRef.current.has(n.id) && !n.read_at) {
+            toast(n.title, { description: n.body ?? undefined });
+          }
+        }
+      }
+      seenIdsRef.current = new Set(list.map((n) => n.id));
+      setItems(list);
+    } catch {
+      /* ignore */
+    }
   };
 
   useEffect(() => {
     if (!user) return;
     load();
-    const ch = supabase
-      .channel(`notifications-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
-        (payload) => {
-          const n = payload.new as Notif;
-          setItems((prev) => [n, ...prev].slice(0, 20));
-          toast(n.title, { description: n.body ?? undefined });
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    const timer = setInterval(load, 30_000);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -62,11 +59,9 @@ export const NotificationsBell = () => {
 
   const markAllRead = async () => {
     if (!user) return;
-    await supabase
-      .from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("user_id", user.id)
-      .is("read_at", null);
+    try {
+      await api.post("/api/notifications/read-all");
+    } catch { /* ignore */ }
     load();
   };
 

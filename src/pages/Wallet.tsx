@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -51,8 +51,8 @@ const statusBadge = (s: string) => {
 };
 
 const Wallet = () => {
-  const { user, roles, loading: authLoading } = useAuth();
-  const [balance, setBalance] = useState(0);
+  const { user, profile, roles, loading: authLoading, refresh } = useAuth();
+  const balance = Number(profile?.balance_bdt ?? 0);
   const [topups, setTopups] = useState<TopupRow[]>([]);
   const [withdraws, setWithdraws] = useState<WithdrawRow[]>([]);
   const [busy, setBusy] = useState(false);
@@ -67,26 +67,24 @@ const Wallet = () => {
 
   const loadAll = async () => {
     if (!user) return;
-    const [{ data: prof }, { data: tp }, { data: wd }] = await Promise.all([
-      supabase.from("profiles").select("balance_bdt").eq("id", user.id).maybeSingle(),
-      supabase.from("topup_requests").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
-      supabase.from("withdraw_requests").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
-    ]);
-    setBalance(Number(prof?.balance_bdt ?? 0));
-    setTopups((tp ?? []) as TopupRow[]);
-    setWithdraws((wd ?? []) as WithdrawRow[]);
+    try {
+      const [tp, wd] = await Promise.all([
+        api.get<{ topups: TopupRow[] }>("/api/wallet/topups"),
+        api.get<{ withdraws: WithdrawRow[] }>("/api/withdraws/mine").catch(() => ({ withdraws: [] as WithdrawRow[] })),
+      ]);
+      setTopups(tp.topups ?? []);
+      setWithdraws(wd.withdraws ?? []);
+      await refresh();
+    } catch {
+      /* ignore */
+    }
   };
 
   useEffect(() => {
     loadAll();
     if (!user) return;
-    const ch = supabase
-      .channel("wallet-" + user.id)
-      .on("postgres_changes", { event: "*", schema: "public", table: "topup_requests", filter: `user_id=eq.${user.id}` }, loadAll)
-      .on("postgres_changes", { event: "*", schema: "public", table: "withdraw_requests", filter: `user_id=eq.${user.id}` }, loadAll)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` }, loadAll)
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    const timer = setInterval(loadAll, 30_000);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -95,14 +93,21 @@ const Wallet = () => {
     if (!amt || amt < 100) return toast.error("Minimum withdraw ৳100");
     if (!wReceiver.trim()) return toast.error("Enter receiver number");
     setBusy(true);
-    const { error } = await supabase.rpc("submit_withdraw_request", {
-      p_amount: amt, p_method: wMethod, p_receiver_number: wReceiver, p_note: wNote || null,
-    });
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("Withdraw submitted — admin will process.");
-    setWAmount(""); setWReceiver(""); setWNote("");
-    loadAll();
+    try {
+      await api.post("/api/wallet/withdraw", {
+        amount_bdt: amt,
+        method: wMethod,
+        receiver_number: wReceiver,
+        note: wNote || null,
+      });
+      toast.success("Withdraw submitted — admin will process.");
+      setWAmount(""); setWReceiver(""); setWNote("");
+      loadAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not submit withdraw");
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;

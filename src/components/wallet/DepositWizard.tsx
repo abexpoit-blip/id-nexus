@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -109,10 +109,11 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const { data, error } = await supabase.functions.invoke("upload-screenshot", { body: fd });
-      if (error) throw new Error(error.message);
-      const url = (data as any)?.url;
-      if (!url) throw new Error("Server did not return URL");
+      const data = await api.upload<{ ok: true; url: string }>("/api/uploads/screenshot", fd);
+      const rawUrl = data?.url;
+      if (!rawUrl) throw new Error("Server did not return URL");
+      // API returns a relative path like "/uploads/topups/xyz.jpg" — make it absolute
+      const url = rawUrl.startsWith("http") ? rawUrl : `${api.base}${rawUrl}`;
       return url;
     } catch (e: any) {
       toast.error(`Upload failed: ${e?.message ?? e}`);
@@ -132,15 +133,14 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
     try {
       const url = await uploadScreenshot();
       if (!url) throw new Error("Upload failed");
-      const { error } = await supabase.rpc("submit_topup_request", {
-        p_amount: amt,
-        p_method: method,
-        p_sender_number: sender.trim(),
-        p_txn_id: txn.trim(),
-        p_screenshot_url: url,
-        p_note: note || null,
+      await api.post("/api/wallet/topup", {
+        amount_bdt: amt,
+        method,
+        sender_number: sender.trim(),
+        txn_id: txn.trim(),
+        screenshot_url: url,
+        note: note || null,
       });
-      if (error) throw new Error(error.message);
       toast.success("✅ Deposit request submitted — admin review করছেন");
       onSubmitted();
       reset();

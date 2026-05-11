@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,62 +29,44 @@ interface Category {
 }
 
 const Browse = () => {
-  const { user, roles } = useAuth();
+  const { user, profile, roles, refresh } = useAuth();
   const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
-  const [balance, setBalance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Category | null>(null);
   const [qty, setQty] = useState<number>(1);
   const [placing, setPlacing] = useState(false);
 
+  const balance = Number(profile?.balance_bdt ?? 0);
+
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: cats }, profileRes, stockRes] = await Promise.all([
-      supabase
-        .from("categories")
-        .select("id, slug, name, description, price_bdt, kind")
-        .eq("is_active", true)
-        .eq("kind", "fb_account")
-        .order("sort_order", { ascending: true }),
-      user
-        ? supabase.from("profiles").select("balance_bdt").eq("id", user.id).single()
-        : Promise.resolve({ data: null } as any),
-      // Stock per category — works because RLS lets sellers/admins see only theirs.
-      // For public stock count we use an RPC-free trick: count via head request grouped by category
-      supabase.rpc("get_public_stock_counts" as any).then(
-        (r: any) => r,
-        () => ({ data: null }),
-      ),
-    ]);
-
-    const stockMap: Record<string, number> = {};
-    (stockRes?.data ?? []).forEach((row: any) => {
-      stockMap[row.category_id] = Number(row.available);
-    });
-
-    setCategories((cats ?? []).map((c) => ({ ...c, stock: stockMap[c.id] ?? 0 } as Category)));
-    if (profileRes && (profileRes as any).data) {
-      setBalance(Number((profileRes as any).data.balance_bdt));
+    try {
+      const res = await api.get<{ categories: any[] }>("/api/categories");
+      const fb = (res.categories ?? [])
+        .filter((c) => c.kind === "fb_account")
+        .map((c) => ({
+          id: c.id,
+          slug: c.slug,
+          name: c.name,
+          description: c.description,
+          price_bdt: Number(c.price_bdt),
+          kind: c.kind,
+          stock: Number(c.available ?? 0),
+        }));
+      setCategories(fb);
+    } catch {
+      toast.error("Could not load categories");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     loadAll();
-    const channel = supabase
-      .channel("accounts-stock")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "accounts" },
-        () => loadAll(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+    const timer = setInterval(loadAll, 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const openBuy = (cat: Category) => {
     if (!user) {
@@ -107,22 +89,23 @@ const Browse = () => {
       return;
     }
     setPlacing(true);
-    const { data, error } = await supabase.rpc("place_order", {
-      p_category_id: selected.id,
-      p_quantity: qty,
-    });
-    setPlacing(false);
-    if (error) {
-      const msg = error.message || "Order failed";
-      if (msg.includes("Insufficient")) toast.error("Insufficient balance");
-      else if (msg.includes("Not enough stock")) toast.error("Not enough stock — try a smaller quantity");
+    try {
+      const result = await api.post<any>("/api/orders", {
+        category_id: selected.id,
+        quantity: qty,
+      });
+      toast.success(`Order placed! ${result.quantity} IDs delivered for ৳${result.total}`);
+      setSelected(null);
+      await Promise.all([refresh(), loadAll()]);
+      navigate(`/orders/${result.order_id}`);
+    } catch (err: any) {
+      const msg = err?.message || "Order failed";
+      if (msg.toLowerCase().includes("insufficient")) toast.error("Insufficient balance");
+      else if (msg.toLowerCase().includes("stock")) toast.error("Not enough stock — try a smaller quantity");
       else toast.error(msg);
-      return;
+    } finally {
+      setPlacing(false);
     }
-    const result = data as any;
-    toast.success(`Order placed! ${result.quantity} IDs delivered for ৳${result.total}`);
-    setSelected(null);
-    navigate(`/orders/${result.order_id}`);
   };
 
   const iconFor = (cat: Category) => {
@@ -135,7 +118,7 @@ const Browse = () => {
     <AppShell
       mode={roles.includes("seller") && !roles.includes("buyer") ? "seller" : "buyer"}
       title="Browse stock"
-      subtitle="Live prices set by admin. Stock updates in real-time as sellers upload."
+      subtitle="Live prices set by admin. Stock updates as sellers upload."
       actions={
         <div className="text-sm">
           <span className="text-muted-foreground">Balance:</span>{" "}
@@ -198,7 +181,6 @@ const Browse = () => {
           </div>
         )}
 
-      {/* Buy dialog */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="bg-card">
           <DialogHeader>
