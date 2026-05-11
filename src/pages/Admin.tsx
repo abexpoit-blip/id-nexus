@@ -43,6 +43,8 @@ import { SellerLeaderboard } from "@/components/admin/SellerLeaderboard";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { RevenueChart } from "@/components/admin/RevenueChart";
 import { ActivityFeed } from "@/components/admin/ActivityFeed";
+import { GlobalSearch } from "@/components/admin/GlobalSearch";
+import { PayoutScheduleManager } from "@/components/admin/PayoutScheduleManager";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
 interface RpItem {
@@ -79,7 +81,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
   const [section, setSection] = useState<
-    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "accounts" | "brand"
+    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "payouts" | "accounts" | "brand"
   >("overview");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
@@ -217,6 +219,7 @@ const Admin = () => {
               <Badge variant="outline" className="border-primary/40 text-primary">Admin</Badge>
             </div>
             <div className="flex items-center gap-2">
+              <GlobalSearch onJump={(s) => setSection(s as typeof section)} />
               <Button variant="outline" size="sm" asChild>
                 <Link to="/admin/audit">
                   <ScrollText className="mr-2 h-4 w-4" /> Audit log
@@ -252,6 +255,7 @@ const Admin = () => {
         {section === "sellers" && <SellerLimitsManager />}
         {section === "applications" && <SellerApplicationsManager />}
         {section === "payments" && <PaymentsManager />}
+        {section === "payouts" && <PayoutScheduleManager />}
         {section === "accounts" && <PaymentAccountsManager />}
         {section === "brand" && <BrandSettingsManager />}
 
