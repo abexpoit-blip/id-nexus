@@ -268,9 +268,11 @@ export const PaymentsManager = () => {
   // Reload when active tab's filters change
   useEffect(() => {
     loadTab("topups");
+    setSelectedTopups(new Set());
   }, [topupsFilter]);
   useEffect(() => {
     loadTab("withdraws");
+    setSelectedWithdraws(new Set());
   }, [withdrawsFilter]);
 
   // Pending counts + configurable polling (0 = off)
