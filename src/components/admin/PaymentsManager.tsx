@@ -8,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -18,6 +20,7 @@ import { format } from "date-fns";
 import {
   Loader2, Check, X, Banknote, Image as ImageIcon, CheckCircle2,
   Search, CalendarIcon, RotateCcw, ChevronLeft, ChevronRight, RefreshCw,
+  AlertTriangle, CheckSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 
