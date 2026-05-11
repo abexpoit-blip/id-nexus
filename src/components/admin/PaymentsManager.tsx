@@ -26,11 +26,13 @@ interface Topup {
   sender_number: string; txn_id: string; note: string | null;
   status: string; admin_note: string | null; created_at: string;
   screenshot_url: string | null; source: string | null;
+  user_balance_bdt?: number | string | null;
 }
 interface Withdraw {
   id: string; user_id: string; amount_bdt: number; method: string;
   receiver_number: string; note: string | null; status: string;
   admin_note: string | null; payout_txn_id: string | null; created_at: string;
+  user_balance_bdt?: number | string | null;
 }
 
 const statusBadge = (s: string) => {
@@ -49,6 +51,7 @@ export const PaymentsManager = () => {
   const [withdrawsTotal, setWithdrawsTotal] = useState(0);
   const [pendingCounts, setPendingCounts] = useState({ topups: 0, withdraws: 0 });
   const [profiles, setProfiles] = useState<Record<string, { display_name: string | null; email: string | null }>>({});
+  const [userBalances, setUserBalances] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -78,17 +81,21 @@ export const PaymentsManager = () => {
   const [rejTarget, setRejTarget] = useState<{ kind: "topup" | "withdraw"; id: string } | null>(null);
   const [rejNote, setRejNote] = useState("");
 
-  // Approve confirmation modal
-  const [approvedInfo, setApprovedInfo] = useState<{
+  // Generic action-result confirmation modal (approve / reject / pay)
+  type ActionKind = "approve-topup" | "reject-topup" | "pay-withdraw" | "reject-withdraw";
+  type ActionResult = {
+    kind: ActionKind;
     userLabel: string;
+    userId: string;
     method: string;
-    txnId: string;
+    reference: string; // txnId or payout txn
     amount: number;
-    newBalance: number | null;
+    balanceBefore: number | null;
+    balanceAfter: number | null;
     balanceError: string | null;
     balanceLoading: boolean;
-    userId: string;
-  } | null>(null);
+  };
+  const [actionResult, setActionResult] = useState<ActionResult | null>(null);
 
   const buildQuery = (kind: TabKind, f: Filter) => {
     const q: Record<string, any> = {
@@ -117,6 +124,15 @@ export const PaymentsManager = () => {
             display_name: r.display_name ?? next[r.user_id]?.display_name ?? null,
             email: r.user_email ?? r.email ?? next[r.user_id]?.email ?? null,
           };
+        }
+      });
+      return next;
+    });
+    setUserBalances((prev) => {
+      const next = { ...prev };
+      rows.forEach((r: any) => {
+        if (r.user_id && r.user_balance_bdt != null) {
+          next[r.user_id] = Number(r.user_balance_bdt);
         }
       });
       return next;
@@ -220,56 +236,88 @@ export const PaymentsManager = () => {
     return { balance: null, error: lastErr ?? "Unknown error" };
   };
 
-  const refreshApprovedBalance = async () => {
-    if (!approvedInfo) return;
-    setApprovedInfo({ ...approvedInfo, balanceLoading: true, balanceError: null });
-    const res = await fetchBalanceWithRetry(approvedInfo.userId, 3);
-    setApprovedInfo((prev) =>
+  type ApiActionResp = {
+    ok?: true;
+    balance_before?: number;
+    balance_after?: number;
+    new_balance?: number;
+    amount?: number;
+  };
+
+  const refreshActionBalance = async () => {
+    if (!actionResult) return;
+    setActionResult({ ...actionResult, balanceLoading: true, balanceError: null });
+    const res = await fetchBalanceWithRetry(actionResult.userId, 3);
+    setActionResult((prev) =>
       prev
         ? {
             ...prev,
             balanceLoading: false,
-            newBalance: res.balance,
+            balanceAfter: res.balance,
             balanceError: res.error,
           }
         : prev,
     );
   };
 
+  const openActionResultFromResponse = (
+    base: Omit<ActionResult, "balanceBefore" | "balanceAfter" | "balanceError" | "balanceLoading">,
+    resp: ApiActionResp,
+  ) => {
+    const before = typeof resp.balance_before === "number" ? resp.balance_before : null;
+    const after =
+      typeof resp.balance_after === "number"
+        ? resp.balance_after
+        : typeof resp.new_balance === "number"
+          ? resp.new_balance
+          : null;
+    const needsFetch = after === null;
+    setActionResult({
+      ...base,
+      balanceBefore: before,
+      balanceAfter: after,
+      balanceError: null,
+      balanceLoading: needsFetch,
+    });
+    if (needsFetch) {
+      fetchBalanceWithRetry(base.userId, 3).then((res) => {
+        setActionResult((prev) =>
+          prev
+            ? {
+                ...prev,
+                balanceAfter: res.balance,
+                balanceError: res.error,
+                balanceLoading: false,
+              }
+            : prev,
+        );
+        if (res.error) toast.error(`Action ok, but balance fetch failed: ${res.error}`);
+      });
+    }
+    if (typeof after === "number") {
+      setUserBalances((prev) => ({ ...prev, [base.userId]: after }));
+    }
+  };
+
   const approveTopup = async (id: string) => {
     const row = topups.find((t) => t.id === id);
+    if (!row) return;
     setBusy(id);
     try {
-      const resp = await api.post<{ ok: true; new_balance?: number }>(`/api/admin/topups/${id}/approve`);
-      setBusy(null);
-      if (row) {
-        setApprovedInfo({
-          userLabel: userLabel(row.user_id),
-          method: row.method,
-          txnId: row.txn_id,
-          amount: Number(row.amount_bdt),
-          newBalance: typeof resp.new_balance === "number" ? resp.new_balance : null,
-          balanceError: null,
-          balanceLoading: typeof resp.new_balance !== "number",
-          userId: row.user_id,
-        });
-        if (typeof resp.new_balance !== "number") {
-          const res = await fetchBalanceWithRetry(row.user_id, 3);
-          setApprovedInfo((prev) => prev ? {
-            ...prev,
-            newBalance: res.balance,
-            balanceError: res.error,
-            balanceLoading: false,
-          } : prev);
-          if (res.error) toast.error(`Approved, but balance fetch failed: ${res.error}`);
-        }
-      } else {
-        toast.success("Top-up approved · balance credited");
-      }
+      const resp = await api.post<ApiActionResp>(`/api/admin/topups/${id}/approve`);
+      openActionResultFromResponse({
+        kind: "approve-topup",
+        userLabel: userLabel(row.user_id),
+        userId: row.user_id,
+        method: row.method,
+        reference: row.txn_id,
+        amount: Number(row.amount_bdt),
+      }, resp);
       loadAll();
     } catch (e: any) {
-      setBusy(null);
       toast.error(e?.message || "Failed");
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -281,12 +329,27 @@ export const PaymentsManager = () => {
     if (!rejTarget) return;
     setBusy(rejTarget.id);
     try {
-      const path = rejTarget.kind === "topup"
+      const isTopup = rejTarget.kind === "topup";
+      const path = isTopup
         ? `/api/admin/topups/${rejTarget.id}/reject`
         : `/api/admin/withdraws/${rejTarget.id}/reject`;
-      await api.post(path, { note: rejNote || null });
-      toast.success("Rejected");
+      const resp = await api.post<ApiActionResp>(path, { note: rejNote || null });
+      const row = isTopup
+        ? topups.find((t) => t.id === rejTarget.id)
+        : withdraws.find((w) => w.id === rejTarget.id);
       setRejOpen(false);
+      if (row) {
+        openActionResultFromResponse({
+          kind: isTopup ? "reject-topup" : "reject-withdraw",
+          userLabel: userLabel(row.user_id),
+          userId: row.user_id,
+          method: row.method,
+          reference: isTopup ? (row as Topup).txn_id : ((row as Withdraw).payout_txn_id || ""),
+          amount: Number(row.amount_bdt),
+        }, resp);
+      } else {
+        toast.success("Rejected");
+      }
       loadAll();
     } catch (e: any) {
       toast.error(e?.message || "Failed");
@@ -304,12 +367,20 @@ export const PaymentsManager = () => {
     if (payTxn.trim().length < 3) return toast.error("Enter payout TxnID");
     setBusy(payTarget.id);
     try {
-      await api.post(`/api/admin/withdraws/${payTarget.id}/pay`, {
+      const resp = await api.post<ApiActionResp>(`/api/admin/withdraws/${payTarget.id}/pay`, {
         payout_txn_id: payTxn,
         note: payNote || null,
       });
-      toast.success("Withdraw paid · balance deducted");
+      const w = payTarget;
       setPayOpen(false);
+      openActionResultFromResponse({
+        kind: "pay-withdraw",
+        userLabel: userLabel(w.user_id),
+        userId: w.user_id,
+        method: w.method,
+        reference: payTxn,
+        amount: Number(w.amount_bdt),
+      }, resp);
       loadAll();
     } catch (e: any) {
       toast.error(e?.message || "Failed");
@@ -322,6 +393,14 @@ export const PaymentsManager = () => {
     const p = profiles[id];
     return p?.display_name || p?.email || id.slice(0, 8);
   };
+
+  const userBalance = (id: string): number | null => {
+    const v = userBalances[id];
+    return typeof v === "number" ? v : null;
+  };
+
+  const fmtBdt = (n: number | null | undefined) =>
+    n == null ? "—" : `৳ ${Number(n).toFixed(0)}`;
 
   const pendingTopups = pendingCounts.topups;
   const pendingWds = pendingCounts.withdraws;
@@ -508,13 +587,21 @@ export const PaymentsManager = () => {
             <p className="py-6 text-center text-sm text-muted-foreground">No top-up requests match these filters.</p>
           ) : (
             <div className="overflow-x-auto"><Table>
-              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {topups.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
                     <TableCell className="text-sm">
                       {userLabel(r.user_id)}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {fmtBdt(userBalance(r.user_id))}
+                      {r.status === "pending" && userBalance(r.user_id) != null && (
+                        <div className="text-[10px] text-success">
+                          → {fmtBdt((userBalance(r.user_id) ?? 0) + Number(r.amount_bdt))}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>{r.method}</TableCell>
                     <TableCell className="font-semibold">৳ {Number(r.amount_bdt).toFixed(0)}</TableCell>
@@ -565,12 +652,30 @@ export const PaymentsManager = () => {
             <p className="py-6 text-center text-sm text-muted-foreground">No withdraw requests match these filters.</p>
           ) : (
             <div className="overflow-x-auto"><Table>
-              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Receiver</TableHead><TableHead>Status</TableHead><TableHead>Payout TxnID</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Receiver</TableHead><TableHead>Status</TableHead><TableHead>Payout TxnID</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {withdraws.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
                     <TableCell className="text-sm">{userLabel(r.user_id)}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {(() => {
+                        const bal = userBalance(r.user_id);
+                        const insufficient = bal != null && bal < Number(r.amount_bdt);
+                        return (
+                          <>
+                            <span className={insufficient ? "text-destructive font-semibold" : ""}>
+                              {fmtBdt(bal)}
+                            </span>
+                            {(r.status === "pending" || r.status === "approved") && bal != null && (
+                              <div className={`text-[10px] ${insufficient ? "text-destructive" : "text-warning"}`}>
+                                → {fmtBdt(bal - Number(r.amount_bdt))}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell>{r.method}</TableCell>
                     <TableCell className="font-semibold">৳ {Number(r.amount_bdt).toFixed(0)}</TableCell>
                     <TableCell className="font-mono text-xs">{r.receiver_number}</TableCell>
@@ -603,6 +708,32 @@ export const PaymentsManager = () => {
           <DialogHeader><DialogTitle>Mark withdraw as paid</DialogTitle></DialogHeader>
           <div className="space-y-3 text-sm">
             <div>To: <span className="font-mono">{payTarget?.receiver_number}</span> · {payTarget?.method} · ৳ {Number(payTarget?.amount_bdt ?? 0).toFixed(2)}</div>
+            {payTarget && (() => {
+              const bal = userBalance(payTarget.user_id);
+              const after = bal == null ? null : bal - Number(payTarget.amount_bdt);
+              const insufficient = bal != null && bal < Number(payTarget.amount_bdt);
+              return (
+                <div className={`grid grid-cols-3 gap-2 rounded-md border p-3 text-center ${insufficient ? "border-destructive/40 bg-destructive/10" : "border-border/60 bg-background/40"}`}>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Balance now</div>
+                    <div className="mt-0.5 font-display text-base font-semibold">{fmtBdt(bal)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Debit</div>
+                    <div className="mt-0.5 font-display text-base font-semibold text-warning">− ৳ {Number(payTarget.amount_bdt).toFixed(0)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">After</div>
+                    <div className={`mt-0.5 font-display text-base font-semibold ${insufficient ? "text-destructive" : "text-primary"}`}>{fmtBdt(after)}</div>
+                  </div>
+                  {insufficient && (
+                    <div className="col-span-3 text-xs text-destructive">
+                      Insufficient balance — payout will be rejected by the server.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div>
               <label className="text-xs text-muted-foreground">Payout TxnID *</label>
               <Input value={payTxn} onChange={(e) => setPayTxn(e.target.value)} placeholder="9A1B2C3D4E" />
@@ -624,6 +755,24 @@ export const PaymentsManager = () => {
         <DialogContent>
           <DialogHeader><DialogTitle>Reject request</DialogTitle></DialogHeader>
           <div className="space-y-3 text-sm">
+            {rejTarget && (() => {
+              const row = rejTarget.kind === "topup"
+                ? topups.find((t) => t.id === rejTarget.id)
+                : withdraws.find((w) => w.id === rejTarget.id);
+              if (!row) return null;
+              const bal = userBalance(row.user_id);
+              return (
+                <div className="rounded-md border border-border/60 bg-background/40 p-3 text-xs">
+                  <span className="text-muted-foreground">User: </span>
+                  <span className="font-medium">{userLabel(row.user_id)}</span>
+                  <span className="mx-2 text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">Balance: </span>
+                  <span className="font-mono">{fmtBdt(bal)}</span>
+                  <span className="mx-2 text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">No balance change on reject.</span>
+                </div>
+              );
+            })()}
             <Textarea value={rejNote} onChange={(e) => setRejNote(e.target.value)} placeholder="Reason (sent to user)" rows={3} />
           </div>
           <DialogFooter>
@@ -633,72 +782,133 @@ export const PaymentsManager = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Approve confirmation modal */}
-      <Dialog open={!!approvedInfo} onOpenChange={(o) => !o && setApprovedInfo(null)}>
+      {/* Action result modal — shows balance before / after for any action */}
+      <Dialog open={!!actionResult} onOpenChange={(o) => !o && setActionResult(null)}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-success" /> Top-up approved
-            </DialogTitle>
-          </DialogHeader>
-          {approvedInfo && (
-            <div className="space-y-4 py-2 text-sm">
-              <div className="rounded-lg border border-success/30 bg-success/10 p-4 text-center">
-                <div className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Credited
-                </div>
-                <div className="mt-1 font-display text-3xl font-bold text-success">
-                  ৳ {approvedInfo.amount.toFixed(0)}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-md border border-border/60 bg-background/40 p-3">
-                  <div className="text-xs text-muted-foreground">User</div>
-                  <div className="mt-1 font-medium">{approvedInfo.userLabel}</div>
-                </div>
-                <div className="rounded-md border border-border/60 bg-background/40 p-3">
-                  <div className="text-xs text-muted-foreground">New balance</div>
-                  {approvedInfo.balanceLoading ? (
-                    <div className="mt-1 flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-xs">Fetching…</span>
+          {actionResult && (() => {
+            const isApprove = actionResult.kind === "approve-topup";
+            const isPay = actionResult.kind === "pay-withdraw";
+            const isReject = actionResult.kind.startsWith("reject");
+            const title = isApprove
+              ? "Top-up approved"
+              : isPay
+                ? "Withdraw paid"
+                : actionResult.kind === "reject-topup"
+                  ? "Top-up rejected"
+                  : "Withdraw rejected";
+            const accentClass = isReject
+              ? "text-destructive"
+              : isPay
+                ? "text-warning"
+                : "text-success";
+            const tileClass = isReject
+              ? "border-destructive/30 bg-destructive/10"
+              : isPay
+                ? "border-warning/30 bg-warning/10"
+                : "border-success/30 bg-success/10";
+            const amountLabel = isApprove
+              ? "Credited"
+              : isPay
+                ? "Debited"
+                : "Unchanged";
+            const amountPrefix = isPay ? "−" : isApprove ? "+" : "";
+            const before = actionResult.balanceBefore;
+            const after = actionResult.balanceAfter;
+            const delta =
+              typeof before === "number" && typeof after === "number"
+                ? after - before
+                : null;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    {isReject
+                      ? <X className={`h-5 w-5 ${accentClass}`} />
+                      : <CheckCircle2 className={`h-5 w-5 ${accentClass}`} />}
+                    {title}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2 text-sm">
+                  <div className={`rounded-lg border p-4 text-center ${tileClass}`}>
+                    <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                      {amountLabel}
                     </div>
-                  ) : approvedInfo.balanceError ? (
-                    <div className="mt-1 space-y-1">
-                      <div className="text-xs text-destructive">
-                        Failed: {approvedInfo.balanceError}
+                    <div className={`mt-1 font-display text-3xl font-bold ${accentClass}`}>
+                      {amountPrefix} ৳ {actionResult.amount.toFixed(0)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+                    <div className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
+                      Wallet balance
+                    </div>
+                    {actionResult.balanceLoading ? (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-xs">Fetching balance…</span>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={refreshApprovedBalance}
-                      >
-                        Retry
-                      </Button>
+                    ) : actionResult.balanceError ? (
+                      <div className="space-y-2">
+                        <div className="text-xs text-destructive">
+                          Failed: {actionResult.balanceError}
+                        </div>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={refreshActionBalance}>
+                          Retry
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div>
+                          <div className="text-xs text-muted-foreground">Before</div>
+                          <div className="mt-1 font-display text-lg font-semibold">
+                            {before == null ? "—" : `৳ ${before.toFixed(0)}`}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Δ Change</div>
+                          <div className={`mt-1 font-display text-lg font-semibold ${delta && delta > 0 ? "text-success" : delta && delta < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                            {delta == null
+                              ? "—"
+                              : delta === 0
+                                ? "৳ 0"
+                                : `${delta > 0 ? "+" : "−"} ৳ ${Math.abs(delta).toFixed(0)}`}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">After</div>
+                          <div className="mt-1 font-display text-lg font-semibold text-primary">
+                            {after == null ? "—" : `৳ ${after.toFixed(0)}`}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3">
+                      <div className="text-xs text-muted-foreground">User</div>
+                      <div className="mt-1 font-medium">{actionResult.userLabel}</div>
                     </div>
-                  ) : approvedInfo.newBalance === null ? (
-                    <div className="mt-1 text-muted-foreground">—</div>
-                  ) : (
-                    <div className="mt-1 font-display text-lg font-semibold text-primary">
-                      ৳ {approvedInfo.newBalance.toFixed(0)}
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3">
+                      <div className="text-xs text-muted-foreground">Method</div>
+                      <div className="mt-1 font-medium capitalize">{actionResult.method}</div>
                     </div>
-                  )}
+                    {actionResult.reference && (
+                      <div className="col-span-2 rounded-md border border-border/60 bg-background/40 p-3">
+                        <div className="text-xs text-muted-foreground">
+                          {isPay ? "Payout TxnID" : "TxnID"}
+                        </div>
+                        <div className="mt-1 font-mono text-xs break-all">{actionResult.reference}</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="rounded-md border border-border/60 bg-background/40 p-3">
-                  <div className="text-xs text-muted-foreground">Method</div>
-                  <div className="mt-1 font-medium capitalize">{approvedInfo.method}</div>
-                </div>
-                <div className="rounded-md border border-border/60 bg-background/40 p-3">
-                  <div className="text-xs text-muted-foreground">TxnID</div>
-                  <div className="mt-1 font-mono text-xs break-all">{approvedInfo.txnId}</div>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setApprovedInfo(null)}>Done</Button>
-          </DialogFooter>
+                <DialogFooter>
+                  <Button onClick={() => setActionResult(null)}>Done</Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </Card>
