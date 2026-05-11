@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, MessagesSquare } from "lucide-react";
+import { Loader2, Send, MessagesSquare, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 interface Msg {
@@ -15,6 +15,7 @@ interface Msg {
 
 export const MessagesPanel = () => {
   const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [closedAt, setClosedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -22,8 +23,9 @@ export const MessagesPanel = () => {
 
   const load = async () => {
     try {
-      const { messages } = await api.get<{ messages: Msg[] }>("/api/messages/me");
-      setMsgs(messages ?? []);
+      const r = await api.get<{ messages: Msg[]; closed_at: string | null }>("/api/messages/me");
+      setMsgs(r.messages ?? []);
+      setClosedAt(r.closed_at);
       api.post("/api/messages/me/read").catch(() => {});
     } catch (e: any) { toast.error(e?.message || "Failed"); }
     finally { setLoading(false); }
@@ -69,6 +71,11 @@ export const MessagesPanel = () => {
           </div>
         ))}
       </div>
+      {closedAt ? (
+        <div className="mt-3 flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <Lock className="h-4 w-4" /> Admin closed this conversation.
+        </div>
+      ) : (
       <div className="mt-3 flex gap-2">
         <Textarea rows={2} value={body} onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send(); }}
@@ -77,6 +84,7 @@ export const MessagesPanel = () => {
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
+      )}
     </Card>
   );
 };
