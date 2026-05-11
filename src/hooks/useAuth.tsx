@@ -1,67 +1,70 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
-
-type AppRole = "admin" | "seller" | "buyer";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import { authApi, ApiUser, ApiProfile, AppRole, ApiError } from "@/lib/api";
 
 interface AuthContextValue {
-  user: User | null;
-  session: Session | null;
+  user: ApiUser | null;
+  profile: ApiProfile | null;
   roles: AppRole[];
   loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, display_name?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<ApiUser | null>(null);
+  const [profile, setProfile] = useState<ApiProfile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Set up listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-      if (newSession?.user) {
-        // Defer Supabase call to avoid deadlock
-        setTimeout(() => fetchRoles(newSession.user.id), 0);
-      } else {
+  const refresh = useCallback(async () => {
+    try {
+      const me = await authApi.me();
+      setUser(me.user);
+      setProfile(me.profile);
+      setRoles(me.roles || []);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        setUser(null);
+        setProfile(null);
         setRoles([]);
       }
-    });
-
-    // THEN check existing session
-    supabase.auth.getSession().then(({ data: { session: existing } }) => {
-      setSession(existing);
-      setUser(existing?.user ?? null);
-      if (existing?.user) {
-        fetchRoles(existing.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    }
   }, []);
 
-  const fetchRoles = async (userId: string) => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    setRoles((data ?? []).map((r) => r.role as AppRole));
+  useEffect(() => {
+    (async () => {
+      await refresh();
+      setLoading(false);
+    })();
+  }, [refresh]);
+
+  const signIn = async (email: string, password: string) => {
+    await authApi.login(email, password);
+    await refresh();
+  };
+
+  const signUp = async (email: string, password: string, display_name?: string) => {
+    await authApi.register(email, password, display_name);
+    await refresh();
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await authApi.logout();
+    } catch {
+      /* ignore */
+    }
+    setUser(null);
+    setProfile(null);
     setRoles([]);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, roles, loading, signOut }}>
+    <AuthContext.Provider value={{ user, profile, roles, loading, signIn, signUp, signOut, refresh }}>
       {children}
     </AuthContext.Provider>
   );

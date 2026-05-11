@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { authApi } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ const passwordSchema = z.string().min(8, "At least 8 characters").max(72);
 type RoleChoice = "buyer" | "seller";
 
 const Login = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signIn, signOut, refresh } = useAuth();
   const navigate = useNavigate();
   const [roleChoice, setRoleChoice] = useState<RoleChoice>("buyer");
   const [email, setEmail] = useState("");
@@ -36,34 +36,26 @@ const Login = () => {
       const cleanEmail = emailSchema.parse(email);
       const cleanPassword = passwordSchema.parse(password);
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: cleanPassword,
-      });
-      if (error) throw error;
-
-      const { data: { user: signedIn } } = await supabase.auth.getUser();
-      if (!signedIn) throw new Error("Sign-in failed");
-      const { data: rolesRows } = await supabase
-        .from("user_roles").select("role").eq("user_id", signedIn.id);
-      const userRoles = (rolesRows ?? []).map((r) => r.role as string);
+      await signIn(cleanEmail, cleanPassword);
+      const me = await authApi.me();
+      const userRoles = me.roles || [];
       const isAdmin = userRoles.includes("admin");
       const hasSeller = userRoles.includes("seller");
       const hasBuyer = userRoles.includes("buyer");
 
       if (roleChoice === "seller" && !hasSeller && !isAdmin) {
-        await supabase.auth.signOut();
+        await signOut();
         throw new Error("This account is not a Seller. Apply via Register → Seller.");
       }
       if (roleChoice === "buyer" && !hasBuyer && !isAdmin) {
-        await supabase.auth.signOut();
+        await signOut();
         throw new Error("This account is a Seller, not a Buyer. Switch to the Seller tab.");
       }
-
+      await refresh();
       const welcomeName =
-        signedIn.user_metadata?.display_name ||
-        signedIn.email?.split("@")[0] ||
-        "Shovon";
+        me.profile?.display_name ||
+        me.user?.email?.split("@")[0] ||
+        "there";
       const bdTime = new Intl.DateTimeFormat("en-GB", {
         timeZone: "Asia/Dhaka",
         hour: "2-digit",
@@ -78,7 +70,7 @@ const Login = () => {
       navigate(roleChoice === "seller" ? "/seller" : "/dashboard", { replace: true });
     } catch (err: any) {
       if (err?.issues?.[0]?.message) toast.error(err.issues[0].message);
-      else if (err?.message?.includes("Invalid login")) toast.error("Invalid email or password.");
+      else if (err?.message === "invalid_credentials") toast.error("Invalid email or password.");
       else toast.error(err?.message || "Something went wrong");
     } finally {
       setSubmitting(false);

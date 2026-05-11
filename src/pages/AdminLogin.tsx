@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { authApi } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ const emailSchema = z.string().trim().email("Enter a valid email").max(255);
 const passwordSchema = z.string().min(8, "At least 8 characters").max(72);
 
 const AdminLogin = () => {
-  const { user, roles, loading: authLoading } = useAuth();
+  const { user, roles, loading: authLoading, signIn, signOut, refresh } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,30 +39,20 @@ const AdminLogin = () => {
       const cleanEmail = emailSchema.parse(email);
       const cleanPassword = passwordSchema.parse(password);
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: cleanPassword,
-      });
-      if (error) throw error;
-
-      const { data: { user: signedIn } } = await supabase.auth.getUser();
-      if (!signedIn) throw new Error("Sign-in failed");
-
-      const { data: rolesRows } = await supabase
-        .from("user_roles").select("role").eq("user_id", signedIn.id);
-      const userRoles = (rolesRows ?? []).map((r) => r.role as string);
-
-      if (!userRoles.includes("admin")) {
-        await supabase.auth.signOut();
+      await signIn(cleanEmail, cleanPassword);
+      const me = await authApi.me();
+      if (!me.roles?.includes("admin")) {
+        await signOut();
         throw new Error("This account does not have admin access.");
       }
+      await refresh();
 
       toast.success("Welcome, Admin");
       navigate("/admin", { replace: true });
     } catch (err: any) {
       if (err?.issues?.[0]?.message) {
         toast.error(err.issues[0].message);
-      } else if (err?.message?.includes("Invalid login")) {
+      } else if (err?.message === "invalid_credentials") {
         toast.error("Invalid email or password.");
       } else {
         toast.error(err?.message || "Something went wrong");
