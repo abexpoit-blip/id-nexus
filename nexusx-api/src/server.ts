@@ -14,6 +14,13 @@ import categories from "./routes/categories";
 import orders from "./routes/orders";
 import wallet from "./routes/wallet";
 import admin from "./routes/admin";
+import profiles from "./routes/profiles";
+import withdraws from "./routes/withdraws";
+import replacements from "./routes/replacements";
+import seller from "./routes/seller";
+import notifications from "./routes/notifications";
+import vpn from "./routes/vpn";
+import uploads from "./routes/uploads";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -36,6 +43,13 @@ app.use("/api/categories", categories);
 app.use("/api/orders", orders);
 app.use("/api/wallet", wallet);
 app.use("/api/admin", admin);
+app.use("/api/profiles", profiles);
+app.use("/api/withdraws", withdraws);
+app.use("/api/replacements", replacements);
+app.use("/api/seller", seller);
+app.use("/api/notifications", notifications);
+app.use("/api/vpn", vpn);
+app.use("/api/uploads", uploads);
 
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error(err);
