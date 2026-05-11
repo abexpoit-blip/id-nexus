@@ -24,6 +24,7 @@ import uploads from "./routes/uploads";
 import settings from "./routes/settings";
 import messages from "./routes/messages";
 import support from "./routes/support";
+import notices from "./routes/notices";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -56,6 +57,7 @@ app.use("/api/uploads", uploads);
 app.use("/api/settings", settings);
 app.use("/api/messages", messages);
 app.use("/api/support", support);
+app.use("/api/notices", notices);
 
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error(err);
