@@ -194,7 +194,7 @@ export const PaymentsManager = () => {
     });
   };
 
-  const loadTab = async (kind: TabKind, opts: { silent?: boolean } = {}) => {
+  const loadTab = async (kind: TabKind, opts: { silent?: boolean; source?: "tab" | "manual" } = {}) => {
     if (!opts.silent) setLoading(true);
     try {
       const f = kind === "topups" ? topupsFilter : withdrawsFilter;
@@ -212,21 +212,31 @@ export const PaymentsManager = () => {
         setWithdrawsTotal(data.total ?? rows.length);
       }
       setLastRefreshed(new Date());
+      setRefreshError((prev) => (prev?.source === (opts.source ?? "tab") ? null : prev));
+      return true;
     } catch (e: any) {
-      toast.error(e?.message || "Failed to load payments");
+      const msg = e?.message || "Failed to load payments";
+      setRefreshError({ message: msg, when: new Date(), source: opts.source ?? "tab" });
+      if (!opts.silent) toast.error(msg);
+      else toast.error(`Auto-refresh failed: ${msg}`);
+      return false;
     } finally {
       if (!opts.silent) setLoading(false);
     }
   };
 
-  const loadPendingCounts = async () => {
+  const loadPendingCounts = async (opts: { source?: "counts" | "manual" } = {}) => {
     try {
       const c = await api.get<{ topups: number; withdraws: number }>(
         "/api/admin/payments/pending-counts"
       );
       setPendingCounts(c);
-    } catch {
-      /* ignore */
+      setRefreshError((prev) => (prev?.source === (opts.source ?? "counts") ? null : prev));
+      return true;
+    } catch (e: any) {
+      const msg = e?.message || "Failed to load pending counts";
+      setRefreshError({ message: msg, when: new Date(), source: opts.source ?? "counts" });
+      return false;
     }
   };
 
@@ -238,12 +248,18 @@ export const PaymentsManager = () => {
   const refreshNow = async () => {
     if (refreshing) return;
     setRefreshing(true);
+    setRefreshError(null);
     try {
-      await Promise.all([
-        loadTab(tab, { silent: true }),
-        loadPendingCounts(),
+      const [a, b] = await Promise.all([
+        loadTab(tab, { silent: true, source: "manual" }),
+        loadPendingCounts({ source: "manual" }),
       ]);
-      setLastRefreshed(new Date());
+      if (a && b) {
+        toast.success("Refreshed");
+        setLastRefreshed(new Date());
+      } else {
+        toast.error("Refresh failed — see banner");
+      }
     } finally {
       setRefreshing(false);
     }
