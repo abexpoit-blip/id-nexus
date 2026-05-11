@@ -1289,6 +1289,9 @@ export type Database = {
         | "order_placed"
         | "stock_low"
         | "system"
+        | "message"
+        | "announcement"
+        | "payout"
       order_status: "pending" | "completed" | "failed" | "refunded"
       payment_method: "bkash" | "nagad" | "binance"
       replacement_item_outcome:
@@ -1457,6 +1460,9 @@ export const Constants = {
         "order_placed",
         "stock_low",
         "system",
+        "message",
+        "announcement",
+        "payout",
       ],
       order_status: ["pending", "completed", "failed", "refunded"],
       payment_method: ["bkash", "nagad", "binance"],
