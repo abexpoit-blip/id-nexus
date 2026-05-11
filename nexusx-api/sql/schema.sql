@@ -44,9 +44,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   email TEXT,
   display_name TEXT,
-  telegram_username TEXT,
-  telegram_chat_id BIGINT,
-  telegram_link_code TEXT NOT NULL DEFAULT substr(md5(random()::text),1,10),
+  contact_handle TEXT,
   balance_bdt NUMERIC NOT NULL DEFAULT 0,
   is_banned BOOLEAN NOT NULL DEFAULT false,
   buyer_settings JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -199,7 +197,7 @@ CREATE TABLE IF NOT EXISTS seller_applications (
   user_id UUID NOT NULL REFERENCES users(id),
   email TEXT NOT NULL,
   display_name TEXT,
-  telegram_username TEXT,
+  contact_handle TEXT,
   reason TEXT,
   status seller_application_status NOT NULL DEFAULT 'pending',
   admin_note TEXT,
@@ -216,6 +214,94 @@ CREATE TABLE IF NOT EXISTS seller_daily_limits (
   updated_by UUID REFERENCES users(id),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- VPN brands
+CREATE TABLE IF NOT EXISTS vpn_brands (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  logo_url TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS brand_id UUID REFERENCES vpn_brands(id);
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS duration_days INT;
+
+-- Replacement requests
+DO $$ BEGIN
+  CREATE TYPE replacement_status AS ENUM ('pending','approved','rejected','partial');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE replacement_item_outcome AS ENUM ('pending','replaced','rejected','out_of_window');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS replacement_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  buyer_id UUID NOT NULL REFERENCES users(id),
+  raw_input TEXT NOT NULL,
+  parsed_uid_count INT NOT NULL DEFAULT 0,
+  matched_count INT NOT NULL DEFAULT 0,
+  status replacement_status NOT NULL DEFAULT 'pending',
+  admin_note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS replacement_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id UUID NOT NULL REFERENCES replacement_requests(id) ON DELETE CASCADE,
+  buyer_id UUID NOT NULL REFERENCES users(id),
+  seller_id UUID REFERENCES users(id),
+  order_id UUID REFERENCES orders(id),
+  account_id UUID REFERENCES accounts(id),
+  reported_uid TEXT NOT NULL,
+  in_window BOOLEAN NOT NULL DEFAULT false,
+  window_hours INT,
+  outcome replacement_item_outcome NOT NULL DEFAULT 'pending',
+  outcome_reason TEXT,
+  replacement_account_id UUID REFERENCES accounts(id),
+  resolved_by UUID REFERENCES users(id),
+  resolved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Seller upload audits
+CREATE TABLE IF NOT EXISTS seller_upload_audits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  seller_id UUID NOT NULL REFERENCES users(id),
+  category_id UUID REFERENCES categories(id),
+  category_name TEXT,
+  file_name TEXT,
+  rows_in_file INT NOT NULL DEFAULT 0,
+  rows_sent INT NOT NULL DEFAULT 0,
+  rows_inserted INT NOT NULL DEFAULT 0,
+  duplicates_in_file INT NOT NULL DEFAULT 0,
+  duplicates_in_stock INT NOT NULL DEFAULT 0,
+  duplicates_already_replaced INT NOT NULL DEFAULT 0,
+  invalid_rows INT NOT NULL DEFAULT 0,
+  over_limit_skipped INT NOT NULL DEFAULT 0,
+  skip_duplicates_setting BOOLEAN NOT NULL DEFAULT true,
+  server_response JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Admin-managed payment accounts (bKash/Nagad/Binance numbers shown to buyers)
+CREATE TABLE IF NOT EXISTS payment_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  method payment_method NOT NULL,
+  label TEXT NOT NULL,
+  account_number TEXT NOT NULL,
+  account_type TEXT,
+  instructions TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ATOMIC place_order
