@@ -51,6 +51,12 @@ All colors MUST be HSL.
     --shadow-glow: 0 0 60px -10px hsl(174 84% 50% / 0.45);
     --shadow-card: 0 10px 40px -15px hsl(224 80% 2% / 0.6);
 
+    /* Premium gold accents */
+    --brand-gold: 45 90% 60%;
+    --brand-gold-deep: 35 80% 45%;
+    --brand-gold-soft: 45 90% 70%;
+    --gradient-gold: linear-gradient(135deg, hsl(45 90% 70%), hsl(35 85% 50%), hsl(45 90% 70%));
+
     /* Sidebar — match Nexus X dark theme */
     --sidebar-background: 224 44% 7%;
     --sidebar-foreground: 210 40% 92%;
