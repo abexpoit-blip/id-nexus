@@ -1203,4 +1203,36 @@ router.post("/withdraws/bulk-pay", async (req: AuthedReq, res) => {
   res.json({ results });
 });
 
+// ===== BUYER RISK QUEUE =====
+// Lists buyers with elevated replacement-to-order ratios.
+// Defaults: min 3 orders, replacement_rate >= 0.20 = high, >= 0.10 = medium.
+router.get("/buyers/risk-queue", async (req, res) => {
+  const minOrders = Math.max(1, parseInt(String(req.query.min_orders || "3"), 10) || 3);
+  const rows = await q(
+    `WITH agg AS (
+        SELECT u.id AS user_id, u.email, p.display_name, p.balance_bdt, p.is_banned,
+               COALESCE((SELECT COUNT(*)::int FROM orders o WHERE o.buyer_id=u.id AND o.status='completed'),0) AS orders_count,
+               COALESCE((SELECT COUNT(*)::int FROM replacement_requests r WHERE r.buyer_id=u.id),0) AS replacements_filed,
+               COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.buyer_id=u.id AND ri.outcome='rejected'),0) AS replacements_rejected,
+               (SELECT MAX(r.created_at) FROM replacement_requests r WHERE r.buyer_id=u.id) AS last_replacement_at
+          FROM users u
+          LEFT JOIN profiles p ON p.id=u.id
+      )
+      SELECT * FROM agg
+        WHERE orders_count >= $1 AND replacements_filed > 0
+          AND (replacements_filed::float / NULLIF(orders_count,0)) >= 0.10
+        ORDER BY (replacements_filed::float / NULLIF(orders_count,0)) DESC, replacements_filed DESC
+        LIMIT 100`,
+    [minOrders]
+  );
+  const enriched = rows.map((r: any) => {
+    const rate = r.orders_count > 0 ? Number(r.replacements_filed) / Number(r.orders_count) : 0;
+    let risk: "low" | "medium" | "high" = "low";
+    if (rate >= 0.20) risk = "high";
+    else if (rate >= 0.10) risk = "medium";
+    return { ...r, replacement_rate: Number(rate.toFixed(3)), risk_level: risk };
+  });
+  res.json({ buyers: enriched });
+});
+
 export default router;
