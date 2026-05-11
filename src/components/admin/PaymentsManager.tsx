@@ -993,16 +993,54 @@ export const PaymentsManager = () => {
             setWithdrawsSearchInput,
             () => setWithdrawsSearchInput(""),
           )}
+          {selectedWithdraws.size > 0 && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-primary" />
+                <span><strong>{selectedWithdraws.size}</strong> withdraw{selectedWithdraws.size === 1 ? "" : "s"} selected</span>
+                <span className="text-muted-foreground">
+                  · total ৳ {withdraws.filter((r) => selectedWithdraws.has(r.id)).reduce((s, r) => s + Number(r.amount_bdt), 0).toFixed(0)}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setBulkConfirm("reject-withdraws")}>
+                  <X className="mr-1 h-3 w-3" /> Reject all
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedWithdraws(new Set())}>Clear</Button>
+              </div>
+              <div className="basis-full text-[11px] text-muted-foreground">
+                Bulk payouts are intentionally disabled — pay each withdraw individually so a unique payout TxnID can be entered.
+              </div>
+            </div>
+          )}
           {loading && tab === "withdraws" ? (
             <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : withdraws.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">No withdraw requests match these filters.</p>
           ) : (
             <div className="overflow-x-auto"><Table>
-              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Receiver</TableHead><TableHead>Status</TableHead><TableHead>Payout TxnID</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow>
+                <TableHead className="w-8">
+                  <Checkbox
+                    checked={allWithdrawsSelected}
+                    disabled={selectableWithdrawIds.length === 0}
+                    onCheckedChange={toggleAllWithdraws}
+                    aria-label="Select all pending withdraws"
+                  />
+                </TableHead>
+                <TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Receiver</TableHead><TableHead>Status</TableHead><TableHead>Payout TxnID</TableHead><TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader>
               <TableBody>
                 {withdraws.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} data-state={selectedWithdraws.has(r.id) ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedWithdraws.has(r.id)}
+                        disabled={r.status !== "pending"}
+                        onCheckedChange={() => toggleWithdraw(r.id)}
+                        aria-label={`Select withdraw ${r.id}`}
+                      />
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
                     <TableCell className="text-sm">{userLabel(r.user_id)}</TableCell>
                     <TableCell className="font-mono text-xs">
