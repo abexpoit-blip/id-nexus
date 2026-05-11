@@ -1,6 +1,5 @@
-const API_BASE =
-  (import.meta as any).env?.VITE_API_BASE_URL?.replace(/\/$/, "") ||
-  "https://api.nexus-x.cloud";
+const envApiBase = (import.meta as any).env?.VITE_API_BASE_URL?.replace(/\/$/, "");
+const API_BASE = envApiBase || ((import.meta as any).env?.DEV ? "" : "https://api.nexus-x.cloud");
 
 export class ApiError extends Error {
   status: number;
