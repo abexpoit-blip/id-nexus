@@ -1,113 +1,129 @@
-# Full VPS Migration + Feature Roadmap
 
-**Goal:** Move the entire stack off Lovable Cloud (Supabase) to the user's VPS.
-- Frontend: `https://buy.nexus-x.cloud`
-- API:      `https://api.nexus-x.cloud`
-- DB:       Postgres on VPS (already running, used by `nexusx-api`)
-- Storage:  Local disk on VPS (`/var/www/nexusx-uploads`, served via nginx + `/uploads/*`)
-- Auth:     JWT cookies issued by `nexusx-api` (already partially built)
+# Implementation Plan
 
-After migration is done, ship features #1 (bulk tiers), #5 (SLA timer), #9 (analytics).
+This is a large change — roughly 4 phases. I'll ship them in order so each phase is testable on the live site before moving on.
 
 ---
 
-## Current state audit
+## Phase 1 — Two separate login pages
 
-- **VPS API today (`nexusx-api/`)** — 234 lines, 5 routes:
-  `auth`, `categories`, `orders`, `wallet`, `admin` (only stock + topup approve/reject).
-- **Frontend Supabase usage** — **33 files** importing `@/integrations/supabase/client`.
-- **Tables not yet covered by VPS API:**
-  profiles, replacement_requests, replacement_items, withdraw_requests,
-  topup_requests (with screenshot upload), seller_applications, seller_daily_limits,
-  seller_upload_audits, vpn_brands, notifications, audit_logs, app_settings,
-  user_roles management, accounts (seller upload + admin manage).
-- **Edge functions to port:** `seller-signup`, `upload-screenshot`, `cleanup-screenshots`.
+**Frontend (`src/`)**
+- Add `src/pages/SellerLogin.tsx` mirroring `AdminLogin.tsx`:
+  - Email + password form
+  - On submit: sign in → check role; if not `seller` → sign out, show "seller access required"
+- Add route `/seller-login` in `App.tsx`
+- Update normal `/login` (Auth page) so successful login of a *seller-role* user is allowed but the Seller menu is **hidden** unless they came through `/seller-login` is overkill — instead: hide all "Seller" UI from buyers. Only role check matters.
+- In `AppShell` / nav: show "Seller area" link only when `roles.includes('seller')`. Buyers never see it.
+- Add `<ProtectedRoute requiredRole="seller">` guard around `/seller/*` routes; non-sellers → redirect to `/dashboard` with toast.
+- Update `SellerApply` page CTA to point buyers there; once approved, give them the `/seller-login` URL.
 
----
-
-## Phased plan
-
-### Phase 1 — VPS API completion (backend-only, no UI changes)
-Add the missing route files in `nexusx-api/src/routes/`:
-- `profiles.ts` — me/get, update display_name, balance read
-- `topups.ts`   — list mine, create (with `multer` screenshot upload), admin approve/reject
-- `withdraws.ts` — list mine, create, admin approve/reject
-- `replacements.ts` — buyer create + list, admin review
-- `seller.ts`   — apply, my-application, daily-limits, upload accounts (CSV), upload audits
-- `accounts.ts` — seller list/upload, admin manage
-- `vpn.ts`      — brands list, vpn order create + detail
-- `notifications.ts` — list mine, mark read (long-poll for now, socket.io later)
-- `admin-extras.ts` — users list, role grant/revoke, audit logs, app_settings, seller-applications review, payment-accounts CRUD
-
-Add a `migrate.ts` script that creates any missing tables on VPS Postgres
-(mirroring the current Supabase schema 1:1, minus `telegram_*` tables).
-
-### Phase 2 — Data migration
-- One-off Node script: `pg_dump` from Supabase → restore to VPS Postgres
-  for: profiles, accounts, categories, orders, order_items, balance_ledger,
-  topup_requests, withdraw_requests, replacement_*, seller_*, vpn_brands,
-  user_roles, app_settings.
-- Re-hash passwords? **No** — Supabase auth.users passwords cannot be exported.
-  Force-reset: send all users a one-time password reset link on first VPS login.
-  (Or: keep admin + seed accounts manually, others sign up fresh.)
-- Move screenshots from Supabase Storage `topup_screenshots` bucket → `/var/www/nexusx-uploads/topups/`.
-
-### Phase 3 — Frontend API client + refactor
-- New file: `src/lib/api.ts` — typed fetch wrapper with cookie auth, base = `VITE_API_BASE`.
-- New file: `src/hooks/useAuth.tsx` rewrite — call `/api/auth/me`, `/login`, `/logout`, `/register`.
-- Refactor each of the 33 files: replace `supabase.from('x').select()` with `api.x.list()` etc.
-  Done in batches by feature area:
-  1. Auth + Login/Register/AdminLogin/ClaimAdmin
-  2. Wallet + Deposit + Topup screenshots
-  3. Browse + OrderDetail + Vpn
-  4. Seller (Apply, Onboarding, Dashboard)
-  5. Replacements
-  6. Admin (Overview, Users, Categories, Brands, Sellers, Payments, Stock, Audits)
-  7. Notifications
-- Delete `src/integrations/supabase/` and `supabase/` directory.
-- Remove all `@supabase/*` deps; remove Lovable Cloud config.
-
-### Phase 4 — Hosting + DNS
-- Build frontend → static files → upload to VPS at `/var/www/buy.nexus-x.cloud/`.
-- nginx vhost: `buy.nexus-x.cloud` (frontend) + `api.nexus-x.cloud` (proxy → :8080).
-- Certbot SSL on both.
-- DNS A records → VPS IP.
-- CI: GitHub Actions workflow for both frontend build+deploy and API restart.
-
-### Phase 5 — Features
-1. **#1 Bulk tiers** — schema: `pricing_tiers (category_id, min_qty, discount_pct)`.
-   Order endpoint applies tier discount; checkout UI shows live discount.
-2. **#5 SLA timer** — already have `accounts.sold_at`. Add `replacement_window_hours`
-   to category. Show countdown badge on order detail; expire visually after window.
-3. **#9 Analytics** — new admin page `/admin/analytics` with revenue/day chart,
-   top categories, top sellers, conversion funnel. Recharts. SQL aggregations
-   exposed via `/api/admin/analytics/*`.
+**Backend (`nexusx-api/`)**
+- No new routes needed; `/api/auth/me` already returns roles.
 
 ---
 
-## Time estimate
+## Phase 2 — Manual admin overrides
 
-| Phase | Effort | Sessions |
-|---|---|---|
-| 1 — API completion | ~1500 lines of route code + tests | 3-4 |
-| 2 — Data migration | scripts + dry runs | 1-2 |
-| 3 — Frontend refactor | 33 files, batched | 4-5 |
-| 4 — Hosting / DNS | nginx + CI | 1 |
-| 5 — Features 1/5/9 | medium per feature | 2-3 |
-| **Total** | | **~12-15 sessions** |
+**Backend new endpoints (`nexusx-api/src/routes/admin.ts`)**
+- `POST /api/admin/orders/:id/cancel-refund` — set order status `cancelled`, refund buyer wallet, mark accounts back to `available`, write ledger + audit
+- `POST /api/admin/replacements/:itemId/manual-replace` — body `{ account_id }`. Admin picks any available account to fulfill replacement
+- `POST /api/admin/bulk` — body `{ entity: 'orders'|'topups'|'withdraws'|'seller_apps'|'replacements', ids: [], action: 'approve'|'reject'|'delete', note? }`
+- All wrapped in DB transactions; all write to `audit_logs`
+
+**Frontend `src/pages/Admin.tsx` (or split into tabs)**
+- Each table row: kebab menu with new actions (Cancel & Refund, Manual Replace, Force Reject)
+- Manual-replace dialog: searchable account picker (by category, available stock)
+- Bulk: row checkboxes + sticky action bar at bottom (Approve N / Reject N / Delete N)
 
 ---
 
-## Starting now
+## Phase 3 — Upgraded admin dashboard
 
-**Phase 1, batch A:** scaffold `profiles`, `topups`, `withdraws`, `notifications`, `seller`
-route files in `nexusx-api/`, plus the `migrate.ts` script with the missing tables.
-No frontend changes yet — site keeps working on current Supabase backend until
-Phase 3.
+Redesign `Admin.tsx` shell into a sidebar + content layout (shadcn `Sidebar`):
 
-## Open questions to confirm before phase 2
-- **Password migration:** force-reset everyone, or keep only admin + re-onboard the rest?
-- **Topup screenshots:** keep on local disk (simple, backed up via VPS snapshot), or use
-  S3-compatible storage like Backblaze B2 for redundancy?
-- **Realtime:** the current app uses Supabase realtime in a couple of places —
-  switch to socket.io (already imported in `server.ts`) or polling?
+```text
+┌──────────┬─────────────────────────────────────┐
+│ Sidebar  │  Topbar: GlobalSearch | Notif | Me  │
+│ Overview ├─────────────────────────────────────┤
+│ Orders   │  KPI cards row                      │
+│ Stock    │  Charts row (revenue, orders/day)   │
+│ Topups   ├──────────────┬──────────────────────┤
+│ Withdraw │  Main panel  │  Activity feed       │
+│ Sellers  │              │  (live updates)      │
+│ Reports  │              │                      │
+└──────────┴──────────────┴──────────────────────┘
+```
+
+**Components**
+- `AdminSidebar.tsx` — collapsible icon sidebar, sections per area
+- `AdminTopbar.tsx` — `GlobalSearch` (cmd-k style) querying `/api/admin/search?q=` across users/orders/accounts/txns
+- `KpiCards.tsx` — today's revenue, pending topups, pending withdraws, low-stock alerts
+- `RevenueChart.tsx` + `OrdersChart.tsx` — using existing `recharts` (already in `charts-*.js` bundle)
+- `ActivityFeed.tsx` — Supabase Realtime channel on `audit_logs` table; live new-event toasts
+- `SellerLeaderboard.tsx` — top-10 sellers by 30-day revenue, with risk badge if replacement-rate > 5%
+
+**Backend additions**
+- `GET /api/admin/dashboard/kpis` — aggregate counts/sums
+- `GET /api/admin/dashboard/timeseries?days=30` — daily revenue + order count
+- `GET /api/admin/dashboard/leaderboard` — top sellers + risk metrics
+- `GET /api/admin/search?q=` — fuzzy across users.email, orders.id, accounts.uid, ledger.note
+
+---
+
+## Phase 4 — Seller payout schedule
+
+**DB migration on VPS postgres** (NOT Supabase — backend uses its own DB):
+```sql
+CREATE TABLE seller_payout_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  period_start date NOT NULL,
+  period_end date NOT NULL,
+  status text NOT NULL DEFAULT 'pending', -- pending|approved|paid
+  created_at timestamptz DEFAULT now(),
+  approved_by uuid, approved_at timestamptz, paid_at timestamptz
+);
+CREATE TABLE seller_payout_items (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  run_id uuid REFERENCES seller_payout_runs(id) ON DELETE CASCADE,
+  seller_id uuid NOT NULL,
+  gross_bdt numeric NOT NULL,
+  refunds_bdt numeric NOT NULL DEFAULT 0,
+  net_bdt numeric NOT NULL,
+  status text NOT NULL DEFAULT 'pending', -- pending|approved|paid|skipped
+  payout_txn_id text, note text
+);
+```
+
+**Backend**
+- `POST /api/admin/payouts/generate?from&to` — creates a run + per-seller items
+- `POST /api/admin/payouts/:runId/approve`
+- `POST /api/admin/payouts/items/:id/mark-paid` — body `{ txn_id }` → credits seller wallet
+- Cron-style endpoint protected by `X-Cron-Secret` header for weekly auto-generation (you'd hit it from a system cron)
+
+**Frontend**
+- New tab in admin: "Payouts" — list of runs, drill into items, approve / mark paid
+
+---
+
+## Phase 5 — Systemd already covered
+
+Done in chat — `/etc/systemd/system/nexusx-api.service`. No code change needed.
+
+---
+
+## Suggested rollout
+
+1. Start with **Phase 1** (small, isolated, immediate UX win).
+2. Then **Phase 2** (high-value admin power, no schema change).
+3. Then **Phase 3** (visual upgrade, builds on phase 2 endpoints).
+4. **Phase 4** last (touches new tables, deploy carefully).
+
+---
+
+## What I need from you to proceed
+
+1. **Confirm rollout order** above, or reorder.
+2. **Authorize Phase 1 start** — I'll implement seller-login + role guards immediately, you redeploy with the standard command and we test before moving on.
+3. For Phase 2/3, I'll need to know: do you want **email notifications** to sellers/buyers for these admin actions, or **in-app only**?
+
+Reply "go" + any changes and I'll start with Phase 1.
