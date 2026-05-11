@@ -9,6 +9,7 @@ const PUBLIC_KEYS = new Set([
   "payment_accounts",
   "min_deposit",
   "deposit_instructions",
+  "support_enabled",
 ]);
 
 router.get("/", async (req, res) => {
