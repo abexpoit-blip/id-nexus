@@ -12,7 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Search, Plus, Minus, Shield, ShieldOff, UserCog } from "lucide-react";
+import { Loader2, Search, Plus, Minus, Shield, ShieldOff, UserCog, LogIn } from "lucide-react";
 import { toast } from "sonner";
 
 interface UserRow {
@@ -74,6 +74,15 @@ export const UsersManager = () => {
       await api.post(`/api/admin/users/${u.user_id}/roles`, has ? { remove: [role] } : { add: [role] });
       toast.success(`${role} ${action}ed`);
       search();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+  };
+
+  const impersonate = async (u: UserRow) => {
+    if (!confirm(`Log in as ${u.email ?? u.user_id}?\n\nYou will be signed out of admin and into this user's account. Log out and log back in as yourself when done.`)) return;
+    try {
+      await api.post(`/api/admin/users/${u.user_id}/impersonate`);
+      toast.success(`Signed in as ${u.email ?? u.user_id}`);
+      window.location.href = "/dashboard";
     } catch (e: any) { toast.error(e?.message || "Failed"); }
   };
 
@@ -149,6 +158,10 @@ export const UsersManager = () => {
                       <Button size="sm" variant="outline" onClick={() => toggleRole(u, "seller")}>
                         <UserCog className="mr-1 h-3 w-3" />
                         {u.roles.includes("seller") ? "Revoke seller" : "Make seller"}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => impersonate(u)}
+                        className="border-accent/40 text-accent">
+                        <LogIn className="mr-1 h-3 w-3" /> Login as
                       </Button>
                     </div>
                   </TableCell>

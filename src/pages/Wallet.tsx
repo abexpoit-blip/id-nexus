@@ -91,7 +91,8 @@ const Wallet = () => {
   const submitWithdraw = async () => {
     const amt = Number(wAmount);
     if (!amt || amt < 100) return toast.error("Minimum withdraw ৳100");
-    if (!wReceiver.trim()) return toast.error("Enter receiver number");
+    if (!/^01[0-9]{9}$/.test(wReceiver.trim())) return toast.error("Enter a valid 11-digit BD mobile number (01XXXXXXXXX)");
+    if (!["bkash", "nagad"].includes(wMethod)) return toast.error("Only bKash and Nagad supported");
     setBusy(true);
     try {
       await api.post("/api/wallet/withdraw", {
