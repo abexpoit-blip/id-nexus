@@ -31,6 +31,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { AppShell } from "@/components/layout/AppShell";
 import { parseSellerUpload } from "@/lib/parseSellerUpload";
 import { SampleFormatHelp } from "@/components/seller/SampleFormatHelp";
+import { MessagesPanel } from "@/components/MessagesPanel";
+import { NotificationPrefsPanel } from "@/components/NotificationPrefsPanel";
 import {
   Dialog,
   DialogContent,
@@ -1935,6 +1937,10 @@ const SellerDashboard = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        <div className="mt-8 grid gap-4 lg:grid-cols-2">
+          <MessagesPanel />
+          <NotificationPrefsPanel />
+        </div>
     </AppShell>
   );
 };

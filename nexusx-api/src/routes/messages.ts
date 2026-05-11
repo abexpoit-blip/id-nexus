@@ -58,6 +58,17 @@ router.get("/admin/threads", authRequired, requireRole("admin"), async (_req, re
   res.json({ threads: rows });
 });
 
+// Lightweight summary for sidebar badge
+router.get("/admin/unread-summary", authRequired, requireRole("admin"), async (_req, res) => {
+  const [r] = await q(
+    `SELECT COUNT(*)::int AS unread,
+            COUNT(DISTINCT thread_user_id)::int AS threads
+       FROM admin_messages
+      WHERE sender_is_admin=false AND read_at IS NULL`
+  );
+  res.json({ unread: r?.unread ?? 0, threads: r?.threads ?? 0 });
+});
+
 router.get("/admin/thread/:userId", authRequired, requireRole("admin"), async (req, res) => {
   const rows = await q(
     `SELECT id, sender_is_admin, body, read_at, created_at

@@ -20,7 +20,7 @@ export const AdminSidebar = ({
 }: {
   active: AdminSection;
   onSelect: (s: AdminSection) => void;
-  pendingCounts?: { replacements?: number; topups?: number; withdraws?: number; applications?: number };
+  pendingCounts?: { replacements?: number; topups?: number; withdraws?: number; applications?: number; messages?: number };
 }) => {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -33,7 +33,7 @@ export const AdminSidebar = ({
         { id: "overview", title: "Overview", icon: LayoutDashboard },
         { id: "orders", title: "Orders", icon: ShoppingCart },
         { id: "replacements", title: "Replacements", icon: RefreshCcw, badge: c.replacements },
-        { id: "messages", title: "Messaging", icon: MessageCircle },
+        { id: "messages", title: "Messaging", icon: MessageCircle, badge: c.messages },
         { id: "payments", title: "Payments", icon: CreditCard, badge: (c.topups ?? 0) + (c.withdraws ?? 0) },
         { id: "payouts", title: "Payout schedule", icon: CalendarClock },
       ],
