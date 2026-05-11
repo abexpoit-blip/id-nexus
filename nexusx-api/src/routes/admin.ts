@@ -791,4 +791,129 @@ router.post("/users/:id/impersonate", authRequired, requireRole("admin"), async 
   res.json({ ok: true, user: { id: u.id, email: u.email } });
 });
 
+// ===== ORDERS — list + manual cancel & refund =====
+// GET /api/admin/orders?q=&status=&page=&page_size=
+router.get("/orders", async (req, res) => {
+  const search = (req.query.q ? String(req.query.q) : "").trim().toLowerCase();
+  const status = req.query.status ? String(req.query.status) : "";
+  const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+  const pageSize = Math.min(100, Math.max(5, parseInt(String(req.query.page_size || "25"), 10) || 25));
+  const offset = (page - 1) * pageSize;
+
+  const where: string[] = [];
+  const params: any[] = [];
+  if (status) { params.push(status); where.push(`o.status = $${params.length}`); }
+  if (search) {
+    const like = `%${search}%`;
+    const idMatch = /^[0-9a-f-]{8,}$/i.test(search) ? search : null;
+    params.push(like, like);
+    let clause = `(LOWER(p.email) LIKE $${params.length - 1} OR LOWER(COALESCE(p.display_name,'')) LIKE $${params.length})`;
+    if (idMatch) { params.push(idMatch); clause = `(${clause} OR o.id::text = $${params.length} OR o.buyer_id::text = $${params.length})`; }
+    where.push(clause);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const baseFrom = `FROM orders o LEFT JOIN profiles p ON p.id = o.buyer_id LEFT JOIN categories c ON c.id = o.category_id ${whereSql}`;
+  const [{ c: total }] = await q<{ c: number }>(`SELECT COUNT(*)::int AS c ${baseFrom}`, params);
+  const rows = await q(
+    `SELECT o.id, o.buyer_id, o.category_id, o.quantity, o.unit_price_bdt, o.total_bdt,
+            o.status, o.created_at, p.email AS buyer_email, p.display_name AS buyer_name,
+            c.name AS category_name
+       ${baseFrom}
+       ORDER BY o.created_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, pageSize, offset]
+  );
+  res.json({ rows, total, page, page_size: pageSize });
+});
+
+// Manual cancel & refund — reverses an order: refunds buyer, returns accounts to available, audits.
+router.post("/orders/:id/cancel-refund", async (req: AuthedReq, res) => {
+  const note = typeof req.body?.note === "string" ? req.body.note : null;
+  const [o] = await q(`SELECT * FROM orders WHERE id=$1 FOR UPDATE`, [req.params.id]);
+  if (!o) return res.status(404).json({ error: "not_found" });
+  if (o.status === "cancelled" || o.status === "refunded")
+    return res.status(400).json({ error: "already_reversed" });
+
+  // Refund buyer wallet
+  const [pre] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1 FOR UPDATE`, [o.buyer_id]);
+  const before = Number(pre?.balance_bdt ?? 0);
+  const after = before + Number(o.total_bdt);
+  await q(`UPDATE profiles SET balance_bdt=$1 WHERE id=$2`, [after, o.buyer_id]);
+  await q(
+    `INSERT INTO balance_ledger(user_id, kind, amount_bdt, balance_after, reference_id, note)
+       VALUES($1,'refund',$2,$3,$4,$5)`,
+    [o.buyer_id, o.total_bdt, after, o.id, note || "Admin cancel & refund"]
+  );
+
+  // Return accounts to available pool
+  await q(
+    `UPDATE accounts SET status='available', buyer_id=NULL, sold_at=NULL
+       WHERE id IN (SELECT account_id FROM order_items WHERE order_id=$1)`,
+    [o.id]
+  );
+  await q(`UPDATE orders SET status='cancelled', updated_at=now() WHERE id=$1`, [o.id]);
+
+  await q(
+    `INSERT INTO audit_logs(actor_id, actor_email, event_type, entity_type, entity_id, summary, details)
+       VALUES($1,$2,'order_cancel_refund','order',$3,$4,$5)`,
+    [req.user!.id, req.user!.email, o.id,
+     `Cancelled & refunded order ${o.id} (৳${Number(o.total_bdt).toFixed(2)})`,
+     JSON.stringify({ buyer_id: o.buyer_id, amount: Number(o.total_bdt), note })]
+  );
+  res.json({ ok: true, balance_before: before, balance_after: after, amount: Number(o.total_bdt) });
+});
+
+// ===== BULK — replacement items reject =====
+router.post("/replacement-items/bulk-reject", async (req: AuthedReq, res) => {
+  const ids = sanitizeIds(req.body?.ids);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason : null;
+  if (ids.length === 0) return res.status(400).json({ error: "no_ids" });
+  const results: { id: string; ok: boolean; error?: string }[] = [];
+  for (const id of ids) {
+    try {
+      const [item] = await q(`SELECT outcome FROM replacement_items WHERE id=$1 FOR UPDATE`, [id]);
+      if (!item) { results.push({ id, ok: false, error: "not_found" }); continue; }
+      if (item.outcome !== "pending") { results.push({ id, ok: false, error: "already_resolved" }); continue; }
+      await q(
+        `UPDATE replacement_items SET outcome='rejected', outcome_reason=$2,
+           resolved_by=$3, resolved_at=now() WHERE id=$1`,
+        [id, reason, req.user!.id]
+      );
+      results.push({ id, ok: true });
+    } catch (e: any) { results.push({ id, ok: false, error: e?.message || "internal_error" }); }
+  }
+  res.json({ results });
+});
+
+// ===== BULK — seller applications approve/reject =====
+router.post("/seller-applications/bulk", async (req: AuthedReq, res) => {
+  const ids = sanitizeIds(req.body?.ids);
+  const action = req.body?.action === "reject" ? "reject" : "approve";
+  const note = typeof req.body?.note === "string" ? req.body.note : null;
+  if (ids.length === 0) return res.status(400).json({ error: "no_ids" });
+  const results: { id: string; ok: boolean; error?: string }[] = [];
+  for (const id of ids) {
+    try {
+      const [a] = await q(`SELECT * FROM seller_applications WHERE id=$1`, [id]);
+      if (!a) { results.push({ id, ok: false, error: "not_found" }); continue; }
+      if (a.status !== "pending") { results.push({ id, ok: false, error: "already_reviewed" }); continue; }
+      if (action === "approve") {
+        await q(`INSERT INTO user_roles(user_id, role) VALUES($1,'seller') ON CONFLICT DO NOTHING`, [a.user_id]);
+        await q(`DELETE FROM user_roles WHERE user_id=$1 AND role='buyer'`, [a.user_id]);
+        await q(
+          `UPDATE seller_applications SET status='approved', reviewed_by=$2, reviewed_at=now() WHERE id=$1`,
+          [a.id, req.user!.id]
+        );
+      } else {
+        await q(
+          `UPDATE seller_applications SET status='rejected', admin_note=$2, reviewed_by=$3, reviewed_at=now() WHERE id=$1`,
+          [a.id, note, req.user!.id]
+        );
+      }
+      results.push({ id, ok: true });
+    } catch (e: any) { results.push({ id, ok: false, error: e?.message || "internal_error" }); }
+  }
+  res.json({ results });
+});
+
 export default router;
