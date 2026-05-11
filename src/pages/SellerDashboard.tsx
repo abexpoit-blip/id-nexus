@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -149,7 +149,7 @@ const STEP_LABELS: Record<UploadStep, string> = {
 };
 
 const SellerDashboard = () => {
-  const { user, roles, loading: authLoading } = useAuth();
+  const { user, profile, roles, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState<string>("");
@@ -199,22 +199,14 @@ const SellerDashboard = () => {
   useEffect(() => {
     if (!user || authLoading) return;
     if (!roles.includes("seller")) return; // admins skip
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("buyer_settings")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (cancelled) return;
-      const onboarded = (data?.buyer_settings as any)?.seller_onboarded_at;
-      if (!onboarded) {
-        navigate("/seller/onboarding", { replace: true });
-      }
-    })();
-    return () => { cancelled = true; };
+    const onboarded =
+      (profile?.buyer_settings as any)?.seller_onboarded_at ||
+      (profile?.buyer_settings as any)?.seller_onboarded;
+    if (!onboarded) {
+      navigate("/seller/onboarding", { replace: true });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, authLoading, roles.join(",")]);
+  }, [user?.id, authLoading, roles.join(","), profile?.buyer_settings]);
 
   // Pre-select category chosen during onboarding wizard
   useEffect(() => {
@@ -280,80 +272,24 @@ const SellerDashboard = () => {
     if (!user) return;
     setCategoriesLoading(true);
     setCategoriesError(null);
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const startOfWeek = new Date();
-    startOfWeek.setHours(0, 0, 0, 0);
-    startOfWeek.setDate(startOfWeek.getDate() - 6); // last 7 days incl. today
-
-    let cats: any[] | null = null;
-    let myAccounts: any[] | null = null;
-    let recentRows: any[] | null = null;
-    let todayCount: number | null = 0;
-    let weekCount: number | null = 0;
-    let rpItems: any[] | null = null;
+    let data: any;
     try {
-      const results = await Promise.all([
-      supabase
-        .from("categories")
-        .select("id, name, slug, price_bdt")
-        .eq("is_active", true)
-        .eq("kind", "fb_account")
-        .order("sort_order"),
-      supabase
-        .from("accounts")
-        .select("id, category_id, status")
-        .eq("seller_id", user.id),
-      supabase
-        .from("accounts")
-        .select("uid, status, sold_at, created_at, category_id")
-        .eq("seller_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(20),
-      supabase
-        .from("accounts")
-        .select("id", { count: "exact", head: true })
-        .eq("seller_id", user.id)
-        .eq("status", "sold")
-        .gte("sold_at", startOfDay.toISOString()),
-      supabase
-        .from("accounts")
-        .select("id", { count: "exact", head: true })
-        .eq("seller_id", user.id)
-        .eq("status", "sold")
-        .gte("sold_at", startOfWeek.toISOString()),
-      supabase
-        .from("replacement_items")
-        .select("id, reported_uid, outcome, outcome_reason, in_window, created_at, account_id")
-        .eq("seller_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(100),
-      ]);
-      cats = results[0].data as any[] | null;
-      myAccounts = results[1].data as any[] | null;
-      recentRows = results[2].data as any[] | null;
-      todayCount = results[3].count;
-      weekCount = results[4].count;
-      rpItems = results[5].data as any[] | null;
-      if (results[0].error) throw results[0].error;
+      data = await api.get<any>("/api/seller/overview");
     } catch (err: any) {
-      setCategoriesError(err?.message || "Failed to load categories");
+      setCategoriesError(err?.message || "Failed to load");
       setCategoriesLoading(false);
       return;
     }
+    const cats = data.categories as any[];
+    const myAccounts = data.my_accounts as any[];
+    const recentRows = data.recent as any[];
     setCategories((cats ?? []) as Category[]);
     setCategoriesLoading(false);
-    setSoldToday(todayCount ?? 0);
-    setSoldWeek(weekCount ?? 0);
-    setReplacements((rpItems ?? []) as ReplacementRow[]);
-
-    // Daily limit + uploaded-today (UTC day)
-    const [{ data: limitVal }, { data: usedVal }] = await Promise.all([
-      supabase.rpc("get_seller_daily_limit", { _seller_id: user.id }),
-      supabase.rpc("get_seller_today_uploaded", { _seller_id: user.id }),
-    ]);
-    setDailyLimit(Number(limitVal ?? 0));
-    setUsedToday(Number(usedVal ?? 0));
+    setSoldToday(Number(data.sold_today ?? 0));
+    setSoldWeek(Number(data.sold_week ?? 0));
+    setReplacements((data.replacements ?? []) as ReplacementRow[]);
+    setDailyLimit(Number(data.daily_limit ?? 0));
+    setUsedToday(Number(data.used_today ?? 0));
 
     // Map account_id -> category_id for filter
     const acctMap: Record<string, string> = {};
@@ -378,26 +314,8 @@ const SellerDashboard = () => {
   useEffect(() => {
     loadAll();
     if (!user) return;
-    const acctChannel = supabase
-      .channel("seller-accounts-" + user.id)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "accounts", filter: `seller_id=eq.${user.id}` },
-        () => loadAll(),
-      )
-      .subscribe();
-    const rpChannel = supabase
-      .channel("seller-replacements-" + user.id)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "replacement_items", filter: `seller_id=eq.${user.id}` },
-        () => loadAll(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(acctChannel);
-      supabase.removeChannel(rpChannel);
-    };
+    const t = setInterval(loadAll, 30_000);
+    return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -545,30 +463,27 @@ const SellerDashboard = () => {
       const CHUNK = 500;
       for (let i = 0; i < uidList.length; i += CHUNK) {
         const slice = uidList.slice(i, i + CHUNK);
-        // Check across ALL sellers for "replaced" status (UID was already swapped out
-        // somewhere in the system — must never re-enter live stock).
-        const { data: existing, error: dupErr } = await supabase
-          .from("accounts")
-          .select("uid, status, seller_id")
-          .in("uid", slice);
-        if (dupErr) {
-          const msg = "Could not verify duplicates: " + dupErr.message;
+        try {
+          const { rows: existing, self_id } = await api.post<{
+            rows: { uid: string; status: string; seller_id: string }[];
+            self_id: string;
+          }>("/api/seller/check-uids", { uids: slice });
+          for (const row of existing ?? []) {
+            const uid = String(row.uid);
+            if (row.status === "replaced") {
+              dupReplaced.add(uid);
+            } else if (row.seller_id === self_id) {
+              dupInStock.add(uid);
+            } else {
+              dupInStock.add(uid);
+            }
+          }
+        } catch (e: any) {
+          const msg = "Could not verify duplicates: " + (e?.message || "error");
           setParseError(msg);
           setUploadStep("error");
           toast.error(msg);
           return null;
-        }
-        for (const row of existing ?? []) {
-          const uid = String(row.uid);
-          if (row.status === "replaced") {
-            dupReplaced.add(uid);
-          } else if (row.seller_id === user.id) {
-            // Counts only seller's own active rows for the "in stock" rule.
-            dupInStock.add(uid);
-          } else {
-            // Another seller already owns this UID — treat as in-stock collision so it's blocked.
-            dupInStock.add(uid);
-          }
         }
       }
     }
@@ -607,18 +522,14 @@ const SellerDashboard = () => {
   const loadAudits = async () => {
     if (!user) return;
     setAuditsLoading(true);
-    const { data, error } = await supabase
-      .from("seller_upload_audits")
-      .select("*")
-      .eq("seller_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    setAuditsLoading(false);
-    if (error) {
-      toast.error("Failed to load upload history: " + error.message);
-      return;
+    try {
+      const { audits } = await api.get<{ audits: any[] }>("/api/seller/uploads");
+      setAudits(audits ?? []);
+    } catch (e: any) {
+      toast.error("Failed to load upload history: " + (e?.message || "error"));
+    } finally {
+      setAuditsLoading(false);
     }
-    setAudits(data ?? []);
   };
 
   useEffect(() => {
@@ -842,54 +753,42 @@ const SellerDashboard = () => {
     const tick = window.setInterval(() => {
       setUploadProgress((p) => (p < 90 ? p + 7 : p));
     }, 250);
-    const { data, error } = await supabase.rpc("seller_upload_accounts", {
-      p_category_id: categoryId,
-      p_rows: rowsToSend as any,
-    });
+    let r: any;
+    try {
+      r = await api.post<any>("/api/seller/accounts", {
+        category_id: categoryId,
+        rows: rowsToSend,
+        file_name: fileName || undefined,
+        skip_duplicates: skipDuplicates,
+      });
+    } catch (e: any) {
+      window.clearInterval(tick);
+      setUploading(false);
+      const m = e?.message || "Upload failed";
+      setUploadError(m);
+      setUploadStep("error");
+      toast.error(m);
+      return;
+    }
     window.clearInterval(tick);
     setUploadProgress(100);
     setUploadStep("confirming");
     setUploading(false);
-    if (error) {
-      setUploadError(error.message);
-      setUploadStep("error");
-      toast.error(error.message);
-      return;
-    }
-    const r = data as any;
     const overLimit = Number(r.over_limit_skipped ?? 0);
-    const remaining = Number(r.remaining_after ?? 0);
-    let msg = `Inserted ${r.inserted} new IDs. Duplicates: ${r.duplicate_count ?? 0}, invalid: ${r.invalid_count ?? 0}.`;
+    const inserted = Number(r.rows_inserted ?? 0);
+    const dupCount =
+      Number(r.duplicates_in_file ?? 0) +
+      Number(r.duplicates_in_stock ?? 0) +
+      Number(r.duplicates_already_replaced ?? 0);
+    const invalid = Number(r.invalid_rows ?? 0);
+    let msg = `Inserted ${inserted} new IDs. Duplicates: ${dupCount}, invalid: ${invalid}.`;
     if (overLimit > 0) {
       msg += ` ${overLimit} rows skipped — daily limit reached.`;
       toast.warning(msg);
     } else {
-      toast.success(msg + (remaining >= 0 ? ` ${remaining} uploads left today.` : ""));
+      toast.success(msg);
     }
-
-    // Persist audit log row (best-effort — failure shouldn't block UX)
-    try {
-      const catName = categories.find((c) => c.id === categoryId)?.name ?? null;
-      await supabase.from("seller_upload_audits").insert({
-        seller_id: user!.id,
-        category_id: categoryId,
-        category_name: catName,
-        file_name: fileName || null,
-        rows_in_file: parsed.length,
-        rows_sent: rowsToSend.length,
-        rows_inserted: Number(r.inserted ?? 0),
-        duplicates_in_stock: fresh.duplicatesInStock.length,
-        duplicates_in_file: fresh.duplicatesInFile.length,
-        duplicates_already_replaced: fresh.duplicatesReplaced.length,
-        invalid_rows: Number(r.invalid_count ?? 0),
-        over_limit_skipped: overLimit,
-        skip_duplicates_setting: skipDuplicates,
-        server_response: r,
-      });
-      loadAudits();
-    } catch {
-      // audit insert is best-effort; ignore failures silently
-    }
+    loadAudits();
 
     setParsed(null);
     setFileName("");
