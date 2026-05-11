@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { toast } from "sonner";
 const OWNER_EMAIL = "samexpoit@gmail.com";
 
 const ClaimAdmin = () => {
-  const { user, roles, loading } = useAuth();
+  const { user, roles, loading, refresh } = useAuth();
   const navigate = useNavigate();
   const [working, setWorking] = useState(false);
 
@@ -31,14 +31,11 @@ const ClaimAdmin = () => {
   const claim = async () => {
     setWorking(true);
     try {
-      const { data, error } = await supabase.rpc("claim_admin_self");
-      if (error) throw error;
-      const res = data as { ok: boolean; error?: string };
+      const res = await api.post<{ ok: boolean; error?: string }>("/api/auth/claim-admin");
       if (!res?.ok) throw new Error(res?.error ?? "Failed to claim admin");
+      await refresh();
       toast.success("✅ Admin role granted! Redirecting…");
-      // Force a fresh role read by reloading
       setTimeout(() => navigate("/admin", { replace: true }), 700);
-      setTimeout(() => window.location.reload(), 1500);
     } catch (e: any) {
       toast.error(e?.message ?? "Failed");
     } finally {
