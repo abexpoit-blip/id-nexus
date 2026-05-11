@@ -233,4 +233,33 @@ router.get("/top", async (_req, res) => {
   res.json({ sellers: rows.map((s:any)=>({ ...s, tier: tierFor(Number(s.sales_lifetime||0)) })) });
 });
 
+// ===== PUBLIC: seller profile =====
+router.get("/profile/:id", async (req, res) => {
+  const id = req.params.id;
+  const [s] = await q(
+    `SELECT u.id AS seller_id, u.email,
+        COALESCE(p.display_name, split_part(u.email,'@',1)) AS display_name,
+        p.is_banned, u.created_at AS joined_at,
+        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id),0) AS sales_lifetime,
+        COALESCE((SELECT SUM(oi.unit_price_bdt)::float FROM order_items oi WHERE oi.seller_id=u.id),0) AS revenue_lifetime,
+        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id
+                 AND oi.created_at >= now() - interval '30 days'),0) AS sales_30d,
+        COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.seller_id=u.id),0) AS replacements_total,
+        COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.seller_id=u.id
+                  AND ri.outcome IN ('replaced','refunded')),0) AS replacements_upheld,
+        COALESCE((SELECT COUNT(*)::int FROM accounts a WHERE a.seller_id=u.id AND a.status='available'),0) AS available_stock
+      FROM users u
+      JOIN user_roles r ON r.user_id=u.id AND r.role='seller'
+      LEFT JOIN profiles p ON p.id=u.id
+      WHERE u.id=$1`,
+    [id]
+  );
+  if (!s) return res.status(404).json({ error: "not_found" });
+  const sales = Number(s.sales_lifetime || 0);
+  const tier = sales>=1000?"platinum":sales>=250?"gold":sales>=50?"silver":sales>=1?"bronze":"none";
+  const upheldRate = sales > 0 ? Number(s.replacements_upheld) / sales : 0;
+  const reliability = Math.max(0, Math.min(100, Math.round((1 - upheldRate) * 100)));
+  res.json({ seller: { ...s, tier, reliability_pct: reliability, is_banned: Boolean(s.is_banned) } });
+});
+
 export default router;
