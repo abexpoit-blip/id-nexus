@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,34 +30,27 @@ const VpnOrderDetail = () => {
   useEffect(() => {
     if (!id) return;
     (async () => {
-      const { data: o, error } = await supabase
-        .from("orders")
-        .select("id, quantity, unit_price_bdt, total_bdt, status, created_at, category_id")
-        .eq("id", id)
-        .maybeSingle();
-      if (error || !o) { toast.error("Order not found"); setLoading(false); return; }
-      setOrder(o);
-
-      const [{ data: items }, { data: cat }] = await Promise.all([
-        supabase
-          .from("order_items")
-          .select("accounts(uid, password, two_fa, email, email_password)")
-          .eq("order_id", id),
-        supabase
-          .from("categories")
-          .select("name, duration_days, brand_id, vpn_brands(name, logo_url)")
-          .eq("id", o.category_id)
-          .maybeSingle(),
-      ]);
-
-      setAccounts((items ?? []).map((it: any) => it.accounts).filter(Boolean));
-      if (cat) {
-        setCategoryName((cat as any).name);
-        setDurationDays((cat as any).duration_days);
-        const brand = (cat as any).vpn_brands;
-        if (brand) { setBrandName(brand.name); setBrandLogo(brand.logo_url); }
+      try {
+        const { order: o, items } = await api.get<{ order: any; items: any[] }>(`/api/orders/${id}`);
+        setOrder(o);
+        setAccounts(
+          (items || []).map((it: any) => ({
+            uid: it.uid,
+            password: it.password,
+            two_fa: it.two_fa,
+            email: it.email,
+            email_password: it.email_password,
+          })),
+        );
+        setCategoryName(o.category_name || "");
+        setDurationDays(o.duration_days ?? null);
+        if (o.brand_name) setBrandName(o.brand_name);
+        if (o.brand_logo_url) setBrandLogo(o.brand_logo_url);
+      } catch {
+        toast.error("Order not found");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, [id]);
 
