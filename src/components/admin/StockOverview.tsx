@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -25,9 +25,9 @@ export const StockOverview = () => {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc("admin_stock_overview");
-    if (!error) {
-      setRows(((data ?? []) as any[]).map((r) => ({
+    try {
+      const { stock } = await api.get<{ stock: any[] }>("/api/admin/stock");
+      setRows((stock ?? []).map((r) => ({
         category_id: r.category_id,
         category_name: r.category_name,
         price_bdt: Number(r.price_bdt),
@@ -37,7 +37,7 @@ export const StockOverview = () => {
         bad: Number(r.bad),
         total: Number(r.total),
       })));
-    }
+    } catch { /* ignore */ }
     setLoading(false);
   };
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,13 +46,12 @@ export const CategoriesManager = () => {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("categories")
-      .select("*")
-      .order("sort_order");
-    if (error) toast.error(error.message);
-    setRows((data ?? []) as Category[]);
-    setLoading(false);
+    try {
+      const { categories } = await api.get<{ categories: Category[] }>("/api/admin/categories");
+      setRows(categories ?? []);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed");
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
@@ -60,36 +59,30 @@ export const CategoriesManager = () => {
   const save = async () => {
     if (!editing) return;
     setSaving(true);
-    const { error } = await supabase.rpc("admin_upsert_category", {
-      p_id: (editing.id as string) ?? null,
-      p_name: editing.name ?? "",
-      p_slug: editing.slug ?? "",
-      p_kind: (editing.kind ?? "fb_account") as "fb_account" | "vpn",
-      p_price_bdt: Number(editing.price_bdt ?? 0),
-      p_description: editing.description ?? null,
-      p_is_active: editing.is_active ?? true,
-      p_sort_order: Number(editing.sort_order ?? 0),
-    });
-    setSaving(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success(editing.id ? "Category updated" : "Category created");
-    setEditing(null);
-    load();
+    try {
+      await api.post("/api/admin/categories/upsert", {
+        id: editing.id ?? null,
+        name: editing.name ?? "",
+        slug: editing.slug ?? "",
+        kind: editing.kind ?? "fb_account",
+        price_bdt: Number(editing.price_bdt ?? 0),
+        description: editing.description ?? null,
+        is_active: editing.is_active ?? true,
+        sort_order: Number(editing.sort_order ?? 0),
+      });
+      toast.success(editing.id ? "Category updated" : "Category created");
+      setEditing(null);
+      load();
+    } catch (e: any) { toast.error(e?.message || "Save failed"); }
+    finally { setSaving(false); }
   };
 
   const toggleActive = async (c: Category) => {
-    const { error } = await supabase.rpc("admin_upsert_category", {
-      p_id: c.id,
-      p_name: c.name,
-      p_slug: c.slug,
-      p_kind: c.kind,
-      p_price_bdt: c.price_bdt,
-      p_description: c.description,
-      p_is_active: !c.is_active,
-      p_sort_order: c.sort_order,
-    });
-    if (error) toast.error(error.message);
-    else { toast.success(c.is_active ? "Hidden" : "Activated"); load(); }
+    try {
+      await api.patch(`/api/admin/categories/${c.id}`, { is_active: !c.is_active });
+      toast.success(c.is_active ? "Hidden" : "Activated");
+      load();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
   };
 
   return (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,12 +37,9 @@ export const PaymentAccountsManager = () => {
     }
     setSaving(true);
     try {
-      const { error } = await supabase.rpc("admin_save_payment_accounts", {
-        p_accounts: draft as any,
-        p_min_deposit: draftMin as any,
-      });
-      if (error) throw error;
-      toast.success("✅ Payment accounts saved & broadcast in realtime");
+      await api.put(`/api/admin/settings/payment_accounts`, { value: draft });
+      await api.put(`/api/admin/settings/min_deposit`, { value: draftMin });
+      toast.success("✅ Payment accounts saved");
       refresh();
     } catch (e: any) {
       toast.error(e?.message ?? "Save failed");
