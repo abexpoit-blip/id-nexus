@@ -22,6 +22,7 @@ import notifications from "./routes/notifications";
 import vpn from "./routes/vpn";
 import uploads from "./routes/uploads";
 import settings from "./routes/settings";
+import messages from "./routes/messages";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -52,6 +53,7 @@ app.use("/api/notifications", notifications);
 app.use("/api/vpn", vpn);
 app.use("/api/uploads", uploads);
 app.use("/api/settings", settings);
+app.use("/api/messages", messages);
 
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error(err);
