@@ -10,6 +10,8 @@ const PUBLIC_KEYS = new Set([
   "min_deposit",
   "deposit_instructions",
   "support_enabled",
+  "seller_applications_enabled",
+  "vpn_service_enabled",
 ]);
 
 router.get("/", async (req, res) => {
