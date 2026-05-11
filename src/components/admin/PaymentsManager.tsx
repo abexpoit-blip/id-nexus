@@ -492,6 +492,139 @@ export const PaymentsManager = () => {
   const fmtBdt = (n: number | null | undefined) =>
     n == null ? "—" : `৳ ${Number(n).toFixed(0)}`;
 
+  // ===== Bulk selection helpers =====
+  const isTopupSelectable = (r: Topup) => r.status === "pending";
+  const isWithdrawSelectable = (r: Withdraw) =>
+    r.status === "pending" || r.status === "approved";
+
+  const toggleTopup = (id: string) =>
+    setSelectedTopups((s) => {
+      const next = new Set(s);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const toggleWithdraw = (id: string) =>
+    setSelectedWithdraws((s) => {
+      const next = new Set(s);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const selectableTopupIds = topups.filter(isTopupSelectable).map((r) => r.id);
+  const selectableWithdrawIds = withdraws
+    .filter((r) => r.status === "pending") // only pending can be bulk-rejected
+    .map((r) => r.id);
+
+  const allTopupsSelected =
+    selectableTopupIds.length > 0 &&
+    selectableTopupIds.every((id) => selectedTopups.has(id));
+  const allWithdrawsSelected =
+    selectableWithdrawIds.length > 0 &&
+    selectableWithdrawIds.every((id) => selectedWithdraws.has(id));
+
+  const toggleAllTopups = () =>
+    setSelectedTopups(allTopupsSelected ? new Set() : new Set(selectableTopupIds));
+  const toggleAllWithdraws = () =>
+    setSelectedWithdraws(allWithdrawsSelected ? new Set() : new Set(selectableWithdrawIds));
+
+  // Build summary for confirmation dialog
+  type BulkSummary = {
+    rows: Array<{
+      id: string;
+      userId: string;
+      userLabel: string;
+      amount: number;
+      balance: number | null;
+      projected: number | null;
+      method: string;
+      warning?: string;
+    }>;
+    totalAmount: number;
+    perUser: Record<string, { label: string; current: number | null; delta: number; after: number | null; insufficient?: boolean }>;
+  };
+
+  const buildBulkSummary = (action: BulkAction): BulkSummary => {
+    const isApprove = action === "approve-topups";
+    const sourceRows = action === "reject-withdraws"
+      ? withdraws.filter((r) => selectedWithdraws.has(r.id))
+      : topups.filter((r) => selectedTopups.has(r.id));
+    const sign = action === "approve-topups" ? 1 : 0; // reject = no balance change
+    const rows = sourceRows.map((r: any) => {
+      const bal = userBalance(r.user_id);
+      const amount = Number(r.amount_bdt);
+      const projected = bal == null ? null : bal + sign * amount;
+      return {
+        id: r.id,
+        userId: r.user_id,
+        userLabel: userLabel(r.user_id),
+        amount,
+        balance: bal,
+        projected,
+        method: r.method,
+      };
+    });
+    // Aggregate per user (multiple selected items per user accumulate)
+    const perUser: BulkSummary["perUser"] = {};
+    for (const r of rows) {
+      const cur = perUser[r.userId] ?? {
+        label: r.userLabel,
+        current: r.balance,
+        delta: 0,
+        after: r.balance,
+      };
+      cur.delta += sign * r.amount;
+      cur.after = cur.current == null ? null : cur.current + cur.delta;
+      perUser[r.userId] = cur;
+    }
+    return {
+      rows,
+      totalAmount: rows.reduce((s, r) => s + r.amount, 0),
+      perUser,
+    };
+  };
+
+  const submitBulk = async () => {
+    if (!bulkConfirm) return;
+    const ids = bulkConfirm === "reject-withdraws"
+      ? Array.from(selectedWithdraws)
+      : Array.from(selectedTopups);
+    if (ids.length === 0) return;
+    setBulkSubmitting(true);
+    try {
+      const path =
+        bulkConfirm === "approve-topups"
+          ? "/api/admin/topups/bulk-approve"
+          : bulkConfirm === "reject-topups"
+            ? "/api/admin/topups/bulk-reject"
+            : "/api/admin/withdraws/bulk-reject";
+      const body: any = { ids };
+      if (bulkConfirm !== "approve-topups") body.note = bulkNote || null;
+      const data = await api.post<{ results: BulkResultRow[] }>(path, body);
+      const rows = data.results || [];
+      const okCount = rows.filter((r) => r.ok).length;
+      const failCount = rows.length - okCount;
+      if (failCount === 0) toast.success(`${okCount} request${okCount === 1 ? "" : "s"} processed`);
+      else if (okCount === 0) toast.error(`All ${failCount} failed`);
+      else toast.warning(`${okCount} succeeded, ${failCount} failed`);
+      setBulkResults({ action: bulkConfirm, rows });
+      setBulkConfirm(null);
+      setBulkNote("");
+      // Clear selection of items that succeeded
+      const okIds = new Set(rows.filter((r) => r.ok).map((r) => r.id));
+      if (bulkConfirm === "reject-withdraws") {
+        setSelectedWithdraws((s) => new Set(Array.from(s).filter((id) => !okIds.has(id))));
+      } else {
+        setSelectedTopups((s) => new Set(Array.from(s).filter((id) => !okIds.has(id))));
+      }
+      // Refresh authoritative state
+      loadAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Bulk action failed");
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
   const pendingTopups = pendingCounts.topups;
   const pendingWds = pendingCounts.withdraws;
 
