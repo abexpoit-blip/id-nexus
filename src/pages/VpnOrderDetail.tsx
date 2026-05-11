@@ -66,7 +66,7 @@ const VpnOrderDetail = () => {
     return new Date(new Date(order.created_at).getTime() + durationDays * 86_400_000);
   }, [order, durationDays]);
 
-  const telegramText = useMemo(() => {
+  const deliveryText = useMemo(() => {
     if (!order) return "";
     const header = `${brandName || categoryName}${durationDays ? ` — ${durationDays} days` : ""}`;
     const body = accounts
@@ -85,12 +85,12 @@ const VpnOrderDetail = () => {
   }, [order, accounts, brandName, categoryName, durationDays, expiresAt]);
 
   const copyAll = async () => {
-    try { await navigator.clipboard.writeText(telegramText); toast.success("Copied to clipboard"); }
+    try { await navigator.clipboard.writeText(deliveryText); toast.success("Copied to clipboard"); }
     catch { toast.error("Copy failed"); }
   };
 
   const downloadTxt = () => {
-    const blob = new Blob([telegramText], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([deliveryText], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -158,7 +158,7 @@ const VpnOrderDetail = () => {
               </div>
             </div>
             <pre className="whitespace-pre-wrap rounded-lg border border-border/40 bg-background/60 p-4 font-mono text-sm leading-relaxed">
-{telegramText}
+{deliveryText}
             </pre>
             <p className="mt-3 text-xs text-muted-foreground">
               ⚠ VPN orders are final — no replacements. Save these credentials immediately.
