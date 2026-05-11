@@ -25,6 +25,7 @@ import settings from "./routes/settings";
 import messages from "./routes/messages";
 import support from "./routes/support";
 import notices from "./routes/notices";
+import plisio from "./routes/plisio";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -58,6 +59,8 @@ app.use("/api/settings", settings);
 app.use("/api/messages", messages);
 app.use("/api/support", support);
 app.use("/api/notices", notices);
+// Plisio mounts /wallet/plisio/* and /webhooks/plisio
+app.use("/api", plisio);
 
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error(err);
