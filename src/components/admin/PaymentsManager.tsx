@@ -176,6 +176,7 @@ export const PaymentsManager = () => {
         setWithdraws(rows as Withdraw[]);
         setWithdrawsTotal(data.total ?? rows.length);
       }
+      setLastRefreshed(new Date());
     } catch (e: any) {
       toast.error(e?.message || "Failed to load payments");
     } finally {
