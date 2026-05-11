@@ -12,7 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Search, Plus, Minus, Shield, ShieldOff, UserCog, LogIn } from "lucide-react";
+import { Loader2, Search, Plus, Minus, Shield, ShieldOff, UserCog, LogIn, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 interface UserRow {
@@ -23,6 +23,10 @@ interface UserRow {
   is_banned: boolean;
   created_at: string;
   roles: string[];
+  orders_count?: number;
+  replacements_filed?: number;
+  replacement_rate?: number;
+  risk_level?: "low" | "medium" | "high";
 }
 
 type AppRole = "admin" | "seller" | "buyer";
@@ -127,6 +131,15 @@ export const UsersManager = () => {
                     <div className="font-medium">{u.display_name ?? "—"}</div>
                     <div className="text-xs text-muted-foreground">{u.email}</div>
                     <div className="font-mono text-[10px] text-muted-foreground">{u.user_id.slice(0, 8)}</div>
+                    {u.risk_level && u.risk_level !== "low" && (
+                      <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                        <AlertTriangle className="h-3 w-3" />
+                        {u.risk_level === "high" ? "HIGH RISK" : "REVIEW"}
+                        <span className="font-normal opacity-80">
+                          · {u.replacements_filed ?? 0}/{u.orders_count ?? 0} replaces
+                        </span>
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="font-display font-semibold text-primary">৳{Number(u.balance_bdt).toFixed(2)}</TableCell>
                   <TableCell>

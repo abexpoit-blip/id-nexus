@@ -203,12 +203,27 @@ router.post("/withdraws/bulk-reject", async (req: AuthedReq, res) => {
 router.get("/users", async (_req, res) => {
   const rows = await q(
     `SELECT u.id, u.email, u.created_at, p.display_name, p.balance_bdt, p.is_banned,
-       COALESCE(array_agg(r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles
+       COALESCE(array_agg(DISTINCT r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles,
+       COALESCE((SELECT COUNT(*)::int FROM orders o WHERE o.buyer_id=u.id AND o.status='completed'),0) AS orders_count,
+       COALESCE((SELECT SUM(total_bdt)::float FROM orders o WHERE o.buyer_id=u.id AND o.status='completed'),0) AS lifetime_spend_bdt,
+       COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.buyer_id=u.id),0) AS replacements_filed,
+       COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.buyer_id=u.id AND ri.outcome='rejected'),0) AS replacements_rejected
      FROM users u LEFT JOIN profiles p ON p.id=u.id
      LEFT JOIN user_roles r ON r.user_id=u.id
      GROUP BY u.id, p.display_name, p.balance_bdt, p.is_banned ORDER BY u.created_at DESC LIMIT 500`
   );
-  res.json({ users: rows });
+  // Risk: replacements_filed / max(orders_count,1); flag if >= 0.25 with at least 3 orders
+  const enriched = rows.map((r: any) => {
+    const oc = Number(r.orders_count || 0);
+    const rf = Number(r.replacements_filed || 0);
+    const rate = oc > 0 ? rf / oc : 0;
+    let risk: "low" | "medium" | "high" = "low";
+    if (oc >= 3 && rate >= 0.5) risk = "high";
+    else if (oc >= 3 && rate >= 0.25) risk = "medium";
+    else if (oc >= 5 && rf >= 4) risk = "medium";
+    return { ...r, replacement_rate: rate, risk_level: risk };
+  });
+  res.json({ users: enriched });
 });
 
 router.post("/users/:id/ban", async (req: AuthedReq, res) => {
@@ -435,14 +450,26 @@ router.get("/users/search", async (req, res) => {
   const wildcard = `%${qs.toLowerCase()}%`;
   const rows = await q(
     `SELECT u.id AS user_id, u.email, u.created_at, p.display_name, p.balance_bdt, p.is_banned,
-       COALESCE(array_agg(r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles
+       COALESCE(array_agg(DISTINCT r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles,
+       COALESCE((SELECT COUNT(*)::int FROM orders o WHERE o.buyer_id=u.id AND o.status='completed'),0) AS orders_count,
+       COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.buyer_id=u.id),0) AS replacements_filed
      FROM users u LEFT JOIN profiles p ON p.id=u.id
      LEFT JOIN user_roles r ON r.user_id=u.id
      ${qs ? `WHERE LOWER(u.email) LIKE $1 OR LOWER(COALESCE(p.display_name,'')) LIKE $1 OR u.id::text = $2` : ""}
      GROUP BY u.id, p.display_name, p.balance_bdt, p.is_banned ORDER BY u.created_at DESC LIMIT 200`,
     qs ? [wildcard, qs] : []
   );
-  res.json({ users: rows });
+  const enriched = rows.map((r: any) => {
+    const oc = Number(r.orders_count || 0);
+    const rf = Number(r.replacements_filed || 0);
+    const rate = oc > 0 ? rf / oc : 0;
+    let risk: "low" | "medium" | "high" = "low";
+    if (oc >= 3 && rate >= 0.5) risk = "high";
+    else if (oc >= 3 && rate >= 0.25) risk = "medium";
+    else if (oc >= 5 && rf >= 4) risk = "medium";
+    return { ...r, replacement_rate: rate, risk_level: risk };
+  });
+  res.json({ users: enriched });
 });
 
 // REPLACEMENTS
@@ -914,6 +941,82 @@ router.post("/seller-applications/bulk", async (req: AuthedReq, res) => {
     } catch (e: any) { results.push({ id, ok: false, error: e?.message || "internal_error" }); }
   }
   res.json({ results });
+});
+
+// ===== SELLER LEADERBOARD with badge tiers =====
+// Tier rules (by completed sales count, lifetime):
+//   bronze:   1+    silver: 50+   gold: 250+   platinum: 1000+
+// Optional bonus_eligible flag for current month top performer.
+router.get("/sellers/leaderboard", async (req, res) => {
+  const days = Math.min(365, Math.max(1, parseInt(String(req.query.days || "30"), 10) || 30));
+  const sellers = await q(
+    `SELECT u.id AS seller_id, u.email, p.display_name, p.is_banned,
+        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id), 0) AS sales_lifetime,
+        COALESCE((SELECT SUM(oi.unit_price_bdt)::float FROM order_items oi WHERE oi.seller_id=u.id), 0) AS revenue_lifetime,
+        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id
+                  AND oi.created_at >= now() - ($1 || ' days')::interval), 0) AS sales_period,
+        COALESCE((SELECT SUM(oi.unit_price_bdt)::float FROM order_items oi WHERE oi.seller_id=u.id
+                  AND oi.created_at >= now() - ($1 || ' days')::interval), 0) AS revenue_period,
+        COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.seller_id=u.id), 0) AS replacements_total,
+        COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.seller_id=u.id
+                  AND ri.outcome IN ('replaced','refunded')), 0) AS replacements_upheld
+      FROM users u
+      JOIN user_roles r ON r.user_id=u.id AND r.role='seller'
+      LEFT JOIN profiles p ON p.id=u.id
+      ORDER BY sales_period DESC NULLS LAST
+      LIMIT 100`,
+    [String(days)]
+  );
+  const tierFor = (n: number): "platinum" | "gold" | "silver" | "bronze" | "none" => {
+    if (n >= 1000) return "platinum";
+    if (n >= 250) return "gold";
+    if (n >= 50) return "silver";
+    if (n >= 1) return "bronze";
+    return "none";
+  };
+  const enriched = sellers.map((s: any, i: number) => {
+    const sales = Number(s.sales_lifetime || 0);
+    const upheldRate = sales > 0 ? Number(s.replacements_upheld || 0) / sales : 0;
+    let risk: "low" | "medium" | "high" = "low";
+    if (sales >= 10 && upheldRate >= 0.15) risk = "high";
+    else if (sales >= 10 && upheldRate >= 0.07) risk = "medium";
+    return {
+      ...s,
+      rank: i + 1,
+      tier: tierFor(sales),
+      risk_level: risk,
+      bonus_eligible: i < 3 && Number(s.sales_period) > 0,
+    };
+  });
+  res.json({ sellers: enriched, period_days: days });
+});
+
+// Pay a discretionary bonus to a seller (top performer reward, etc.)
+router.post("/sellers/:id/bonus", async (req: AuthedReq, res) => {
+  const amount = Number(req.body?.amount_bdt);
+  const note = typeof req.body?.note === "string" ? req.body.note : "Top seller bonus";
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: "invalid_amount" });
+  const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1 FOR UPDATE`, [req.params.id]);
+  if (!p) return res.status(404).json({ error: "user_not_found" });
+  const newBal = Number(p.balance_bdt) + amount;
+  await q(`UPDATE profiles SET balance_bdt=$1 WHERE id=$2`, [newBal, req.params.id]);
+  await q(
+    `INSERT INTO balance_ledger(user_id, kind, amount_bdt, balance_after, note)
+       VALUES($1,'admin_adjustment',$2,$3,$4)`,
+    [req.params.id, amount, newBal, note]
+  );
+  await q(
+    `INSERT INTO notifications(user_id, kind, title, body)
+       VALUES($1,'bonus',$2,$3)`,
+    [req.params.id, `🎉 Bonus credited: ৳${amount.toFixed(2)}`, note]
+  );
+  await q(
+    `INSERT INTO audit_logs(actor_id, actor_email, event_type, entity_type, entity_id, summary, details)
+       VALUES($1,$2,'seller_bonus','user',$3,$4,$5)`,
+    [req.user!.id, req.user!.email, req.params.id,
+     `Paid bonus ৳${amount.toFixed(2)} to seller`, JSON.stringify({ amount, note })]
+  );
+  res.json({ ok: true, balance: newBal });
 });
 
 export default router;
