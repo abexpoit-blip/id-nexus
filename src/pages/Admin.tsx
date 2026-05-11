@@ -397,7 +397,9 @@ const Admin = () => {
         </Card>
         </>
         )}
-      </main>
+          </main>
+        </div>
+      </div>
 
       <Dialog open={!!actingItem} onOpenChange={(o) => !o && setActingItem(null)}>
         <DialogContent>
@@ -456,7 +458,7 @@ const Admin = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </SidebarProvider>
   );
 };
 
