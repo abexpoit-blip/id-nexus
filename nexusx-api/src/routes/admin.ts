@@ -508,7 +508,8 @@ router.post("/withdraws/:id/pay", async (req: AuthedReq, res) => {
   if (!["pending", "approved"].includes(w.status)) return res.status(400).json({ error: "already_paid" });
   const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1 FOR UPDATE`, [w.user_id]);
   if (Number(p.balance_bdt) < Number(w.amount_bdt)) return res.status(400).json({ error: "insufficient_balance" });
-  const newBal = Number(p.balance_bdt) - Number(w.amount_bdt);
+  const balanceBefore = Number(p.balance_bdt);
+  const newBal = balanceBefore - Number(w.amount_bdt);
   await q(`UPDATE profiles SET balance_bdt=$1 WHERE id=$2`, [newBal, w.user_id]);
   await q(
     `INSERT INTO balance_ledger(user_id, kind, amount_bdt, balance_after, reference_id, note)
@@ -520,16 +521,32 @@ router.post("/withdraws/:id/pay", async (req: AuthedReq, res) => {
        reviewed_by=$4, reviewed_at=now() WHERE id=$1`,
     [w.id, payout_txn_id, note || null, req.user!.id]
   );
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    balance_before: balanceBefore,
+    balance_after: newBal,
+    amount: Number(w.amount_bdt),
+  });
 });
 
 router.post("/withdraws/:id/reject", async (req: AuthedReq, res) => {
+  const [w] = await q(`SELECT user_id, amount_bdt FROM withdraw_requests WHERE id=$1`, [req.params.id]);
   await q(
     `UPDATE withdraw_requests SET status='rejected', admin_note=$2, reviewed_by=$3, reviewed_at=now()
        WHERE id=$1 AND status='pending'`,
     [req.params.id, req.body?.note || null, req.user!.id]
   );
-  res.json({ ok: true });
+  let balance = 0;
+  if (w) {
+    const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1`, [w.user_id]);
+    balance = Number(p?.balance_bdt ?? 0);
+  }
+  res.json({
+    ok: true,
+    balance_before: balance,
+    balance_after: balance,
+    amount: w ? Number(w.amount_bdt) : 0,
+  });
 });
 
 // SELLER LIMITS — extended view + default + clear
