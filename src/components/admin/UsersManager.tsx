@@ -12,8 +12,9 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Search, Plus, Minus, Shield, ShieldOff, UserCog, LogIn, AlertTriangle } from "lucide-react";
+import { Loader2, Search, Plus, Minus, Shield, ShieldOff, UserCog, LogIn, AlertTriangle, StickyNote } from "lucide-react";
 import { toast } from "sonner";
+import { AdminUserNotes } from "./AdminUserNotes";
 
 interface UserRow {
   user_id: string;
@@ -40,6 +41,7 @@ export const UsersManager = () => {
   const [adjReason, setAdjReason] = useState("");
   const [adjDirection, setAdjDirection] = useState<"add" | "deduct">("add");
   const [submitting, setSubmitting] = useState(false);
+  const [notesUser, setNotesUser] = useState<UserRow | null>(null);
 
   const search = async () => {
     setLoading(true);
@@ -176,6 +178,9 @@ export const UsersManager = () => {
                         className="border-accent/40 text-accent">
                         <LogIn className="mr-1 h-3 w-3" /> Login as
                       </Button>
+                      <Button size="sm" variant="outline" onClick={() => setNotesUser(u)}>
+                        <StickyNote className="mr-1 h-3 w-3" /> Notes
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -184,6 +189,15 @@ export const UsersManager = () => {
           </Table>
         </div>
       </Card>
+
+      {notesUser && (
+        <AdminUserNotes
+          userId={notesUser.user_id}
+          userLabel={notesUser.email ?? notesUser.user_id}
+          open={!!notesUser}
+          onOpenChange={(o) => !o && setNotesUser(null)}
+        />
+      )}
 
       <Dialog open={!!adjusting} onOpenChange={(o) => !o && setAdjusting(null)}>
         <DialogContent className="bg-card">

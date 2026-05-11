@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Crown, Trophy, Medal, Award } from "lucide-react";
@@ -39,12 +40,12 @@ export const TopSellersBadge = () => {
           const meta = tierMeta[s.tier] ?? tierMeta.bronze;
           const Icon = meta.icon;
           return (
-            <div key={s.seller_id}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/40 px-3 py-1 text-xs">
+            <Link key={s.seller_id} to={`/sellers/${s.seller_id}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/40 px-3 py-1 text-xs hover:border-primary/60 hover:bg-primary/5 transition">
               <Icon className={`h-3.5 w-3.5 ${meta.cls}`} />
               <span className="font-medium">{s.name}</span>
               <span className="text-muted-foreground">· {meta.label}</span>
-            </div>
+            </Link>
           );
         })}
       </div>

@@ -31,6 +31,7 @@ const Wallet = lazy(() => import("./pages/Wallet.tsx"));
 const AuditLog = lazy(() => import("./pages/AuditLog.tsx"));
 const Vpn = lazy(() => import("./pages/Vpn.tsx"));
 const VpnOrderDetail = lazy(() => import("./pages/VpnOrderDetail.tsx"));
+const SellerProfile = lazy(() => import("./pages/SellerProfile.tsx"));
 
 // Auto-recover from stale chunk errors after a deploy.
 // If a dynamic import fails (chunk 404 / network), reload once.
@@ -154,6 +155,14 @@ const App = () => (
               }
             />
             <Route path="/claim-admin" element={<ClaimAdmin />} />
+            <Route
+              path="/sellers/:id"
+              element={
+                <ProtectedRoute>
+                  <SellerProfile />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/replacements"
               element={

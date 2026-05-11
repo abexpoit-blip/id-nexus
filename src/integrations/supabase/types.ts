@@ -76,6 +76,39 @@ export type Database = {
           },
         ]
       }
+      admin_notes: {
+        Row: {
+          author_email: string | null
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          pinned: boolean
+          subject_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_email?: string | null
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          pinned?: boolean
+          subject_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_email?: string | null
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          pinned?: boolean
+          subject_user_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           key: string

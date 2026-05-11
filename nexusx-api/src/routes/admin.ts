@@ -1235,4 +1235,45 @@ router.get("/buyers/risk-queue", async (req, res) => {
   res.json({ buyers: enriched });
 });
 
+// ===== ADMIN NOTES (CRM) =====
+router.get("/users/:id/notes", async (req, res) => {
+  const notes = await q(
+    `SELECT id, body, pinned, author_email, created_at, updated_at
+       FROM admin_notes WHERE subject_user_id=$1
+       ORDER BY pinned DESC, created_at DESC LIMIT 200`,
+    [req.params.id]
+  );
+  res.json({ notes });
+});
+
+router.post("/users/:id/notes", async (req: AuthedReq, res) => {
+  const body = String(req.body?.body ?? "").trim();
+  const pinned = Boolean(req.body?.pinned);
+  if (body.length < 2) return res.status(400).json({ error: "body_required" });
+  const [n] = await q(
+    `INSERT INTO admin_notes(subject_user_id, author_id, author_email, body, pinned)
+       VALUES($1,$2,$3,$4,$5) RETURNING *`,
+    [req.params.id, req.user!.id, req.user!.email, body, pinned]
+  );
+  res.json({ note: n });
+});
+
+router.delete("/users/:id/notes/:noteId", async (req, res) => {
+  await q(`DELETE FROM admin_notes WHERE id=$1 AND subject_user_id=$2`, [req.params.noteId, req.params.id]);
+  res.json({ ok: true });
+});
+
+router.put("/users/:id/notes/:noteId", async (req, res) => {
+  const pinned = req.body?.pinned;
+  if (typeof pinned === "boolean") {
+    await q(`UPDATE admin_notes SET pinned=$1, updated_at=now() WHERE id=$2 AND subject_user_id=$3`,
+      [pinned, req.params.noteId, req.params.id]);
+  }
+  if (typeof req.body?.body === "string") {
+    await q(`UPDATE admin_notes SET body=$1, updated_at=now() WHERE id=$2 AND subject_user_id=$3`,
+      [req.body.body, req.params.noteId, req.params.id]);
+  }
+  res.json({ ok: true });
+});
+
 export default router;
