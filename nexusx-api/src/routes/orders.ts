@@ -7,6 +7,15 @@ const router = Router();
 router.post("/", authRequired, async (req: AuthedReq, res) => {
   const { category_id, quantity } = req.body || {};
   if (!category_id || !quantity || quantity < 1) return res.status(400).json({ error: "invalid_input" });
+  // If buying a VPN plan, ensure the VPN service is currently enabled
+  const [cat] = await q<{ kind: string }>(`SELECT kind FROM categories WHERE id=$1`, [category_id]);
+  if (cat?.kind === "vpn") {
+    const [s] = await q<{ value: any }>(
+      `SELECT value FROM app_settings WHERE key='vpn_service_enabled'`
+    );
+    const enabled = !s ? true : (s.value === true || s.value === "true");
+    if (!enabled) return res.status(403).json({ error: "vpn_service_disabled" });
+  }
   try {
     const rows = await q(`SELECT place_order($1,$2,$3) AS r`, [req.user!.id, category_id, quantity]);
     res.json(rows[0].r);
