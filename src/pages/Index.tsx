@@ -87,7 +87,7 @@ const Index = () => {
               {[
                 { k: "1.2k+", v: "IDs in stock" },
                 { k: "98%", v: "Replacement OK" },
-                { k: "24/7", v: "Bot delivery" },
+                { k: "24/7", v: "Instant delivery" },
               ].map((s) => (
                 <div key={s.v} className="rounded-xl border border-border/60 bg-card/40 p-4 backdrop-blur">
                   <div className="font-display text-2xl font-bold text-foreground">{s.k}</div>
