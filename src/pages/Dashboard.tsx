@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { RecentOrdersPanel } from "@/components/buyer/RecentOrdersPanel";
+import { MessagesPanel } from "@/components/MessagesPanel";
+import { NotificationPrefsPanel } from "@/components/NotificationPrefsPanel";
 import { AppShell } from "@/components/layout/AppShell";
 
 interface Profile {
@@ -255,6 +257,12 @@ const Dashboard = () => {
 
         {user && (
           <RecentOrdersPanel userId={user.id} />
+        )}
+        {user && (
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <MessagesPanel />
+            <NotificationPrefsPanel />
+          </div>
         )}
       <BrandFooter />
     </AppShell>

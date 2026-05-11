@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, ShoppingCart, Trophy, RefreshCcw, Boxes,
-  Tag, Globe2, UserCog, FileCheck2, CreditCard, Banknote, Award, CalendarClock, ShieldAlert,
+  Tag, Globe2, UserCog, FileCheck2, CreditCard, Banknote, Award, CalendarClock, ShieldAlert, MessageCircle,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 export type AdminSection =
   | "overview" | "users" | "orders" | "leaderboard" | "replacements"
   | "stock" | "categories" | "vpn_brands" | "sellers" | "applications"
-  | "payments" | "payouts" | "accounts" | "brand" | "risk";
+  | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages";
 
 const groups: { label: string; items: { id: AdminSection; title: string; icon: any; badge?: number }[] }[] = [];
 
@@ -33,6 +33,7 @@ export const AdminSidebar = ({
         { id: "overview", title: "Overview", icon: LayoutDashboard },
         { id: "orders", title: "Orders", icon: ShoppingCart },
         { id: "replacements", title: "Replacements", icon: RefreshCcw, badge: c.replacements },
+        { id: "messages", title: "Messaging", icon: MessageCircle },
         { id: "payments", title: "Payments", icon: CreditCard, badge: (c.topups ?? 0) + (c.withdraws ?? 0) },
         { id: "payouts", title: "Payout schedule", icon: CalendarClock },
       ],
