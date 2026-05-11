@@ -26,11 +26,13 @@ interface Topup {
   sender_number: string; txn_id: string; note: string | null;
   status: string; admin_note: string | null; created_at: string;
   screenshot_url: string | null; source: string | null;
+  user_balance_bdt?: number | string | null;
 }
 interface Withdraw {
   id: string; user_id: string; amount_bdt: number; method: string;
   receiver_number: string; note: string | null; status: string;
   admin_note: string | null; payout_txn_id: string | null; created_at: string;
+  user_balance_bdt?: number | string | null;
 }
 
 const statusBadge = (s: string) => {
@@ -49,6 +51,7 @@ export const PaymentsManager = () => {
   const [withdrawsTotal, setWithdrawsTotal] = useState(0);
   const [pendingCounts, setPendingCounts] = useState({ topups: 0, withdraws: 0 });
   const [profiles, setProfiles] = useState<Record<string, { display_name: string | null; email: string | null }>>({});
+  const [userBalances, setUserBalances] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -78,17 +81,21 @@ export const PaymentsManager = () => {
   const [rejTarget, setRejTarget] = useState<{ kind: "topup" | "withdraw"; id: string } | null>(null);
   const [rejNote, setRejNote] = useState("");
 
-  // Approve confirmation modal
-  const [approvedInfo, setApprovedInfo] = useState<{
+  // Generic action-result confirmation modal (approve / reject / pay)
+  type ActionKind = "approve-topup" | "reject-topup" | "pay-withdraw" | "reject-withdraw";
+  type ActionResult = {
+    kind: ActionKind;
     userLabel: string;
+    userId: string;
     method: string;
-    txnId: string;
+    reference: string; // txnId or payout txn
     amount: number;
-    newBalance: number | null;
+    balanceBefore: number | null;
+    balanceAfter: number | null;
     balanceError: string | null;
     balanceLoading: boolean;
-    userId: string;
-  } | null>(null);
+  };
+  const [actionResult, setActionResult] = useState<ActionResult | null>(null);
 
   const buildQuery = (kind: TabKind, f: Filter) => {
     const q: Record<string, any> = {
