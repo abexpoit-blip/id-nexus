@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Pencil, Trash2, Upload, Image as ImageIcon, Search, X } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Upload, Image as ImageIcon, Search, X, Power } from "lucide-react";
 import { toast } from "sonner";
 
 interface VpnBrand {
@@ -65,6 +65,8 @@ export const VpnBrandsManager = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "hidden">("all");
   const [sortBy, setSortBy] = useState<"sort_asc" | "name_asc" | "name_desc" | "newest" | "oldest">("sort_asc");
+  const [serviceEnabled, setServiceEnabled] = useState<boolean>(true);
+  const [togglingService, setTogglingService] = useState(false);
   const [logoMeta, setLogoMeta] = useState<{
     width: number;
     height: number;
@@ -76,10 +78,25 @@ export const VpnBrandsManager = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const { brands } = await api.get<{ brands: VpnBrand[] }>("/api/vpn/brands");
+      const [{ brands }, en] = await Promise.all([
+        api.get<{ brands: VpnBrand[] }>("/api/vpn/brands"),
+        api.get<{ enabled: boolean }>("/api/vpn/enabled").catch(() => ({ enabled: true })),
+      ]);
+      setServiceEnabled(en.enabled);
       setBrands(brands ?? []);
     } catch (e: any) { toast.error(e?.message || "Failed"); }
     finally { setLoading(false); }
+  };
+
+  const toggleService = async (next: boolean) => {
+    setTogglingService(true);
+    try {
+      await api.post("/api/vpn/admin/toggle", { enabled: next });
+      setServiceEnabled(next);
+      toast.success(`VPN service ${next ? "enabled" : "disabled"}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Toggle failed");
+    } finally { setTogglingService(false); }
   };
 
   useEffect(() => {
@@ -246,9 +263,18 @@ export const VpnBrandsManager = () => {
             Manage brand logos shown on the public /vpn page. Categories link to brands via the Categories tab.
           </p>
         </div>
-        <Button onClick={openNew} className="gap-2">
-          <Plus className="h-4 w-4" /> New brand
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 rounded-md border border-border/60 bg-card/40 px-3 py-1.5">
+            <Power className={`h-4 w-4 ${serviceEnabled ? "text-success" : "text-muted-foreground"}`} />
+            <span className="text-xs font-medium">
+              VPN service {serviceEnabled ? "ON" : "OFF"}
+            </span>
+            <Switch checked={serviceEnabled} disabled={togglingService} onCheckedChange={toggleService} />
+          </div>
+          <Button onClick={openNew} className="gap-2">
+            <Plus className="h-4 w-4" /> New brand
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
