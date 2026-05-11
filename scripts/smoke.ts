@@ -77,7 +77,7 @@ function makeClient() {
         const [k, ...rest] = first.split("=");
         merged.set(k.trim(), rest.join("="));
       }
-      cookies = [...merged.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
+      cookies = Array.from(merged.entries()).map(([k, v]) => `${k}=${v}`).join("; ");
     }
     let data: any = null;
     const text = await res.text();
