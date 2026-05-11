@@ -170,14 +170,25 @@ function SideNav({ mode }: { mode: AppShellMode }) {
           <SidebarGroupContent>
             <SidebarMenu>
               {mode === "buyer" ? (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Seller area">
-                    <Link to={roles.includes("seller") || isAdmin ? "/seller" : "/apply-seller"} className="flex items-center gap-3">
-                      <Store className="h-4 w-4" />
-                      {!collapsed && <span>{roles.includes("seller") || isAdmin ? "Seller" : "Become seller"}</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                roles.includes("seller") || isAdmin ? (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip="Seller area">
+                      <Link to="/seller" className="flex items-center gap-3">
+                        <Store className="h-4 w-4" />
+                        {!collapsed && <span>Seller</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ) : (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip="Apply to become a seller">
+                      <Link to="/apply-seller" className="flex items-center gap-3">
+                        <Store className="h-4 w-4" />
+                        {!collapsed && <span>Become seller</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
               ) : (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Buyer area">
