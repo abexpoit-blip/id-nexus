@@ -595,8 +595,64 @@ export const PaymentsManager = () => {
     );
   };
 
+  const pollOptions: { label: string; value: number }[] = [
+    { label: "Off", value: 0 },
+    { label: "10s", value: 10_000 },
+    { label: "30s", value: 30_000 },
+    { label: "1m", value: 60_000 },
+    { label: "5m", value: 300_000 },
+  ];
+  const fmtRefreshed = (d: Date | null) => {
+    if (!d) return "never";
+    const s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+    if (s < 60) return `${s}s ago`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    return d.toLocaleTimeString();
+  };
+
   return (
     <Card className="border-border/60 bg-gradient-card p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs text-muted-foreground">
+          Last updated: <span className="font-medium text-foreground">{fmtRefreshed(lastRefreshed)}</span>
+          {pollMs > 0 && (
+            <span className="ml-2 text-muted-foreground/70">
+              · auto-refresh every {pollOptions.find((o) => o.value === pollMs)?.label ?? `${pollMs / 1000}s`}
+            </span>
+          )}
+          {pollMs === 0 && (
+            <span className="ml-2 text-warning/90">· auto-refresh off</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Select
+            value={String(pollMs)}
+            onValueChange={(v) => setPollMs(parseInt(v, 10))}
+          >
+            <SelectTrigger className="h-9 w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {pollOptions.map((o) => (
+                <SelectItem key={o.value} value={String(o.value)}>
+                  Auto: {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={refreshNow}
+            disabled={refreshing}
+          >
+            <RefreshCw className={cn("mr-1 h-3.5 w-3.5", refreshing && "animate-spin")} />
+            Refresh now
+          </Button>
+        </div>
+      </div>
+
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKind)}>
         <TabsList>
           <TabsTrigger value="topups">Top-ups {pendingTopups > 0 && <Badge className="ml-2 bg-warning/20 text-warning hover:bg-warning/20">{pendingTopups}</Badge>}</TabsTrigger>
