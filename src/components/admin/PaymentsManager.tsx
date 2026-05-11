@@ -1296,6 +1296,192 @@ export const PaymentsManager = () => {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Bulk action confirmation */}
+      <Dialog open={!!bulkConfirm} onOpenChange={(o) => { if (!o) { setBulkConfirm(null); setBulkNote(""); } }}>
+        <DialogContent className="max-w-2xl">
+          {bulkConfirm && (() => {
+            const summary = buildBulkSummary(bulkConfirm);
+            const isApprove = bulkConfirm === "approve-topups";
+            const title = isApprove
+              ? "Approve top-ups in bulk"
+              : bulkConfirm === "reject-topups"
+                ? "Reject top-ups in bulk"
+                : "Reject withdraws in bulk";
+            const usersList = Object.entries(summary.perUser);
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    {isApprove
+                      ? <Check className="h-5 w-5 text-success" />
+                      : <X className="h-5 w-5 text-destructive" />}
+                    {title}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2 text-sm">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Requests</div>
+                      <div className="mt-0.5 font-display text-xl font-semibold">{summary.rows.length}</div>
+                    </div>
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total amount</div>
+                      <div className={`mt-0.5 font-display text-xl font-semibold ${isApprove ? "text-success" : "text-muted-foreground"}`}>
+                        ৳ {summary.totalAmount.toFixed(0)}
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Affected users</div>
+                      <div className="mt-0.5 font-display text-xl font-semibold">{usersList.length}</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
+                      Per-user balance preview
+                    </div>
+                    <div className="max-h-[240px] overflow-y-auto rounded-md border border-border/60">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>User</TableHead>
+                            <TableHead className="text-right">Before</TableHead>
+                            <TableHead className="text-right">Δ</TableHead>
+                            <TableHead className="text-right">After</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {usersList.map(([uid, u]) => (
+                            <TableRow key={uid}>
+                              <TableCell className="text-sm">{u.label}</TableCell>
+                              <TableCell className="text-right font-mono text-xs">{fmtBdt(u.current)}</TableCell>
+                              <TableCell className={`text-right font-mono text-xs ${u.delta > 0 ? "text-success" : u.delta < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                                {u.delta === 0 ? "৳ 0" : `${u.delta > 0 ? "+" : "−"} ৳ ${Math.abs(u.delta).toFixed(0)}`}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-xs text-primary">
+                                {fmtBdt(u.after)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    {!isApprove && (
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        Rejecting does not change wallet balances.
+                      </p>
+                    )}
+                  </div>
+
+                  {!isApprove && (
+                    <div>
+                      <label className="text-xs text-muted-foreground">Reason (sent to all selected users)</label>
+                      <Textarea
+                        value={bulkNote}
+                        onChange={(e) => setBulkNote(e.target.value)}
+                        rows={2}
+                        placeholder="e.g. Invalid TxnID — please re-submit"
+                      />
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setBulkConfirm(null)} disabled={bulkSubmitting}>Cancel</Button>
+                  <Button
+                    variant={isApprove ? "default" : "destructive"}
+                    onClick={submitBulk}
+                    disabled={bulkSubmitting || summary.rows.length === 0}
+                  >
+                    {bulkSubmitting && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                    {isApprove
+                      ? `Approve ${summary.rows.length} top-up${summary.rows.length === 1 ? "" : "s"}`
+                      : `Reject ${summary.rows.length}`}
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk result modal */}
+      <Dialog open={!!bulkResults} onOpenChange={(o) => !o && setBulkResults(null)}>
+        <DialogContent className="max-w-2xl">
+          {bulkResults && (() => {
+            const okRows = bulkResults.rows.filter((r) => r.ok);
+            const failRows = bulkResults.rows.filter((r) => !r.ok);
+            const totalAmt = okRows.reduce((s, r) => s + (r.amount || 0), 0);
+            const isApprove = bulkResults.action === "approve-topups";
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    {failRows.length === 0
+                      ? <CheckCircle2 className="h-5 w-5 text-success" />
+                      : okRows.length === 0
+                        ? <X className="h-5 w-5 text-destructive" />
+                        : <AlertTriangle className="h-5 w-5 text-warning" />}
+                    Bulk action complete
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2 text-sm">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-md border border-success/30 bg-success/10 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Succeeded</div>
+                      <div className="mt-0.5 font-display text-xl font-semibold text-success">{okRows.length}</div>
+                    </div>
+                    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Failed</div>
+                      <div className="mt-0.5 font-display text-xl font-semibold text-destructive">{failRows.length}</div>
+                    </div>
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{isApprove ? "Total credited" : "Total amount"}</div>
+                      <div className={`mt-0.5 font-display text-xl font-semibold ${isApprove ? "text-success" : "text-muted-foreground"}`}>
+                        ৳ {totalAmt.toFixed(0)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="max-h-[260px] overflow-y-auto rounded-md border border-border/60">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead className="text-right">Before</TableHead>
+                          <TableHead className="text-right">After</TableHead>
+                          <TableHead>Result</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bulkResults.rows.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="text-xs">
+                              {r.user_id ? userLabel(r.user_id) : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs">{fmtBdt(r.amount)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs">{fmtBdt(r.balance_before)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs text-primary">{fmtBdt(r.balance_after)}</TableCell>
+                            <TableCell>
+                              {r.ok
+                                ? <Badge className="bg-success/20 text-success hover:bg-success/20">ok</Badge>
+                                : <Badge className="bg-destructive/20 text-destructive hover:bg-destructive/20">{r.error || "failed"}</Badge>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button onClick={() => setBulkResults(null)}>Done</Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
