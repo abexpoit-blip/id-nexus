@@ -704,72 +704,133 @@ export const PaymentsManager = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Approve confirmation modal */}
-      <Dialog open={!!approvedInfo} onOpenChange={(o) => !o && setApprovedInfo(null)}>
+      {/* Action result modal — shows balance before / after for any action */}
+      <Dialog open={!!actionResult} onOpenChange={(o) => !o && setActionResult(null)}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-success" /> Top-up approved
-            </DialogTitle>
-          </DialogHeader>
-          {approvedInfo && (
-            <div className="space-y-4 py-2 text-sm">
-              <div className="rounded-lg border border-success/30 bg-success/10 p-4 text-center">
-                <div className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Credited
-                </div>
-                <div className="mt-1 font-display text-3xl font-bold text-success">
-                  ৳ {approvedInfo.amount.toFixed(0)}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-md border border-border/60 bg-background/40 p-3">
-                  <div className="text-xs text-muted-foreground">User</div>
-                  <div className="mt-1 font-medium">{approvedInfo.userLabel}</div>
-                </div>
-                <div className="rounded-md border border-border/60 bg-background/40 p-3">
-                  <div className="text-xs text-muted-foreground">New balance</div>
-                  {approvedInfo.balanceLoading ? (
-                    <div className="mt-1 flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-xs">Fetching…</span>
+          {actionResult && (() => {
+            const isApprove = actionResult.kind === "approve-topup";
+            const isPay = actionResult.kind === "pay-withdraw";
+            const isReject = actionResult.kind.startsWith("reject");
+            const title = isApprove
+              ? "Top-up approved"
+              : isPay
+                ? "Withdraw paid"
+                : actionResult.kind === "reject-topup"
+                  ? "Top-up rejected"
+                  : "Withdraw rejected";
+            const accentClass = isReject
+              ? "text-destructive"
+              : isPay
+                ? "text-warning"
+                : "text-success";
+            const tileClass = isReject
+              ? "border-destructive/30 bg-destructive/10"
+              : isPay
+                ? "border-warning/30 bg-warning/10"
+                : "border-success/30 bg-success/10";
+            const amountLabel = isApprove
+              ? "Credited"
+              : isPay
+                ? "Debited"
+                : "Unchanged";
+            const amountPrefix = isPay ? "−" : isApprove ? "+" : "";
+            const before = actionResult.balanceBefore;
+            const after = actionResult.balanceAfter;
+            const delta =
+              typeof before === "number" && typeof after === "number"
+                ? after - before
+                : null;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    {isReject
+                      ? <X className={`h-5 w-5 ${accentClass}`} />
+                      : <CheckCircle2 className={`h-5 w-5 ${accentClass}`} />}
+                    {title}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2 text-sm">
+                  <div className={`rounded-lg border p-4 text-center ${tileClass}`}>
+                    <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                      {amountLabel}
                     </div>
-                  ) : approvedInfo.balanceError ? (
-                    <div className="mt-1 space-y-1">
-                      <div className="text-xs text-destructive">
-                        Failed: {approvedInfo.balanceError}
+                    <div className={`mt-1 font-display text-3xl font-bold ${accentClass}`}>
+                      {amountPrefix} ৳ {actionResult.amount.toFixed(0)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+                    <div className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
+                      Wallet balance
+                    </div>
+                    {actionResult.balanceLoading ? (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-xs">Fetching balance…</span>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={refreshApprovedBalance}
-                      >
-                        Retry
-                      </Button>
+                    ) : actionResult.balanceError ? (
+                      <div className="space-y-2">
+                        <div className="text-xs text-destructive">
+                          Failed: {actionResult.balanceError}
+                        </div>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={refreshActionBalance}>
+                          Retry
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div>
+                          <div className="text-xs text-muted-foreground">Before</div>
+                          <div className="mt-1 font-display text-lg font-semibold">
+                            {before == null ? "—" : `৳ ${before.toFixed(0)}`}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Δ Change</div>
+                          <div className={`mt-1 font-display text-lg font-semibold ${delta && delta > 0 ? "text-success" : delta && delta < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                            {delta == null
+                              ? "—"
+                              : delta === 0
+                                ? "৳ 0"
+                                : `${delta > 0 ? "+" : "−"} ৳ ${Math.abs(delta).toFixed(0)}`}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">After</div>
+                          <div className="mt-1 font-display text-lg font-semibold text-primary">
+                            {after == null ? "—" : `৳ ${after.toFixed(0)}`}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3">
+                      <div className="text-xs text-muted-foreground">User</div>
+                      <div className="mt-1 font-medium">{actionResult.userLabel}</div>
                     </div>
-                  ) : approvedInfo.newBalance === null ? (
-                    <div className="mt-1 text-muted-foreground">—</div>
-                  ) : (
-                    <div className="mt-1 font-display text-lg font-semibold text-primary">
-                      ৳ {approvedInfo.newBalance.toFixed(0)}
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3">
+                      <div className="text-xs text-muted-foreground">Method</div>
+                      <div className="mt-1 font-medium capitalize">{actionResult.method}</div>
                     </div>
-                  )}
+                    {actionResult.reference && (
+                      <div className="col-span-2 rounded-md border border-border/60 bg-background/40 p-3">
+                        <div className="text-xs text-muted-foreground">
+                          {isPay ? "Payout TxnID" : "TxnID"}
+                        </div>
+                        <div className="mt-1 font-mono text-xs break-all">{actionResult.reference}</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="rounded-md border border-border/60 bg-background/40 p-3">
-                  <div className="text-xs text-muted-foreground">Method</div>
-                  <div className="mt-1 font-medium capitalize">{approvedInfo.method}</div>
-                </div>
-                <div className="rounded-md border border-border/60 bg-background/40 p-3">
-                  <div className="text-xs text-muted-foreground">TxnID</div>
-                  <div className="mt-1 font-mono text-xs break-all">{approvedInfo.txnId}</div>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setApprovedInfo(null)}>Done</Button>
-          </DialogFooter>
+                <DialogFooter>
+                  <Button onClick={() => setActionResult(null)}>Done</Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </Card>
