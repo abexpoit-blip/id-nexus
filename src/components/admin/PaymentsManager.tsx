@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   Loader2, Check, X, Banknote, Image as ImageIcon, CheckCircle2,
-  Search, CalendarIcon, RotateCcw, ChevronLeft, ChevronRight,
+  Search, CalendarIcon, RotateCcw, ChevronLeft, ChevronRight, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -54,6 +54,21 @@ export const PaymentsManager = () => {
   const [userBalances, setUserBalances] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+
+  // Polling — configurable interval. 0 = off.
+  const POLL_KEY = "paymentsManager.pollMs";
+  const [pollMs, setPollMs] = useState<number>(() => {
+    if (typeof window === "undefined") return 30_000;
+    const v = parseInt(window.localStorage.getItem(POLL_KEY) || "", 10);
+    return Number.isFinite(v) && v >= 0 ? v : 30_000;
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(POLL_KEY, String(pollMs));
+    }
+  }, [pollMs]);
 
   // Filters per tab
   type Filter = {
