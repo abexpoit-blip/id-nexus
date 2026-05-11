@@ -10,6 +10,24 @@ router.get("/me", authRequired, async (req: AuthedReq, res) => {
   res.json({ profile: p, roles: req.user!.roles });
 });
 
+// Buyer dashboard stats (orders, pending replacements, lifetime spent)
+router.get("/me/stats", authRequired, async (req: AuthedReq, res) => {
+  const [{ orders }] = await q<{ orders: number }>(
+    `SELECT COUNT(*)::int AS orders FROM orders WHERE buyer_id=$1`,
+    [req.user!.id]
+  );
+  const [{ pending }] = await q<{ pending: number }>(
+    `SELECT COUNT(*)::int AS pending FROM replacement_items WHERE buyer_id=$1 AND outcome='pending'`,
+    [req.user!.id]
+  );
+  const [{ lifetime }] = await q<{ lifetime: number }>(
+    `SELECT COALESCE(SUM(ABS(amount_bdt)),0)::float AS lifetime
+       FROM balance_ledger WHERE user_id=$1 AND kind='purchase'`,
+    [req.user!.id]
+  );
+  res.json({ orders, pending_replacements: pending, lifetime_spent: lifetime });
+});
+
 router.patch("/me", authRequired, async (req: AuthedReq, res) => {
   const schema = z.object({
     display_name: z.string().min(1).max(120).optional(),

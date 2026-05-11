@@ -9,7 +9,7 @@ const router = Router();
 router.post("/apply", authRequired, async (req: AuthedReq, res) => {
   const schema = z.object({
     display_name: z.string().min(1).max(120).optional(),
-    contact_handle: z.string().max(120).optional(),
+    telegram_username: z.string().max(120).optional(),
     reason: z.string().max(2000).optional(),
   });
   const parsed = schema.safeParse(req.body);
@@ -22,12 +22,32 @@ router.post("/apply", authRequired, async (req: AuthedReq, res) => {
   if (existing[0] && existing[0].status === "pending")
     return res.status(409).json({ error: "application_pending" });
 
+  // Upsert: re-applies after rejection update existing row (unique on user_id)
   const [app] = await q(
-    `INSERT INTO seller_applications(user_id, email, display_name, contact_handle, reason)
-     VALUES($1,$2,$3,$4,$5) RETURNING *`,
-    [req.user!.id, req.user!.email, parsed.data.display_name || null, parsed.data.contact_handle || null, parsed.data.reason || null]
+    `INSERT INTO seller_applications(user_id, email, display_name, telegram_username, reason, status)
+     VALUES($1,$2,$3,$4,$5,'pending')
+     ON CONFLICT(user_id) DO UPDATE SET
+        telegram_username = EXCLUDED.telegram_username,
+        reason = EXCLUDED.reason,
+        display_name = COALESCE(EXCLUDED.display_name, seller_applications.display_name),
+        status = 'pending', admin_note = NULL, reviewed_at = NULL, reviewed_by = NULL,
+        updated_at = now()
+     RETURNING *`,
+    [req.user!.id, req.user!.email, parsed.data.display_name || null, parsed.data.telegram_username || null, parsed.data.reason || null]
   );
   res.json({ application: app });
+});
+
+// Mark current user onboarded (clears any onboarding flag in buyer_settings)
+router.post("/onboarded", authRequired, requireRole("seller"), async (req: AuthedReq, res) => {
+  await q(
+    `UPDATE profiles
+        SET buyer_settings = COALESCE(buyer_settings,'{}'::jsonb) || jsonb_build_object('seller_onboarded', true),
+            updated_at = now()
+      WHERE id=$1`,
+    [req.user!.id]
+  );
+  res.json({ ok: true });
 });
 
 router.get("/application", authRequired, async (req: AuthedReq, res) => {
