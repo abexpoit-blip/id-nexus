@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,54 +35,24 @@ export const SellerLimitsManager = () => {
 
   const load = async () => {
     setLoading(true);
-
-    const [
-      { data: setting },
-      { data: sellerRoles },
-      { data: limits },
-    ] = await Promise.all([
-      supabase.from("app_settings").select("value").eq("key", "default_seller_daily_limit").maybeSingle(),
-      supabase.from("user_roles").select("user_id").eq("role", "seller"),
-      supabase.from("seller_daily_limits").select("seller_id, daily_limit, note"),
-    ]);
-
-    const defLimit = setting ? Number(setting.value) : 500;
-    setDefaultLimit(defLimit);
-    setDefaultDraft(String(defLimit));
-
-    const sellerIds = (sellerRoles ?? []).map((r) => r.user_id as string);
-    if (sellerIds.length === 0) { setRows([]); setLoading(false); return; }
-
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name, email, telegram_username")
-      .in("id", sellerIds);
-
-    const limitMap = new Map<string, number>();
-    (limits ?? []).forEach((l: any) => limitMap.set(l.seller_id, l.daily_limit));
-
-    // Compute used_today per seller
-    const startOfDay = new Date();
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const { data: todays } = await supabase
-      .from("accounts")
-      .select("seller_id")
-      .in("seller_id", sellerIds)
-      .gte("created_at", startOfDay.toISOString());
-    const usedMap = new Map<string, number>();
-    (todays ?? []).forEach((r: any) => usedMap.set(r.seller_id, (usedMap.get(r.seller_id) ?? 0) + 1));
-
-    const merged: SellerRow[] = (profiles ?? []).map((p: any) => ({
-      user_id: p.id,
-      display_name: p.display_name,
-      email: p.email,
-      telegram_username: p.telegram_username,
-      daily_limit: limitMap.has(p.id) ? (limitMap.get(p.id) as number) : null,
-      used_today: usedMap.get(p.id) ?? 0,
-    }));
-
-    setRows(merged);
-    setLoading(false);
+    try {
+      const data = await api.get<{ default_limit: number; sellers: SellerRow[] }>(
+        "/api/admin/seller-limits/full",
+      );
+      setDefaultLimit(Number(data.default_limit ?? 500));
+      setDefaultDraft(String(data.default_limit ?? 500));
+      setRows(
+        (data.sellers ?? []).map((s: any) => ({
+          user_id: s.user_id,
+          display_name: s.display_name,
+          email: s.email,
+          telegram_username: s.telegram_username,
+          daily_limit: s.daily_limit ?? null,
+          used_today: Number(s.used_today ?? 0),
+        })),
+      );
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
@@ -91,11 +61,12 @@ export const SellerLimitsManager = () => {
     const n = Number(defaultDraft);
     if (!Number.isFinite(n) || n < 0) { toast.error("Invalid number"); return; }
     setSavingDefault(true);
-    const { error } = await supabase.rpc("admin_set_default_daily_limit", { p_limit: n });
-    setSavingDefault(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Default limit updated");
-    load();
+    try {
+      await api.put("/api/admin/seller-limits/default", { value: n });
+      toast.success("Default limit updated");
+      load();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setSavingDefault(false); }
   };
 
   const openEdit = (r: SellerRow) => {
@@ -109,20 +80,21 @@ export const SellerLimitsManager = () => {
     const n = Number(draftLimit);
     if (!Number.isFinite(n) || n < 0) { toast.error("Invalid limit"); return; }
     setSaving(true);
-    const { error } = await supabase.rpc("admin_set_seller_limit", {
-      p_seller_id: editing.user_id, p_daily_limit: n, p_note: draftNote || null,
-    });
-    setSaving(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Override saved");
-    setEditing(null);
-    load();
+    try {
+      await api.post(`/api/admin/seller-limits/${editing.user_id}`, { daily_limit: n, note: draftNote || null });
+      toast.success("Override saved");
+      setEditing(null);
+      load();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setSaving(false); }
   };
 
   const clearOverride = async (r: SellerRow) => {
-    const { error } = await supabase.rpc("admin_clear_seller_limit", { p_seller_id: r.user_id });
-    if (error) toast.error(error.message);
-    else { toast.success("Override removed — uses default now"); load(); }
+    try {
+      await api.del(`/api/admin/seller-limits/${r.user_id}`);
+      toast.success("Override removed — uses default now");
+      load();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
   };
 
   return (

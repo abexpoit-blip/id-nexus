@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -63,15 +63,10 @@ const AuditLog = () => {
 
   const load = async () => {
     setLoading(true);
-    let q = supabase
-      .from("audit_logs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(500);
-    if (filter !== "all") q = q.eq("event_type", filter);
-    const { data, error } = await q;
-    if (error) toast.error("Could not load audit logs");
-    else setRows((data ?? []) as AuditRow[]);
+    try {
+      const { logs } = await api.get<{ logs: AuditRow[] }>("/api/admin/audit-logs/filtered", { event: filter });
+      setRows(logs ?? []);
+    } catch { toast.error("Could not load audit logs"); }
     setLoading(false);
   };
 

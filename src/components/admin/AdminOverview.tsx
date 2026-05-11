@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,8 +40,10 @@ export const AdminOverview = ({ onJump }: { onJump?: (section: string) => void }
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc("admin_overview_stats");
-    if (!error && data) setStats(data as unknown as Stats);
+    try {
+      const data = await api.get<Stats>("/api/admin/overview");
+      setStats(data);
+    } catch { /* ignore */ }
     setLoading(false);
   };
 
