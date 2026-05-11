@@ -17,6 +17,7 @@ import {
 import { ShoppingCart, Loader2, ShieldCheck, Zap, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
+import { TopSellersBadge } from "@/components/TopSellersBadge";
 
 interface Category {
   id: string;
@@ -126,6 +127,7 @@ const Browse = () => {
         </div>
       }
     >
+        <TopSellersBadge />
         {loading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />

@@ -214,4 +214,23 @@ router.post("/accounts", authRequired, requireRole("seller"), async (req: Authed
   res.json({ ok: true, ...summary });
 });
 
+// ===== PUBLIC: top sellers + tier badges =====
+// No auth — used to publicly showcase trusted sellers on the storefront.
+router.get("/top", async (_req, res) => {
+  const rows = await q(
+    `SELECT u.id AS seller_id, COALESCE(p.display_name, split_part(u.email,'@',1)) AS name,
+        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id), 0) AS sales_lifetime,
+        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id
+                  AND oi.created_at >= now() - interval '30 days'), 0) AS sales_30d
+      FROM users u
+      JOIN user_roles r ON r.user_id=u.id AND r.role='seller'
+      LEFT JOIN profiles p ON p.id=u.id
+      WHERE COALESCE(p.is_banned,false)=false
+      ORDER BY sales_30d DESC, sales_lifetime DESC
+      LIMIT 12`
+  );
+  const tierFor = (n: number) => n>=1000?"platinum":n>=250?"gold":n>=50?"silver":n>=1?"bronze":"none";
+  res.json({ sellers: rows.map((s:any)=>({ ...s, tier: tierFor(Number(s.sales_lifetime||0)) })) });
+});
+
 export default router;
