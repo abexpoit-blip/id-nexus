@@ -16,12 +16,18 @@ router.get("/me", authRequired, async (req: AuthedReq, res) => {
        WHERE thread_user_id=$1 AND sender_is_admin=true AND read_at IS NULL`,
     [req.user!.id]
   );
-  res.json({ messages: rows, unread: u.c });
+  const [t] = await q(
+    `SELECT closed_at FROM admin_message_threads WHERE user_id=$1`,
+    [req.user!.id]
+  );
+  res.json({ messages: rows, unread: u.c, closed_at: t?.closed_at ?? null });
 });
 
 router.post("/me", authRequired, async (req: AuthedReq, res) => {
   const body = String(req.body?.body ?? "").trim();
   if (body.length < 1) return res.status(400).json({ error: "body_required" });
+  const [t] = await q(`SELECT closed_at FROM admin_message_threads WHERE user_id=$1`, [req.user!.id]);
+  if (t?.closed_at) return res.status(403).json({ error: "thread_closed" });
   const [m] = await q(
     `INSERT INTO admin_messages(thread_user_id, sender_id, sender_is_admin, body)
        VALUES($1,$1,false,$2) RETURNING *`,
@@ -80,12 +86,15 @@ router.get("/admin/thread/:userId", authRequired, requireRole("admin"), async (r
        WHERE thread_user_id=$1 AND sender_is_admin=false AND read_at IS NULL`,
     [req.params.userId]
   );
-  res.json({ messages: rows });
+  const [t] = await q(`SELECT closed_at FROM admin_message_threads WHERE user_id=$1`, [req.params.userId]);
+  res.json({ messages: rows, closed_at: t?.closed_at ?? null });
 });
 
 router.post("/admin/thread/:userId", authRequired, requireRole("admin"), async (req: AuthedReq, res) => {
   const body = String(req.body?.body ?? "").trim();
   if (body.length < 1) return res.status(400).json({ error: "body_required" });
+  const [tc] = await q(`SELECT closed_at FROM admin_message_threads WHERE user_id=$1`, [req.params.userId]);
+  if (tc?.closed_at) return res.status(403).json({ error: "thread_closed" });
   const [m] = await q(
     `INSERT INTO admin_messages(thread_user_id, sender_id, sender_is_admin, body)
        VALUES($1,$2,true,$3) RETURNING *`,
@@ -97,6 +106,37 @@ router.post("/admin/thread/:userId", authRequired, requireRole("admin"), async (
     [req.params.userId, body.slice(0, 140)]
   );
   res.json({ message: m });
+});
+
+// Close / reopen a seller<->admin conversation
+router.post("/admin/thread/:userId/close", authRequired, requireRole("admin"), async (req: AuthedReq, res) => {
+  await q(
+    `INSERT INTO admin_message_threads(user_id, closed_at, updated_at)
+        VALUES($1, now(), now())
+      ON CONFLICT (user_id) DO UPDATE SET closed_at=now(), updated_at=now()`,
+    [req.params.userId]
+  );
+  await q(
+    `INSERT INTO notifications(user_id, kind, title, body)
+        VALUES($1,'message','🔒 Conversation closed','An admin closed this conversation.')`,
+    [req.params.userId]
+  );
+  await q(
+    `INSERT INTO audit_logs(actor_id, actor_email, event_type, summary, entity_type, entity_id)
+        VALUES($1,$2,'thread_close','Closed admin chat','user',$3)`,
+    [req.user!.id, req.user!.email, req.params.userId]
+  );
+  res.json({ ok: true });
+});
+
+router.post("/admin/thread/:userId/reopen", authRequired, requireRole("admin"), async (req: AuthedReq, res) => {
+  await q(
+    `INSERT INTO admin_message_threads(user_id, closed_at, updated_at)
+        VALUES($1, NULL, now())
+      ON CONFLICT (user_id) DO UPDATE SET closed_at=NULL, updated_at=now()`,
+    [req.params.userId]
+  );
+  res.json({ ok: true });
 });
 
 // ===== BROADCAST ANNOUNCEMENTS =====
