@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Copy, FileSpreadsheet, ShoppingBag, Loader2, Send, CheckCircle2, XCircle } from "lucide-react";
+import { Download, Copy, FileSpreadsheet, ShoppingBag, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface OrderRow {
@@ -24,10 +24,7 @@ interface AccountRow {
   email_password: string | null;
 }
 
-const formatTime = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleString();
-};
+const formatTime = (iso: string) => new Date(iso).toLocaleString();
 
 const csvEscape = (v: string | null | undefined) => {
   if (v === null || v === undefined) return "";
@@ -56,99 +53,14 @@ const downloadFile = (content: string, filename: string, mime: string) => {
   URL.revokeObjectURL(url);
 };
 
-type DeliveryStatus = "pending" | "sending" | "sent" | "failed";
-interface DeliveryRow {
-  status: DeliveryStatus;
-  attempt_count: number;
-  last_error: string | null;
-  sent_at: string | null;
-  last_attempt_at: string | null;
-}
-type StatusMap = Record<string, DeliveryRow>;
-
 interface Props {
   userId: string;
-  telegramLinked: boolean;
-  template: "compact" | "detailed";
 }
 
-const buildTelegramText = (
-  template: "compact" | "detailed",
-  order: OrderRow,
-  rows: AccountRow[],
-) => {
-  const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  if (template === "compact") {
-    const lines = rows.map((r) => `${r.uid}:${r.password}`).join("\n");
-    return `<pre>${escape(lines)}</pre>`;
-  }
-  // detailed
-  const header =
-    `<b>${escape(order.category_name)}</b> — ${rows.length} account${rows.length === 1 ? "" : "s"}\n` +
-    `#${order.id.slice(0, 8)} · ৳${order.total_bdt.toFixed(2)}`;
-  const body = rows
-    .map((r) => {
-      const parts = [`${r.uid}:${r.password}`];
-      if (r.two_fa) parts.push(`2FA: ${r.two_fa}`);
-      if (r.email) parts.push(`Email: ${r.email}${r.email_password ? ` | ${r.email_password}` : ""}`);
-      return parts.join("\n");
-    })
-    .join("\n\n");
-  return `${header}\n\n<pre>${escape(body)}</pre>`;
-};
-
-export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) => {
+export const RecentOrdersPanel = ({ userId }: Props) => {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [statuses, setStatuses] = useState<StatusMap>({});
-
-  const fetchStatuses = useCallback(async (orderIds: string[]) => {
-    if (orderIds.length === 0) return;
-    const { data } = await supabase
-      .from("telegram_deliveries")
-      .select("order_id, status, attempt_count, last_error, sent_at, last_attempt_at")
-      .in("order_id", orderIds);
-    const map: StatusMap = {};
-    (data ?? []).forEach((r: any) => {
-      map[r.order_id] = {
-        status: r.status,
-        attempt_count: r.attempt_count,
-        last_error: r.last_error,
-        sent_at: r.sent_at,
-        last_attempt_at: r.last_attempt_at,
-      };
-    });
-    setStatuses(map);
-  }, []);
-
-  const upsertStatus = async (
-    orderId: string,
-    patch: Partial<DeliveryRow> & { status: DeliveryStatus; bumpAttempt?: boolean },
-  ) => {
-    const prev = statuses[orderId];
-    const nextAttempt = (prev?.attempt_count ?? 0) + (patch.bumpAttempt ? 1 : 0);
-    const row: DeliveryRow = {
-      status: patch.status,
-      attempt_count: nextAttempt,
-      last_error: patch.last_error ?? null,
-      sent_at: patch.status === "sent" ? new Date().toISOString() : prev?.sent_at ?? null,
-      last_attempt_at: new Date().toISOString(),
-    };
-    setStatuses((s) => ({ ...s, [orderId]: row }));
-    await supabase.from("telegram_deliveries").upsert(
-      {
-        order_id: orderId,
-        buyer_id: userId,
-        status: row.status,
-        attempt_count: row.attempt_count,
-        last_error: row.last_error,
-        sent_at: row.sent_at,
-        last_attempt_at: row.last_attempt_at,
-      },
-      { onConflict: "order_id" },
-    );
-  };
 
   useEffect(() => {
     const load = async () => {
@@ -176,10 +88,9 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
         })),
       );
       setLoading(false);
-      await fetchStatuses((data ?? []).map((o: any) => o.id));
     };
     load();
-  }, [userId, fetchStatuses]);
+  }, [userId]);
 
   const fetchAccounts = async (orderId: string): Promise<AccountRow[] | null> => {
     const { data, error } = await supabase
@@ -223,72 +134,16 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
     toast.success(`Copied ${rows.length} UID:PASS lines`);
   };
 
-  const handleTelegram = async (order: OrderRow, isAutoRetry = false) => {
-    if (!telegramLinked) {
-      toast.error("Link your Telegram account first (see Telegram card above).");
-      return;
-    }
-    setBusyId(order.id);
-    await upsertStatus(order.id, { status: "sending", bumpAttempt: true });
-    const rows = await fetchAccounts(order.id);
-    if (!rows || rows.length === 0) {
-      setBusyId(null);
-      await upsertStatus(order.id, { status: "failed", last_error: "No accounts found" });
-      toast.error("No accounts found");
-      return;
-    }
-    const text = buildTelegramText(template, order, rows);
-    const { data, error } = await supabase.functions.invoke("notify-telegram", {
-      body: { user_id: userId, text },
-    });
-    setBusyId(null);
-    if (error) {
-      await upsertStatus(order.id, { status: "failed", last_error: error.message });
-      return scheduleAutoRetry(order, error.message || "Telegram send failed", isAutoRetry);
-    }
-    if (data && (data as any).ok === false) {
-      await upsertStatus(order.id, { status: "failed", last_error: "Telegram not linked" });
-      toast.error("Link your Telegram account first (see Dashboard).");
-      return;
-    }
-    await upsertStatus(order.id, { status: "sent" });
-    toast.success(`Sent ${rows.length} credentials to your Telegram`);
-  };
-
-  // Auto-retry up to 2 times with exponential backoff (3s, 8s) on transient failures.
-  const MAX_AUTO_RETRIES = 2;
-  const scheduleAutoRetry = (order: OrderRow, errMsg: string, wasAutoRetry: boolean) => {
-    const attempts = (statuses[order.id]?.attempt_count ?? 0) + (wasAutoRetry ? 0 : 1);
-    if (attempts >= MAX_AUTO_RETRIES + 1) {
-      toast.error(`Telegram send failed after ${attempts} tries. Tap "Retry Telegram" to try again.`);
-      return;
-    }
-    const delayMs = attempts === 1 ? 3000 : 8000;
-    toast.message(`Telegram failed (${errMsg}). Auto-retrying in ${delayMs / 1000}s…`);
-    window.setTimeout(() => {
-      handleTelegram(order, true);
-    }, delayMs);
-  };
-
   return (
     <Card className="mt-6 border-border/60 bg-gradient-card p-6 shadow-card">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 font-display text-lg font-semibold">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
             Delivered orders (last 48 hours)
-            {telegramLinked ? (
-              <Badge className="bg-success/20 text-success hover:bg-success/20">
-                <CheckCircle2 className="mr-1 h-3 w-3" /> Telegram linked
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="border-warning/40 text-warning">
-                <XCircle className="mr-1 h-3 w-3" /> Telegram not linked
-              </Badge>
-            )}
           </div>
           <p className="text-sm text-muted-foreground">
-            Download CSV, copy UID:PASS, or send to Telegram. Template: <span className="font-medium capitalize text-foreground">{template}</span> · change in the Telegram card above.
+            Download CSV or copy UID:PASS for each delivered order.
           </p>
         </div>
         <Badge variant="outline" className="border-primary/40 text-primary">
@@ -325,32 +180,8 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
                     ৳{o.total_bdt.toFixed(2)}
                   </Badge>
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>{formatTime(o.created_at)} · #{o.id.slice(0, 8)}</span>
-                  {(() => {
-                    const s = statuses[o.id];
-                    if (!s) return null;
-                    if (s.status === "sending")
-                      return (
-                        <Badge variant="outline" className="border-primary/40 text-primary">
-                          <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Sending… (try {s.attempt_count})
-                        </Badge>
-                      );
-                    if (s.status === "sent")
-                      return (
-                        <Badge className="bg-success/20 text-success hover:bg-success/20">
-                          <CheckCircle2 className="mr-1 h-3 w-3" /> Sent to Telegram
-                          {s.sent_at ? ` · ${new Date(s.sent_at).toLocaleTimeString()}` : ""}
-                        </Badge>
-                      );
-                    if (s.status === "failed")
-                      return (
-                        <Badge variant="destructive" title={s.last_error ?? undefined}>
-                          <XCircle className="mr-1 h-3 w-3" /> Failed (try {s.attempt_count})
-                        </Badge>
-                      );
-                    return null;
-                  })()}
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {formatTime(o.created_at)} · #{o.id.slice(0, 8)}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -361,24 +192,6 @@ export const RecentOrdersPanel = ({ userId, telegramLinked, template }: Props) =
                   disabled={busyId === o.id}
                 >
                   <Copy className="mr-2 h-3.5 w-3.5" /> Copy UID:PASS
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleTelegram(o)}
-                  disabled={busyId === o.id || !telegramLinked}
-                  title={!telegramLinked ? "Link your Telegram account first" : undefined}
-                >
-                  {busyId === o.id && statuses[o.id]?.status === "sending" ? (
-                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Send className="mr-2 h-3.5 w-3.5" />
-                  )}
-                  {statuses[o.id]?.status === "sent"
-                    ? "Resend to Telegram"
-                    : statuses[o.id]?.status === "failed"
-                    ? "Retry Telegram"
-                    : "Send to Telegram"}
                 </Button>
                 <Button
                   size="sm"
