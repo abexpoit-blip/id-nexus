@@ -26,7 +26,8 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (_req, file, cb) => {
     const ok = /^image\/(jpe?g|png|webp|gif)$/i.test(file.mimetype);
-    cb(ok ? null : new Error("invalid_file_type"), ok);
+    if (ok) cb(null, true);
+    else cb(new Error("invalid_file_type") as unknown as null, false);
   },
 });
 
