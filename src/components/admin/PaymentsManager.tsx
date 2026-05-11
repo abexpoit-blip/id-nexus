@@ -93,6 +93,38 @@ export const PaymentsManager = () => {
   const [topupsSearchInput, setTopupsSearchInput] = useState("");
   const [withdrawsSearchInput, setWithdrawsSearchInput] = useState("");
 
+  // Bulk selection
+  const [selectedTopups, setSelectedTopups] = useState<Set<string>>(new Set());
+  const [selectedWithdraws, setSelectedWithdraws] = useState<Set<string>>(new Set());
+
+  // Bulk confirm dialog
+  type BulkAction = "approve-topups" | "reject-topups" | "reject-withdraws";
+  const [bulkConfirm, setBulkConfirm] = useState<BulkAction | null>(null);
+  const [bulkNote, setBulkNote] = useState("");
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+
+  // Bulk result modal
+  type BulkResultRow = {
+    id: string;
+    ok: boolean;
+    user_id?: string;
+    amount?: number;
+    balance_before?: number;
+    balance_after?: number;
+    error?: string;
+  };
+  const [bulkResults, setBulkResults] = useState<{
+    action: BulkAction;
+    rows: BulkResultRow[];
+  } | null>(null);
+
+  // Auto-refresh error tracking
+  const [refreshError, setRefreshError] = useState<{
+    message: string;
+    when: Date;
+    source: "tab" | "counts" | "manual";
+  } | null>(null);
+
   // Pay dialog
   const [payOpen, setPayOpen] = useState(false);
   const [payTarget, setPayTarget] = useState<Withdraw | null>(null);
