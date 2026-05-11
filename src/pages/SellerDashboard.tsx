@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -149,7 +149,7 @@ const STEP_LABELS: Record<UploadStep, string> = {
 };
 
 const SellerDashboard = () => {
-  const { user, roles, loading: authLoading } = useAuth();
+  const { user, profile, roles, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState<string>("");
@@ -199,22 +199,14 @@ const SellerDashboard = () => {
   useEffect(() => {
     if (!user || authLoading) return;
     if (!roles.includes("seller")) return; // admins skip
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("buyer_settings")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (cancelled) return;
-      const onboarded = (data?.buyer_settings as any)?.seller_onboarded_at;
-      if (!onboarded) {
-        navigate("/seller/onboarding", { replace: true });
-      }
-    })();
-    return () => { cancelled = true; };
+    const onboarded =
+      (profile?.buyer_settings as any)?.seller_onboarded_at ||
+      (profile?.buyer_settings as any)?.seller_onboarded;
+    if (!onboarded) {
+      navigate("/seller/onboarding", { replace: true });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, authLoading, roles.join(",")]);
+  }, [user?.id, authLoading, roles.join(","), profile?.buyer_settings]);
 
   // Pre-select category chosen during onboarding wizard
   useEffect(() => {
@@ -280,80 +272,24 @@ const SellerDashboard = () => {
     if (!user) return;
     setCategoriesLoading(true);
     setCategoriesError(null);
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const startOfWeek = new Date();
-    startOfWeek.setHours(0, 0, 0, 0);
-    startOfWeek.setDate(startOfWeek.getDate() - 6); // last 7 days incl. today
-
-    let cats: any[] | null = null;
-    let myAccounts: any[] | null = null;
-    let recentRows: any[] | null = null;
-    let todayCount: number | null = 0;
-    let weekCount: number | null = 0;
-    let rpItems: any[] | null = null;
+    let data: any;
     try {
-      const results = await Promise.all([
-      supabase
-        .from("categories")
-        .select("id, name, slug, price_bdt")
-        .eq("is_active", true)
-        .eq("kind", "fb_account")
-        .order("sort_order"),
-      supabase
-        .from("accounts")
-        .select("id, category_id, status")
-        .eq("seller_id", user.id),
-      supabase
-        .from("accounts")
-        .select("uid, status, sold_at, created_at, category_id")
-        .eq("seller_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(20),
-      supabase
-        .from("accounts")
-        .select("id", { count: "exact", head: true })
-        .eq("seller_id", user.id)
-        .eq("status", "sold")
-        .gte("sold_at", startOfDay.toISOString()),
-      supabase
-        .from("accounts")
-        .select("id", { count: "exact", head: true })
-        .eq("seller_id", user.id)
-        .eq("status", "sold")
-        .gte("sold_at", startOfWeek.toISOString()),
-      supabase
-        .from("replacement_items")
-        .select("id, reported_uid, outcome, outcome_reason, in_window, created_at, account_id")
-        .eq("seller_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(100),
-      ]);
-      cats = results[0].data as any[] | null;
-      myAccounts = results[1].data as any[] | null;
-      recentRows = results[2].data as any[] | null;
-      todayCount = results[3].count;
-      weekCount = results[4].count;
-      rpItems = results[5].data as any[] | null;
-      if (results[0].error) throw results[0].error;
+      data = await api.get<any>("/api/seller/overview");
     } catch (err: any) {
-      setCategoriesError(err?.message || "Failed to load categories");
+      setCategoriesError(err?.message || "Failed to load");
       setCategoriesLoading(false);
       return;
     }
+    const cats = data.categories as any[];
+    const myAccounts = data.my_accounts as any[];
+    const recentRows = data.recent as any[];
     setCategories((cats ?? []) as Category[]);
     setCategoriesLoading(false);
-    setSoldToday(todayCount ?? 0);
-    setSoldWeek(weekCount ?? 0);
-    setReplacements((rpItems ?? []) as ReplacementRow[]);
-
-    // Daily limit + uploaded-today (UTC day)
-    const [{ data: limitVal }, { data: usedVal }] = await Promise.all([
-      supabase.rpc("get_seller_daily_limit", { _seller_id: user.id }),
-      supabase.rpc("get_seller_today_uploaded", { _seller_id: user.id }),
-    ]);
-    setDailyLimit(Number(limitVal ?? 0));
-    setUsedToday(Number(usedVal ?? 0));
+    setSoldToday(Number(data.sold_today ?? 0));
+    setSoldWeek(Number(data.sold_week ?? 0));
+    setReplacements((data.replacements ?? []) as ReplacementRow[]);
+    setDailyLimit(Number(data.daily_limit ?? 0));
+    setUsedToday(Number(data.used_today ?? 0));
 
     // Map account_id -> category_id for filter
     const acctMap: Record<string, string> = {};
@@ -378,26 +314,8 @@ const SellerDashboard = () => {
   useEffect(() => {
     loadAll();
     if (!user) return;
-    const acctChannel = supabase
-      .channel("seller-accounts-" + user.id)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "accounts", filter: `seller_id=eq.${user.id}` },
-        () => loadAll(),
-      )
-      .subscribe();
-    const rpChannel = supabase
-      .channel("seller-replacements-" + user.id)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "replacement_items", filter: `seller_id=eq.${user.id}` },
-        () => loadAll(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(acctChannel);
-      supabase.removeChannel(rpChannel);
-    };
+    const t = setInterval(loadAll, 30_000);
+    return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
