@@ -394,6 +394,14 @@ export const PaymentsManager = () => {
     return p?.display_name || p?.email || id.slice(0, 8);
   };
 
+  const userBalance = (id: string): number | null => {
+    const v = userBalances[id];
+    return typeof v === "number" ? v : null;
+  };
+
+  const fmtBdt = (n: number | null | undefined) =>
+    n == null ? "—" : `৳ ${Number(n).toFixed(0)}`;
+
   const pendingTopups = pendingCounts.topups;
   const pendingWds = pendingCounts.withdraws;
 
@@ -579,13 +587,21 @@ export const PaymentsManager = () => {
             <p className="py-6 text-center text-sm text-muted-foreground">No top-up requests match these filters.</p>
           ) : (
             <div className="overflow-x-auto"><Table>
-              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {topups.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
                     <TableCell className="text-sm">
                       {userLabel(r.user_id)}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {fmtBdt(userBalance(r.user_id))}
+                      {r.status === "pending" && userBalance(r.user_id) != null && (
+                        <div className="text-[10px] text-success">
+                          → {fmtBdt((userBalance(r.user_id) ?? 0) + Number(r.amount_bdt))}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>{r.method}</TableCell>
                     <TableCell className="font-semibold">৳ {Number(r.amount_bdt).toFixed(0)}</TableCell>
@@ -636,12 +652,30 @@ export const PaymentsManager = () => {
             <p className="py-6 text-center text-sm text-muted-foreground">No withdraw requests match these filters.</p>
           ) : (
             <div className="overflow-x-auto"><Table>
-              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Receiver</TableHead><TableHead>Status</TableHead><TableHead>Payout TxnID</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Receiver</TableHead><TableHead>Status</TableHead><TableHead>Payout TxnID</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {withdraws.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
                     <TableCell className="text-sm">{userLabel(r.user_id)}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {(() => {
+                        const bal = userBalance(r.user_id);
+                        const insufficient = bal != null && bal < Number(r.amount_bdt);
+                        return (
+                          <>
+                            <span className={insufficient ? "text-destructive font-semibold" : ""}>
+                              {fmtBdt(bal)}
+                            </span>
+                            {(r.status === "pending" || r.status === "approved") && bal != null && (
+                              <div className={`text-[10px] ${insufficient ? "text-destructive" : "text-warning"}`}>
+                                → {fmtBdt(bal - Number(r.amount_bdt))}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell>{r.method}</TableCell>
                     <TableCell className="font-semibold">৳ {Number(r.amount_bdt).toFixed(0)}</TableCell>
                     <TableCell className="font-mono text-xs">{r.receiver_number}</TableCell>
@@ -674,6 +708,32 @@ export const PaymentsManager = () => {
           <DialogHeader><DialogTitle>Mark withdraw as paid</DialogTitle></DialogHeader>
           <div className="space-y-3 text-sm">
             <div>To: <span className="font-mono">{payTarget?.receiver_number}</span> · {payTarget?.method} · ৳ {Number(payTarget?.amount_bdt ?? 0).toFixed(2)}</div>
+            {payTarget && (() => {
+              const bal = userBalance(payTarget.user_id);
+              const after = bal == null ? null : bal - Number(payTarget.amount_bdt);
+              const insufficient = bal != null && bal < Number(payTarget.amount_bdt);
+              return (
+                <div className={`grid grid-cols-3 gap-2 rounded-md border p-3 text-center ${insufficient ? "border-destructive/40 bg-destructive/10" : "border-border/60 bg-background/40"}`}>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Balance now</div>
+                    <div className="mt-0.5 font-display text-base font-semibold">{fmtBdt(bal)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Debit</div>
+                    <div className="mt-0.5 font-display text-base font-semibold text-warning">− ৳ {Number(payTarget.amount_bdt).toFixed(0)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">After</div>
+                    <div className={`mt-0.5 font-display text-base font-semibold ${insufficient ? "text-destructive" : "text-primary"}`}>{fmtBdt(after)}</div>
+                  </div>
+                  {insufficient && (
+                    <div className="col-span-3 text-xs text-destructive">
+                      Insufficient balance — payout will be rejected by the server.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div>
               <label className="text-xs text-muted-foreground">Payout TxnID *</label>
               <Input value={payTxn} onChange={(e) => setPayTxn(e.target.value)} placeholder="9A1B2C3D4E" />
@@ -695,6 +755,24 @@ export const PaymentsManager = () => {
         <DialogContent>
           <DialogHeader><DialogTitle>Reject request</DialogTitle></DialogHeader>
           <div className="space-y-3 text-sm">
+            {rejTarget && (() => {
+              const row = rejTarget.kind === "topup"
+                ? topups.find((t) => t.id === rejTarget.id)
+                : withdraws.find((w) => w.id === rejTarget.id);
+              if (!row) return null;
+              const bal = userBalance(row.user_id);
+              return (
+                <div className="rounded-md border border-border/60 bg-background/40 p-3 text-xs">
+                  <span className="text-muted-foreground">User: </span>
+                  <span className="font-medium">{userLabel(row.user_id)}</span>
+                  <span className="mx-2 text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">Balance: </span>
+                  <span className="font-mono">{fmtBdt(bal)}</span>
+                  <span className="mx-2 text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">No balance change on reject.</span>
+                </div>
+              );
+            })()}
             <Textarea value={rejNote} onChange={(e) => setRejNote(e.target.value)} placeholder="Reason (sent to user)" rows={3} />
           </div>
           <DialogFooter>
