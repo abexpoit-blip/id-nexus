@@ -845,6 +845,36 @@ export const PaymentsManager = () => {
         </div>
       </div>
 
+      {refreshError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle className="flex items-center justify-between">
+            <span>
+              {refreshError.source === "manual"
+                ? "Manual refresh failed"
+                : refreshError.source === "counts"
+                  ? "Pending counts failed to refresh"
+                  : "Auto-refresh failed"}
+            </span>
+            <span className="text-xs font-normal opacity-80">
+              {refreshError.when.toLocaleTimeString()}
+            </span>
+          </AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span className="break-all">{refreshError.message}</span>
+            <div className="flex shrink-0 gap-2">
+              <Button size="sm" variant="outline" className="h-7" onClick={refreshNow} disabled={refreshing}>
+                <RefreshCw className={cn("mr-1 h-3 w-3", refreshing && "animate-spin")} />
+                Retry
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7" onClick={() => setRefreshError(null)}>
+                Dismiss
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKind)}>
         <TabsList>
           <TabsTrigger value="topups">Top-ups {pendingTopups > 0 && <Badge className="ml-2 bg-warning/20 text-warning hover:bg-warning/20">{pendingTopups}</Badge>}</TabsTrigger>
