@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,33 +53,40 @@ const OrderDetail = () => {
   useEffect(() => {
     if (!id) return;
     const load = async () => {
-      const { data: orderData, error: oErr } = await supabase
-        .from("orders")
-        .select("id, quantity, unit_price_bdt, total_bdt, status, created_at, category_id")
-        .eq("id", id)
-        .single();
-      if (oErr || !orderData) {
+      try {
+        const res = await api.get<{ order: any; items: any[] }>(`/api/orders/${id}`);
+        const orderData = res.order;
+        setOrder({
+          id: orderData.id,
+          quantity: Number(orderData.quantity),
+          unit_price_bdt: Number(orderData.unit_price_bdt),
+          total_bdt: Number(orderData.total_bdt),
+          status: orderData.status,
+          created_at: orderData.created_at,
+          category_id: orderData.category_id,
+        });
+        setAccounts(
+          (res.items ?? []).map((it: any) => ({
+            uid: it.uid,
+            password: it.password,
+            two_fa: it.two_fa ?? null,
+            email: it.email ?? null,
+            email_password: it.email_password ?? null,
+          })),
+        );
+        // Load category name
+        try {
+          const cats = await api.get<{ categories: any[] }>("/api/categories");
+          const cat = (cats.categories ?? []).find((c: any) => c.id === orderData.category_id);
+          setCategoryName(cat?.name ?? "");
+        } catch {
+          setCategoryName("");
+        }
+      } catch {
         toast.error("Order not found");
+      } finally {
         setLoading(false);
-        return;
       }
-      setOrder(orderData as OrderRow);
-
-      const [{ data: items }, { data: cat }] = await Promise.all([
-        supabase
-          .from("order_items")
-          .select("account_id, accounts(uid, password, two_fa, email, email_password)")
-          .eq("order_id", id),
-        supabase.from("categories").select("name").eq("id", orderData.category_id).single(),
-      ]);
-
-      setAccounts(
-        (items ?? [])
-          .map((it: any) => it.accounts)
-          .filter(Boolean) as AccountRow[],
-      );
-      setCategoryName(cat?.name ?? "");
-      setLoading(false);
     };
     load();
   }, [id]);
