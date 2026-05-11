@@ -92,4 +92,54 @@ router.delete("/admin/:id", authRequired, requireRole("admin"), async (req: Auth
   res.json({ ok: true });
 });
 
+// Toggle / set pinned state
+router.post("/admin/:id/pin", authRequired, requireRole("admin"), async (req: AuthedReq, res) => {
+  const pinned = req.body?.pinned === undefined ? null : !!req.body.pinned;
+  const [n] = pinned === null
+    ? await q(`UPDATE notices SET pinned = NOT pinned, updated_at=now() WHERE id=$1 RETURNING *`, [req.params.id])
+    : await q(`UPDATE notices SET pinned=$2, updated_at=now() WHERE id=$1 RETURNING *`, [req.params.id, pinned]);
+  if (!n) return res.status(404).json({ error: "not_found" });
+  res.json({ notice: n });
+});
+
+// Expire a notice immediately (or set explicit expires_at)
+router.post("/admin/:id/expire", authRequired, requireRole("admin"), async (req: AuthedReq, res) => {
+  const when = req.body?.expires_at ? new Date(req.body.expires_at) : new Date();
+  const [n] = await q(
+    `UPDATE notices SET expires_at=$2, is_active=false, updated_at=now() WHERE id=$1 RETURNING *`,
+    [req.params.id, when.toISOString()]
+  );
+  if (!n) return res.status(404).json({ error: "not_found" });
+  await q(
+    `INSERT INTO audit_logs(actor_id, actor_email, event_type, summary, entity_type, entity_id)
+       VALUES($1,$2,'notice_expire','Expired notice','notice',$3)`,
+    [req.user!.id, req.user!.email, req.params.id]
+  );
+  res.json({ notice: n });
+});
+
+// Reactivate (clear expiry, set active)
+router.post("/admin/:id/activate", authRequired, requireRole("admin"), async (req: AuthedReq, res) => {
+  const [n] = await q(
+    `UPDATE notices SET is_active=true, expires_at=NULL, updated_at=now() WHERE id=$1 RETURNING *`,
+    [req.params.id]
+  );
+  if (!n) return res.status(404).json({ error: "not_found" });
+  res.json({ notice: n });
+});
+
+// Convenience: filtered admin lists for buyer/seller audiences
+router.get("/admin/buyers", authRequired, requireRole("admin"), async (_req, res) => {
+  const rows = await q(
+    `SELECT * FROM notices WHERE audience IN ('all','buyer') ORDER BY pinned DESC, created_at DESC LIMIT 200`
+  );
+  res.json({ notices: rows });
+});
+router.get("/admin/sellers", authRequired, requireRole("admin"), async (_req, res) => {
+  const rows = await q(
+    `SELECT * FROM notices WHERE audience IN ('all','seller') ORDER BY pinned DESC, created_at DESC LIMIT 200`
+  );
+  res.json({ notices: rows });
+});
+
 export default router;
