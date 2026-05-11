@@ -150,9 +150,16 @@ router.post("/seller-applications/:id/approve", async (req: AuthedReq, res) => {
   const [a] = await q(`SELECT * FROM seller_applications WHERE id=$1`, [req.params.id]);
   if (!a) return res.status(404).json({ error: "not_found" });
   await q(`INSERT INTO user_roles(user_id, role) VALUES($1,'seller') ON CONFLICT DO NOTHING`, [a.user_id]);
+  // Remove buyer role per business rule (sellers lose buyer access)
+  await q(`DELETE FROM user_roles WHERE user_id=$1 AND role='buyer'`, [a.user_id]);
   await q(
     `UPDATE seller_applications SET status='approved', reviewed_by=$2, reviewed_at=now() WHERE id=$1`,
     [a.id, req.user!.id]
+  );
+  await q(
+    `INSERT INTO audit_logs(actor_id, actor_email, event_type, entity_type, entity_id, summary, details)
+       VALUES($1,$2,'seller_application_approved','seller_application',$3,$4,$5)`,
+    [req.user!.id, req.user!.email, a.id, `Approved seller for ${a.email}`, JSON.stringify({ user_id: a.user_id })]
   );
   res.json({ ok: true });
 });
@@ -221,12 +228,26 @@ router.get("/settings", async (_req, res) => {
 });
 
 router.put("/settings/:key", async (req: AuthedReq, res) => {
+  const [prev] = await q<{ value: any }>(`SELECT value FROM app_settings WHERE key=$1`, [req.params.key]);
   const [r] = await q(
     `INSERT INTO app_settings(key, value, updated_by) VALUES($1,$2,$3)
      ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_by=EXCLUDED.updated_by, updated_at=now()
      RETURNING *`,
     [req.params.key, req.body?.value || {}, req.user!.id]
   );
+  // Audit-log selected keys for transparent change history
+  if (["brand_credit", "payment_accounts", "min_deposit"].includes(req.params.key)) {
+    const eventType = req.params.key === "brand_credit"
+      ? "brand_credit_updated"
+      : "payment_accounts_updated";
+    await q(
+      `INSERT INTO audit_logs(actor_id, actor_email, event_type, entity_type, entity_id, summary, details)
+         VALUES($1,$2,$3,'app_setting',NULL,$4,$5)`,
+      [req.user!.id, req.user!.email, eventType,
+       `Updated ${req.params.key}`,
+       JSON.stringify({ key: req.params.key, old: prev?.value ?? null, new: req.body?.value ?? null })]
+    );
+  }
   res.json({ setting: r });
 });
 
