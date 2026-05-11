@@ -31,8 +31,11 @@ router.post("/topups/:id/approve", async (req: AuthedReq, res) => {
   const [r] = await q(`SELECT * FROM topup_requests WHERE id=$1 FOR UPDATE`, [id]);
   if (!r) return res.status(404).json({ error: "not_found" });
   if (r.status !== "pending") return res.status(400).json({ error: "already_reviewed" });
+  const [pre] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1 FOR UPDATE`, [r.user_id]);
+  const balanceBefore = Number(pre?.balance_bdt ?? 0);
   await q(`UPDATE profiles SET balance_bdt = balance_bdt + $1 WHERE id=$2`, [r.amount_bdt, r.user_id]);
   const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1`, [r.user_id]);
+  const balanceAfter = Number(p.balance_bdt);
   await q(
     `INSERT INTO balance_ledger(user_id, kind, amount_bdt, balance_after, reference_id, note)
      VALUES($1,'topup',$2,$3,$4,$5)`,
@@ -42,16 +45,34 @@ router.post("/topups/:id/approve", async (req: AuthedReq, res) => {
     `UPDATE topup_requests SET status='approved', reviewed_by=$2, reviewed_at=now(), approved_at=now() WHERE id=$1`,
     [id, req.user!.id]
   );
-  res.json({ ok: true, new_balance: Number(p.balance_bdt) });
+  res.json({
+    ok: true,
+    new_balance: balanceAfter,
+    balance_before: balanceBefore,
+    balance_after: balanceAfter,
+    amount: Number(r.amount_bdt),
+  });
 });
 
 router.post("/topups/:id/reject", async (req: AuthedReq, res) => {
+  const [r] = await q(`SELECT user_id, amount_bdt FROM topup_requests WHERE id=$1`, [req.params.id]);
   await q(
     `UPDATE topup_requests SET status='rejected', admin_note=$2, reviewed_by=$3, reviewed_at=now()
      WHERE id=$1 AND status='pending'`,
     [req.params.id, req.body?.note || null, req.user!.id]
   );
-  res.json({ ok: true });
+  let balance = 0;
+  if (r) {
+    const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1`, [r.user_id]);
+    balance = Number(p?.balance_bdt ?? 0);
+  }
+  // No balance change on reject; before === after
+  res.json({
+    ok: true,
+    balance_before: balance,
+    balance_after: balance,
+    amount: r ? Number(r.amount_bdt) : 0,
+  });
 });
 
 // USERS
