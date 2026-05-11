@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 export interface BrandSettings {
   developer_name: string;
@@ -15,6 +15,7 @@ const DEFAULTS: BrandSettings = {
 
 const SETTING_KEY = "brand_credit";
 const CACHE_KEY = "nx_brand_credit_v1";
+const POLL_MS = 60_000;
 
 const readCache = (): BrandSettings | null => {
   try {
@@ -36,18 +37,11 @@ const writeCache = (s: BrandSettings) => {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(s));
   } catch {
-    /* ignore quota errors */
+    /* ignore */
   }
 };
 
-/**
- * Reads brand credit from app_settings (key = brand_credit) and
- * keeps it in sync via Supabase realtime so footer/favicon labels
- * update instantly when an admin saves new values.
- */
 export const useBrandSettings = () => {
-  // Hydrate immediately from localStorage so footer/banner never flash
-  // back to defaults if realtime is delayed or temporarily fails.
   const [settings, setSettings] = useState<BrandSettings>(() => readCache() ?? DEFAULTS);
   const [loading, setLoading] = useState(true);
 
@@ -64,31 +58,27 @@ export const useBrandSettings = () => {
 
   useEffect(() => {
     let mounted = true;
-    supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", SETTING_KEY)
-      .maybeSingle()
-      .then(({ data }) => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const load = async () => {
+      try {
+        const res = await api.get<{ settings: Record<string, any> }>("/api/settings", {
+          keys: SETTING_KEY,
+        });
         if (!mounted) return;
-        if (data?.value) apply(data.value);
-        setLoading(false);
-      });
+        if (res.settings?.[SETTING_KEY]) apply(res.settings[SETTING_KEY]);
+      } catch {
+        /* keep cached */
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
 
-    const channel = supabase
-      .channel("brand-credit-settings")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "app_settings", filter: `key=eq.${SETTING_KEY}` },
-        (payload: any) => {
-          if (payload.new?.value) apply(payload.new.value);
-        }
-      )
-      .subscribe();
-
+    load();
+    timer = setInterval(load, POLL_MS);
     return () => {
       mounted = false;
-      supabase.removeChannel(channel);
+      if (timer) clearInterval(timer);
     };
   }, []);
 
