@@ -8,9 +8,8 @@
  *   3. Place order              -> /api/orders            (buys 1 unit)
  *   4. Balance decrement check  -> /api/wallet/balance
  *   5. Delivery payload check   -> /api/orders/:id        (items have uid/password)
- *   6. Telegram delivery row    -> /api/admin/orders/:id/delivery (admin)
- *   7. Seller login + role      -> /api/auth/login + /api/auth/me
- *   8. Admin stock report       -> /api/admin/stock
+ *   6. Seller login + role      -> /api/auth/login + /api/auth/me
+ *   7. Admin stock report       -> /api/admin/stock
  *
  * Outputs a pass/fail table to console and writes JSON to ./smoke-report.json
  * Exit code: 0 on full pass, 1 on any failure.
