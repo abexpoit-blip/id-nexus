@@ -47,6 +47,7 @@ import { GlobalSearch } from "@/components/admin/GlobalSearch";
 import { PayoutScheduleManager } from "@/components/admin/PayoutScheduleManager";
 import { BuyerRiskQueue } from "@/components/admin/BuyerRiskQueue";
 import { MessagesManager } from "@/components/admin/MessagesManager";
+import { SupportTicketsManager } from "@/components/admin/SupportTicketsManager";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
 interface RpItem {
@@ -83,7 +84,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
   const [section, setSection] = useState<
-    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages"
+    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages" | "support"
   >("overview");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
@@ -260,6 +261,7 @@ const Admin = () => {
         {section === "risk" && <BuyerRiskQueue />}
         {section === "orders" && <OrdersManager />}
         {section === "messages" && <MessagesManager />}
+        {section === "support" && <SupportTicketsManager />}
         {section === "leaderboard" && <SellerLeaderboard />}
         {section === "stock" && <StockOverview />}
         {section === "categories" && <CategoriesManager />}
