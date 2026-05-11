@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   Loader2, Check, X, Banknote, Image as ImageIcon, CheckCircle2,
-  Search, CalendarIcon, RotateCcw, ChevronLeft, ChevronRight,
+  Search, CalendarIcon, RotateCcw, ChevronLeft, ChevronRight, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -54,6 +54,26 @@ export const PaymentsManager = () => {
   const [userBalances, setUserBalances] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Polling — configurable interval. 0 = off.
+  const POLL_KEY = "paymentsManager.pollMs";
+  const [pollMs, setPollMs] = useState<number>(() => {
+    if (typeof window === "undefined") return 30_000;
+    const v = parseInt(window.localStorage.getItem(POLL_KEY) || "", 10);
+    return Number.isFinite(v) && v >= 0 ? v : 30_000;
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(POLL_KEY, String(pollMs));
+    }
+  }, [pollMs]);
 
   // Filters per tab
   type Filter = {
@@ -156,6 +176,7 @@ export const PaymentsManager = () => {
         setWithdraws(rows as Withdraw[]);
         setWithdrawsTotal(data.total ?? rows.length);
       }
+      setLastRefreshed(new Date());
     } catch (e: any) {
       toast.error(e?.message || "Failed to load payments");
     } finally {
@@ -179,6 +200,20 @@ export const PaymentsManager = () => {
     loadPendingCounts();
   };
 
+  const refreshNow = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadTab(tab, { silent: true }),
+        loadPendingCounts(),
+      ]);
+      setLastRefreshed(new Date());
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // Reload when active tab's filters change
   useEffect(() => {
     loadTab("topups");
@@ -187,15 +222,17 @@ export const PaymentsManager = () => {
     loadTab("withdraws");
   }, [withdrawsFilter]);
 
-  // Pending counts + 30s polling
+  // Pending counts + configurable polling (0 = off)
   useEffect(() => {
     loadPendingCounts();
+    if (!pollMs) return;
     const id = setInterval(() => {
       loadTab(tab, { silent: true });
       loadPendingCounts();
-    }, 30_000);
+      setLastRefreshed(new Date());
+    }, pollMs);
     return () => clearInterval(id);
-  }, [tab]);
+  }, [tab, pollMs]);
 
   // Debounce search inputs
   const topupsSearchTimer = useRef<number | null>(null);
@@ -564,8 +601,64 @@ export const PaymentsManager = () => {
     );
   };
 
+  const pollOptions: { label: string; value: number }[] = [
+    { label: "Off", value: 0 },
+    { label: "10s", value: 10_000 },
+    { label: "30s", value: 30_000 },
+    { label: "1m", value: 60_000 },
+    { label: "5m", value: 300_000 },
+  ];
+  const fmtRefreshed = (d: Date | null) => {
+    if (!d) return "never";
+    const s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+    if (s < 60) return `${s}s ago`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    return d.toLocaleTimeString();
+  };
+
   return (
     <Card className="border-border/60 bg-gradient-card p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs text-muted-foreground">
+          Last updated: <span className="font-medium text-foreground">{fmtRefreshed(lastRefreshed)}</span>
+          {pollMs > 0 && (
+            <span className="ml-2 text-muted-foreground/70">
+              · auto-refresh every {pollOptions.find((o) => o.value === pollMs)?.label ?? `${pollMs / 1000}s`}
+            </span>
+          )}
+          {pollMs === 0 && (
+            <span className="ml-2 text-warning/90">· auto-refresh off</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Select
+            value={String(pollMs)}
+            onValueChange={(v) => setPollMs(parseInt(v, 10))}
+          >
+            <SelectTrigger className="h-9 w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {pollOptions.map((o) => (
+                <SelectItem key={o.value} value={String(o.value)}>
+                  Auto: {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={refreshNow}
+            disabled={refreshing}
+          >
+            <RefreshCw className={cn("mr-1 h-3.5 w-3.5", refreshing && "animate-spin")} />
+            Refresh now
+          </Button>
+        </div>
+      </div>
+
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKind)}>
         <TabsList>
           <TabsTrigger value="topups">Top-ups {pendingTopups > 0 && <Badge className="ml-2 bg-warning/20 text-warning hover:bg-warning/20">{pendingTopups}</Badge>}</TabsTrigger>
