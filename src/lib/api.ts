@@ -2,10 +2,10 @@
 // - Local dev (`bun dev`)              → "" (Vite proxy /api → api.nexus-x.cloud)
 // - Lovable preview / sandbox          → "" (Vite proxy too — avoids CORS)
 // - Production build on buy.nexus-x... → "https://api.nexus-x.cloud"
-// - Override anywhere with VITE_API_BASE_URL
+// - Override anywhere with VITE_API_BASE_URL or VITE_API_BASE
 function resolveApiBase(): string {
   const env = (import.meta as any).env || {};
-  const override = env.VITE_API_BASE_URL?.replace(/\/$/, "");
+  const override = (env.VITE_API_BASE_URL || env.VITE_API_BASE)?.replace(/\/$/, "");
   if (override) return override;
   if (env.DEV) return "";
   if (typeof window !== "undefined") {
