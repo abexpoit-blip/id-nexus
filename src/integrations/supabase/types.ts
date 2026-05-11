@@ -300,6 +300,48 @@ export type Database = {
           },
         ]
       }
+      notices: {
+        Row: {
+          audience: Database["public"]["Enums"]["notice_audience"]
+          body: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          pinned: boolean
+          severity: Database["public"]["Enums"]["notice_severity"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          audience?: Database["public"]["Enums"]["notice_audience"]
+          body: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          pinned?: boolean
+          severity?: Database["public"]["Enums"]["notice_severity"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          audience?: Database["public"]["Enums"]["notice_audience"]
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          pinned?: boolean
+          severity?: Database["public"]["Enums"]["notice_severity"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           body: string | null
@@ -1369,6 +1411,8 @@ export type Database = {
         | "withdraw"
         | "admin_adjustment"
         | "seller_payout"
+      notice_audience: "all" | "buyer" | "seller"
+      notice_severity: "info" | "warning" | "success"
       notification_kind:
         | "replacement_filed"
         | "id_replaced"
@@ -1547,6 +1591,8 @@ export const Constants = {
         "admin_adjustment",
         "seller_payout",
       ],
+      notice_audience: ["all", "buyer", "seller"],
+      notice_severity: ["info", "warning", "success"],
       notification_kind: [
         "replacement_filed",
         "id_replaced",
