@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -52,6 +53,10 @@ export const OrdersManager = () => {
   const [acting, setActing] = useState<OrderRow | null>(null);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkNote, setBulkNote] = useState("");
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -64,6 +69,7 @@ export const OrdersManager = () => {
       const r = await api.get<{ rows: OrderRow[]; total: number }>(`/api/admin/orders?${params}`);
       setRows(r.rows ?? []);
       setTotal(r.total ?? 0);
+      setSelected(new Set());
     } catch (e: any) { toast.error(e?.message || "Failed to load orders"); }
     setLoading(false);
   };
@@ -86,6 +92,31 @@ export const OrdersManager = () => {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  const eligible = rows.filter((o) => o.status !== "cancelled" && o.status !== "refunded");
+  const allSelected = eligible.length > 0 && eligible.every((o) => selected.has(o.id));
+  const toggleAll = () => {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(eligible.map((o) => o.id)));
+  };
+  const toggleOne = (id: string) => {
+    const n = new Set(selected); n.has(id) ? n.delete(id) : n.add(id); setSelected(n);
+  };
+  const submitBulk = async () => {
+    if (selected.size === 0) return;
+    setBulkSubmitting(true);
+    try {
+      const r = await api.post<{ results: { ok: boolean; amount?: number }[] }>(
+        "/api/admin/orders/bulk-cancel-refund",
+        { ids: Array.from(selected), note: bulkNote.trim() || null }
+      );
+      const ok = r.results.filter((x) => x.ok).length;
+      const refunded = r.results.reduce((s, x) => s + (x.ok ? Number(x.amount || 0) : 0), 0);
+      toast.success(`Refunded ${ok} order(s) · ৳${refunded.toFixed(2)}`);
+      setBulkOpen(false); setBulkNote(""); load();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setBulkSubmitting(false); }
+  };
+
   return (
     <Card className="border-border/60 bg-gradient-card p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -96,6 +127,16 @@ export const OrdersManager = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {selected.size > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:text-destructive"
+              onClick={() => setBulkOpen(true)}
+            >
+              <XCircle className="mr-1 h-4 w-4" /> Bulk refund ({selected.size})
+            </Button>
+          )}
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -134,6 +175,9 @@ export const OrdersManager = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
+                </TableHead>
                 <TableHead>Order</TableHead>
                 <TableHead>Buyer</TableHead>
                 <TableHead>Category</TableHead>
@@ -147,6 +191,13 @@ export const OrdersManager = () => {
             <TableBody>
               {rows.map((o) => (
                 <TableRow key={o.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selected.has(o.id)}
+                      onCheckedChange={() => toggleOne(o.id)}
+                      disabled={o.status === "cancelled" || o.status === "refunded"}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">#{o.id.slice(0, 8)}</TableCell>
                   <TableCell>
                     <div className="text-sm">{o.buyer_name || o.buyer_email || "—"}</div>
@@ -210,6 +261,35 @@ export const OrdersManager = () => {
             >
               {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Confirm refund
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk cancel & refund</DialogTitle>
+            <DialogDescription>
+              Refund <b>{selected.size}</b> selected order(s) and return all related accounts to the pool.
+              This is auditable and cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Reason / internal note (optional)"
+            value={bulkNote}
+            onChange={(e) => setBulkNote(e.target.value)}
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkOpen(false)} disabled={bulkSubmitting}>Cancel</Button>
+            <Button
+              onClick={submitBulk}
+              disabled={bulkSubmitting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {bulkSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirm bulk refund
             </Button>
           </DialogFooter>
         </DialogContent>
