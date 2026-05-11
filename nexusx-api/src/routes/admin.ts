@@ -1042,4 +1042,165 @@ router.get("/dashboard/timeseries", async (req, res) => {
   res.json({ series: rows, days });
 });
 
+// ===== GLOBAL SEARCH (Cmd-K) =====
+// Searches across users, orders, accounts (UID), and replacement requests.
+router.get("/search", async (req, res) => {
+  const raw = String(req.query.q || "").trim();
+  if (raw.length < 2) return res.json({ users: [], orders: [], accounts: [], replacements: [] });
+  const like = `%${raw.toLowerCase()}%`;
+  const isUuid = /^[0-9a-f-]{8,}$/i.test(raw);
+  const [users, orders, accounts, replacements] = await Promise.all([
+    q(
+      `SELECT u.id, u.email, p.display_name, p.balance_bdt, p.is_banned
+         FROM users u LEFT JOIN profiles p ON p.id=u.id
+         WHERE LOWER(u.email) LIKE $1 OR LOWER(COALESCE(p.display_name,'')) LIKE $1
+            ${isUuid ? "OR u.id::text = $2" : ""}
+         ORDER BY u.email LIMIT 8`,
+      isUuid ? [like, raw] : [like]
+    ),
+    q(
+      `SELECT o.id, o.status, o.total_bdt, o.created_at, p.email AS buyer_email
+         FROM orders o LEFT JOIN profiles p ON p.id=o.buyer_id
+         WHERE LOWER(p.email) LIKE $1 ${isUuid ? "OR o.id::text=$2 OR o.buyer_id::text=$2" : ""}
+         ORDER BY o.created_at DESC LIMIT 8`,
+      isUuid ? [like, raw] : [like]
+    ),
+    q(
+      `SELECT a.id, a.uid, a.status, a.category_id, c.name AS category_name
+         FROM accounts a LEFT JOIN categories c ON c.id=a.category_id
+         WHERE a.uid ILIKE $1
+         ORDER BY a.created_at DESC LIMIT 8`,
+      [`%${raw}%`]
+    ),
+    q(
+      `SELECT ri.id, ri.reported_uid, ri.outcome, ri.created_at, ri.request_id
+         FROM replacement_items ri
+         WHERE ri.reported_uid ILIKE $1 ${isUuid ? "OR ri.id::text=$2 OR ri.request_id::text=$2" : ""}
+         ORDER BY ri.created_at DESC LIMIT 8`,
+      isUuid ? [`%${raw}%`, raw] : [`%${raw}%`]
+    ),
+  ]);
+  res.json({ users, orders, accounts, replacements });
+});
+
+// ===== ORDERS — bulk cancel & refund =====
+router.post("/orders/bulk-cancel-refund", async (req: AuthedReq, res) => {
+  const ids = sanitizeIds(req.body?.ids);
+  const note = typeof req.body?.note === "string" ? req.body.note : null;
+  if (ids.length === 0) return res.status(400).json({ error: "no_ids" });
+  const results: { id: string; ok: boolean; amount?: number; error?: string }[] = [];
+  for (const id of ids) {
+    try {
+      const [o] = await q(`SELECT * FROM orders WHERE id=$1 FOR UPDATE`, [id]);
+      if (!o) { results.push({ id, ok: false, error: "not_found" }); continue; }
+      if (o.status === "cancelled" || o.status === "refunded") {
+        results.push({ id, ok: false, error: "already_reversed" }); continue;
+      }
+      const [pre] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1 FOR UPDATE`, [o.buyer_id]);
+      const after = Number(pre?.balance_bdt ?? 0) + Number(o.total_bdt);
+      await q(`UPDATE profiles SET balance_bdt=$1 WHERE id=$2`, [after, o.buyer_id]);
+      await q(
+        `INSERT INTO balance_ledger(user_id, kind, amount_bdt, balance_after, reference_id, note)
+           VALUES($1,'refund',$2,$3,$4,$5)`,
+        [o.buyer_id, o.total_bdt, after, o.id, note || "Bulk cancel & refund"]
+      );
+      await q(
+        `UPDATE accounts SET status='available', buyer_id=NULL, sold_at=NULL
+           WHERE id IN (SELECT account_id FROM order_items WHERE order_id=$1)`,
+        [o.id]
+      );
+      await q(`UPDATE orders SET status='cancelled', updated_at=now() WHERE id=$1`, [o.id]);
+      await q(
+        `INSERT INTO audit_logs(actor_id, actor_email, event_type, entity_type, entity_id, summary, details)
+           VALUES($1,$2,'order_cancel_refund','order',$3,$4,$5)`,
+        [req.user!.id, req.user!.email, o.id,
+         `Bulk cancel & refund order ${o.id} (৳${Number(o.total_bdt).toFixed(2)})`,
+         JSON.stringify({ buyer_id: o.buyer_id, amount: Number(o.total_bdt), note, bulk: true })]
+      );
+      results.push({ id, ok: true, amount: Number(o.total_bdt) });
+    } catch (e: any) { results.push({ id, ok: false, error: e?.message || "internal_error" }); }
+  }
+  res.json({ results });
+});
+
+// ===== PAYOUT SCHEDULE =====
+// Stored under app_settings key 'payout_schedule'
+//   { day_of_week: 0-6 (0=Sun), min_payout_bdt: number, auto_approve: boolean }
+router.get("/payouts/schedule", async (_req, res) => {
+  const [s] = await q(`SELECT value FROM app_settings WHERE key='payout_schedule'`);
+  const value = s?.value ?? { day_of_week: 5, min_payout_bdt: 100, auto_approve: false };
+  // Pending withdraw queue with totals
+  const pending = await q(
+    `SELECT w.id, w.amount_bdt, w.method, w.receiver_number, w.created_at, w.status,
+            u.email AS user_email, p.display_name, p.balance_bdt
+       FROM withdraw_requests w
+       JOIN users u ON u.id=w.user_id
+       LEFT JOIN profiles p ON p.id=w.user_id
+       WHERE w.status IN ('pending','approved')
+       ORDER BY w.created_at ASC`
+  );
+  const totals = pending.reduce(
+    (acc: any, r: any) => ({ count: acc.count + 1, amount: acc.amount + Number(r.amount_bdt) }),
+    { count: 0, amount: 0 }
+  );
+  res.json({ schedule: value, pending, totals });
+});
+
+router.put("/payouts/schedule", async (req: AuthedReq, res) => {
+  const dow = Math.min(6, Math.max(0, parseInt(String(req.body?.day_of_week ?? 5), 10) || 0));
+  const minPayout = Math.max(100, Number(req.body?.min_payout_bdt) || 100);
+  const autoApprove = Boolean(req.body?.auto_approve);
+  const value = { day_of_week: dow, min_payout_bdt: minPayout, auto_approve: autoApprove };
+  await q(
+    `INSERT INTO app_settings(key, value, updated_by, updated_at)
+       VALUES('payout_schedule', $1::jsonb, $2, now())
+       ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_by=EXCLUDED.updated_by, updated_at=now()`,
+    [JSON.stringify(value), req.user!.id]
+  );
+  res.json({ ok: true, schedule: value });
+});
+
+// ===== WITHDRAWS — bulk pay (by ids) =====
+router.post("/withdraws/bulk-pay", async (req: AuthedReq, res) => {
+  const ids = sanitizeIds(req.body?.ids);
+  const txnPrefix = typeof req.body?.txn_prefix === "string" ? req.body.txn_prefix : "BULK";
+  const note = typeof req.body?.note === "string" ? req.body.note : "Bulk payout";
+  if (ids.length === 0) return res.status(400).json({ error: "no_ids" });
+  const results: { id: string; ok: boolean; amount?: number; error?: string }[] = [];
+  for (const id of ids) {
+    try {
+      const [w] = await q(`SELECT * FROM withdraw_requests WHERE id=$1 FOR UPDATE`, [id]);
+      if (!w) { results.push({ id, ok: false, error: "not_found" }); continue; }
+      if (!["pending", "approved"].includes(w.status)) {
+        results.push({ id, ok: false, error: "already_paid" }); continue;
+      }
+      const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1 FOR UPDATE`, [w.user_id]);
+      if (Number(p?.balance_bdt ?? 0) < Number(w.amount_bdt)) {
+        results.push({ id, ok: false, error: "insufficient_balance" }); continue;
+      }
+      const newBal = Number(p.balance_bdt) - Number(w.amount_bdt);
+      await q(`UPDATE profiles SET balance_bdt=$1 WHERE id=$2`, [newBal, w.user_id]);
+      await q(
+        `INSERT INTO balance_ledger(user_id, kind, amount_bdt, balance_after, reference_id, note)
+           VALUES($1,'withdraw', -$2, $3, $4, $5)`,
+        [w.user_id, w.amount_bdt, newBal, w.id, note]
+      );
+      const txn = `${txnPrefix}-${id.slice(0, 8)}`;
+      await q(
+        `UPDATE withdraw_requests SET status='paid', payout_txn_id=$2, admin_note=$3,
+           reviewed_by=$4, reviewed_at=now() WHERE id=$1`,
+        [w.id, txn, note, req.user!.id]
+      );
+      await q(
+        `INSERT INTO notifications(user_id, kind, title, body)
+           VALUES($1,'payout',$2,$3)`,
+        [w.user_id, `💸 Withdraw paid — ৳${Number(w.amount_bdt).toFixed(2)}`,
+         `Your withdrawal has been paid out (txn ${txn}).`]
+      );
+      results.push({ id, ok: true, amount: Number(w.amount_bdt) });
+    } catch (e: any) { results.push({ id, ok: false, error: e?.message || "internal_error" }); }
+  }
+  res.json({ results });
+});
+
 export default router;
