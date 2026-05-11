@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -87,36 +87,27 @@ const Admin = () => {
   const load = async () => {
     if (!isAdmin) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from("replacement_items")
-      .select(
-        "id, request_id, reported_uid, outcome, outcome_reason, in_window, window_hours, created_at, buyer_id, seller_id, account_id",
-      )
-      .order("created_at", { ascending: false })
-      .limit(500);
-    if (error) toast.error(error.message);
-    setItems((data ?? []) as RpItem[]);
+    try {
+      const { items } = await api.get<{ items: RpItem[] }>("/api/admin/replacement-items");
+      setItems(items ?? []);
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
     setLoading(false);
   };
 
   useEffect(() => {
     load();
     if (!isAdmin) return;
-    const ch = supabase
-      .channel("admin-replacement-items")
-      .on("postgres_changes", { event: "*", schema: "public", table: "replacement_items" }, () => load())
-      .subscribe();
-    // Load fb_account categories for quick-replace buttons
-    supabase
-      .from("categories")
-      .select("id, name")
-      .eq("is_active", true)
-      .eq("kind", "fb_account")
-      .order("sort_order")
-      .then(({ data }) => setCategories((data ?? []) as { id: string; name: string }[]));
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    const t = setInterval(load, 30_000);
+    api.get<{ categories: any[] }>("/api/admin/categories")
+      .then((r) => {
+        setCategories(
+          (r.categories || [])
+            .filter((c: any) => c.is_active && c.kind === "fb_account")
+            .map((c: any) => ({ id: c.id, name: c.name })),
+        );
+      })
+      .catch(() => {});
+    return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
@@ -155,37 +146,25 @@ const Admin = () => {
   const submit = async () => {
     if (!actingItem || !action) return;
     setSubmitting(true);
-    let error: any = null;
-    if (action === "replace_category") {
-      if (!targetCategoryId) {
-        toast.error("Pick a category");
-        setSubmitting(false);
-        return;
+    try {
+      if (action === "replace_category") {
+        if (!targetCategoryId) { toast.error("Pick a category"); setSubmitting(false); return; }
+        await api.post(`/api/admin/replacement-items/${actingItem.id}/replace-from`, {
+          category_id: targetCategoryId,
+          reason: reason.trim() || null,
+        });
+      } else {
+        await api.post(`/api/admin/replacement-items/${actingItem.id}/resolve`, {
+          action,
+          reason: reason.trim() || null,
+        });
       }
-      const res = await supabase.rpc("admin_replace_with_category", {
-        p_item_id: actingItem.id,
-        p_category_id: targetCategoryId,
-        p_reason: reason.trim() || null,
-        p_message: customMessage.trim() || null,
-      });
-      error = res.error;
-    } else {
-      const res = await supabase.rpc("admin_resolve_replacement_item", {
-        p_item_id: actingItem.id,
-        p_action: action,
-        p_reason: reason.trim() || null,
-      });
-      error = res.error;
-    }
-    setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(action === "replace_category" ? "Replaced from chosen category" : `Marked as ${action}`);
-    setActingItem(null);
-    setAction(null);
-    load();
+      toast.success(action === "replace_category" ? "Replaced from chosen category" : `Marked as ${action}`);
+      setActingItem(null);
+      setAction(null);
+      load();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setSubmitting(false); }
   };
 
   if (authLoading) {

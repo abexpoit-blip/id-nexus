@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,25 +55,17 @@ export const SellerApplicationsManager = () => {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("seller_applications")
-      .select("id, user_id, email, display_name, telegram_username, reason, status, admin_note, created_at, reviewed_at")
-      .order("created_at", { ascending: false })
-      .limit(500);
-    if (error) toast.error(error.message);
-    setApps((data ?? []) as Application[]);
-    setLoading(false);
+    try {
+      const { applications } = await api.get<{ applications: Application[] }>("/api/admin/seller-applications");
+      setApps(applications ?? []);
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => {
     load();
-    const ch = supabase
-      .channel("admin-seller-applications")
-      .on("postgres_changes", { event: "*", schema: "public", table: "seller_applications" }, () => load())
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
   }, []);
 
   const openAction = (app: Application, act: "approve" | "reject") => {
@@ -86,20 +78,14 @@ export const SellerApplicationsManager = () => {
   const submit = async () => {
     if (!acting || !action) return;
     setSubmitting(true);
-    const fn = action === "approve" ? "admin_approve_seller_application" : "admin_reject_seller_application";
-    const { error } = await supabase.rpc(fn, {
-      p_id: acting.id,
-      p_note: note.trim() || null,
-    });
-    setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(action === "approve" ? "Seller approved" : "Application rejected");
-    setActing(null);
-    setAction(null);
-    load();
+    try {
+      await api.post(`/api/admin/seller-applications/${acting.id}/${action}`, { note: note.trim() || null });
+      toast.success(action === "approve" ? "Seller approved" : "Application rejected");
+      setActing(null);
+      setAction(null);
+      load();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setSubmitting(false); }
   };
 
   const filtered = tab === "pending" ? apps.filter((a) => a.status === "pending") : apps;

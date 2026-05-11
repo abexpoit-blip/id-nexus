@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,10 +39,11 @@ export const UsersManager = () => {
 
   const search = async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc("admin_search_users", { p_query: query.trim() });
-    setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    setUsers((data ?? []) as UserRow[]);
+    try {
+      const { users } = await api.get<{ users: UserRow[] }>("/api/admin/users/search", { q: query.trim() });
+      setUsers(users ?? []);
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { search(); /* eslint-disable-next-line */ }, []);
@@ -54,26 +55,26 @@ export const UsersManager = () => {
     if (adjReason.trim().length < 3) { toast.error("Reason is required (min 3 chars)"); return; }
     const signed = adjDirection === "add" ? amt : -amt;
     setSubmitting(true);
-    const { data, error } = await supabase.rpc("admin_adjust_balance", {
-      p_user_id: adjusting.user_id, p_amount: signed, p_reason: adjReason.trim(),
-    });
-    setSubmitting(false);
-    if (error) { toast.error(error.message); return; }
-    const r = data as any;
-    toast.success(`${adjDirection === "add" ? "Added" : "Deducted"} ৳${amt}. New balance: ৳${r.new_balance}`);
-    setAdjusting(null); setAdjAmount(""); setAdjReason(""); search();
+    try {
+      const r = await api.post<{ ok: true; balance: number }>(
+        `/api/admin/users/${adjusting.user_id}/balance`,
+        { delta_bdt: signed, note: adjReason.trim() },
+      );
+      toast.success(`${adjDirection === "add" ? "Added" : "Deducted"} ৳${amt}. New balance: ৳${r.balance.toFixed(2)}`);
+      setAdjusting(null); setAdjAmount(""); setAdjReason(""); search();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setSubmitting(false); }
   };
 
   const toggleRole = async (u: UserRow, role: AppRole) => {
     const has = u.roles.includes(role);
     const action = has ? "revoke" : "grant";
     if (!confirm(`${action === "grant" ? "Grant" : "Revoke"} "${role}" role for ${u.email ?? u.user_id}?`)) return;
-    const { error } = await supabase.rpc("admin_manage_role", {
-      p_user_id: u.user_id, p_role: role, p_action: action,
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success(`${role} ${action}ed`);
-    search();
+    try {
+      await api.post(`/api/admin/users/${u.user_id}/roles`, has ? { remove: [role] } : { add: [role] });
+      toast.success(`${role} ${action}ed`);
+      search();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
   };
 
   return (
