@@ -58,4 +58,18 @@ router.get("/me", authRequired, async (req: AuthedReq, res) => {
   res.json({ user: req.user, profile: p, roles });
 });
 
+// Owner-only: self-grant admin role. OWNER_EMAIL is configured in env.
+const OWNER_EMAIL = (process.env.OWNER_EMAIL || process.env.ADMIN_EMAIL || "").toLowerCase();
+router.post("/claim-admin", authRequired, async (req: AuthedReq, res) => {
+  const email = (req.user!.email || "").toLowerCase();
+  if (!OWNER_EMAIL || email !== OWNER_EMAIL) {
+    return res.status(403).json({ ok: false, error: "not_owner" });
+  }
+  await q(
+    `INSERT INTO user_roles(user_id, role) VALUES($1, 'admin') ON CONFLICT DO NOTHING`,
+    [req.user!.id]
+  );
+  res.json({ ok: true });
+});
+
 export default router;
