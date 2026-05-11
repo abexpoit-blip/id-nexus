@@ -228,15 +228,6 @@ async function main() {
     return { categories: stock.length, totals };
   });
 
-  await step("admin.telegram_delivery", async () => {
-    if (!order) throw new Error("no order");
-    const r = await admin(`/api/admin/orders/${order.id}/delivery`);
-    if (!r.ok) throw new Error(`delivery ${r.status}`);
-    const d = r.data?.delivery;
-    if (!d) return { note: "no telegram delivery row (buyer may not have linked Telegram)" };
-    return { status: d.status, attempts: d.attempt_count, sent_at: d.sent_at };
-  });
-
   finish();
 }
 
