@@ -271,7 +271,7 @@ function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
 }
 
 export const AppShell = ({ mode, title, subtitle, actions, children }: AppShellProps) => {
-  const { user, roles, signOut } = useAuth();
+  const { user, profile, roles, signOut } = useAuth();
   const navigate = useNavigate();
   const isAdmin = roles.includes("admin");
   const isSeller = roles.includes("seller");
