@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,65 +41,49 @@ interface Brand {
 }
 
 const Vpn = () => {
-  const { user, roles } = useAuth();
+  const { user, profile, roles, refresh } = useAuth();
   const navigate = useNavigate();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [plans, setPlans] = useState<PlanCategory[]>([]);
-  const [balance, setBalance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<PlanCategory | null>(null);
   const [qty, setQty] = useState<number>(1);
   const [placing, setPlacing] = useState(false);
+  const balance = Number(profile?.balance_bdt ?? 0);
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: brandRows }, { data: cats }, profileRes, stockRes] = await Promise.all([
-      supabase
-        .from("vpn_brands")
-        .select("id, name, slug, logo_url, description, sort_order")
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true }),
-      supabase
-        .from("categories")
-        .select("id, slug, name, description, price_bdt, kind, brand_id, duration_days")
-        .eq("is_active", true)
-        .eq("kind", "vpn")
-        .order("sort_order", { ascending: true }),
-      user
-        ? supabase.from("profiles").select("balance_bdt").eq("id", user.id).maybeSingle()
-        : Promise.resolve({ data: null } as any),
-      supabase.rpc("get_public_stock_counts" as any).then(
-        (r: any) => r,
-        () => ({ data: null }),
-      ),
-    ]);
-
-    const stockMap: Record<string, number> = {};
-    (stockRes?.data ?? []).forEach((row: any) => {
-      stockMap[row.category_id] = Number(row.available);
-    });
-
-    setBrands((brandRows ?? []) as Brand[]);
-    setPlans((cats ?? []).map((c: any) => ({ ...c, stock: stockMap[c.id] ?? 0 } as PlanCategory)));
-    if (profileRes && (profileRes as any).data) {
-      setBalance(Number((profileRes as any).data.balance_bdt));
+    try {
+      const [brandsR, catsR] = await Promise.all([
+        api.get<{ brands: Brand[] }>("/api/vpn/brands"),
+        api.get<{ categories: any[] }>("/api/categories"),
+      ]);
+      setBrands(brandsR.brands || []);
+      setPlans(
+        (catsR.categories || [])
+          .filter((c: any) => c.kind === "vpn")
+          .map((c: any) => ({
+            id: c.id,
+            slug: c.slug,
+            name: c.name,
+            description: c.description,
+            price_bdt: Number(c.price_bdt),
+            kind: c.kind,
+            brand_id: c.brand_id,
+            duration_days: c.duration_days,
+            stock: Number(c.available || 0),
+          })),
+      );
+    } catch {
+      toast.error("Failed to load VPN plans");
     }
     setLoading(false);
   };
 
   useEffect(() => {
     loadAll();
-    const channel = supabase
-      .channel("accounts-stock-vpn")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "accounts" },
-        () => loadAll(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const t = setInterval(loadAll, 45_000);
+    return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -144,24 +128,25 @@ const Vpn = () => {
       return;
     }
     setPlacing(true);
-    const { data, error } = await supabase.rpc("place_order", {
-      p_category_id: selected.id,
-      p_quantity: qty,
-    });
-    setPlacing(false);
-    if (error) {
-      const msg = error.message || "Order failed";
+    try {
+      const result: any = await api.post("/api/orders", {
+        category_id: selected.id,
+        quantity: qty,
+      });
+      toast.success(
+        `Order placed! ${result.quantity} VPN account${result.quantity > 1 ? "s" : ""} delivered for ৳${result.total}`,
+      );
+      setSelected(null);
+      await refresh();
+      navigate(`/vpn-orders/${result.order_id}`);
+    } catch (e: any) {
+      const msg = e?.message || "Order failed";
       if (msg.includes("Insufficient")) toast.error("Insufficient balance");
       else if (msg.includes("Not enough stock")) toast.error("Not enough stock — try a smaller quantity");
       else toast.error(msg);
-      return;
+    } finally {
+      setPlacing(false);
     }
-    const result = data as any;
-    toast.success(
-      `Order placed! ${result.quantity} VPN account${result.quantity > 1 ? "s" : ""} delivered for ৳${result.total}`,
-    );
-    setSelected(null);
-    navigate(`/vpn-orders/${result.order_id}`);
   };
 
   return (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,7 +20,7 @@ const STEPS = [
 ] as const;
 
 const SellerOnboarding = () => {
-  const { user, roles, loading: authLoading } = useAuth();
+  const { user, profile, roles, loading: authLoading, refresh } = useAuth();
   const navigate = useNavigate();
   const [stepIdx, setStepIdx] = useState(0);
   const [displayName, setDisplayName] = useState("");
@@ -34,36 +34,48 @@ const SellerOnboarding = () => {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [{ data: prof }, { data: cats }] = await Promise.all([
-        supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle(),
-        supabase.from("categories").select("id, name, slug, price_bdt").eq("is_active", true).eq("kind", "fb_account").order("sort_order"),
-      ]);
-      setDisplayName(prof?.display_name ?? "");
-      setCategories((cats ?? []) as Category[]);
+      setDisplayName(profile?.display_name ?? "");
+      try {
+        const { categories } = await api.get<{ categories: any[] }>("/api/categories");
+        setCategories(
+          (categories || [])
+            .filter((c: any) => c.kind === "fb_account")
+            .map((c: any) => ({ id: c.id, name: c.name, slug: c.slug, price_bdt: Number(c.price_bdt) })),
+        );
+      } catch { /* ignore */ }
     })();
-  }, [user?.id]);
+  }, [user?.id, profile?.display_name]);
 
   const saveProfile = async () => {
     if (!user) return;
     const name = displayName.trim();
     if (name.length < 2) return toast.error("Display name minimum 2 characters");
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({ display_name: name }).eq("id", user.id);
-    setSaving(false);
-    if (error) return toast.error(error.message);
-    toast.success("Profile saved");
-    setStepIdx(1);
+    try {
+      await api.patch("/api/profiles/me", { display_name: name });
+      await refresh();
+      toast.success("Profile saved");
+      setStepIdx(1);
+    } catch (e: any) {
+      toast.error(e?.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const finish = async () => {
     if (!pickedCategory) return toast.error("Pick a category first");
     setFinishing(true);
-    const { error } = await supabase.rpc("mark_seller_onboarded");
-    setFinishing(false);
-    if (error) return toast.error(error.message);
-    toast.success("🎉 Onboarding complete!");
-    sessionStorage.setItem("seller_default_category", pickedCategory);
-    setTimeout(() => navigate("/seller", { replace: true }), 600);
+    try {
+      await api.post("/api/seller/onboarded");
+      toast.success("🎉 Onboarding complete!");
+      sessionStorage.setItem("seller_default_category", pickedCategory);
+      setTimeout(() => navigate("/seller", { replace: true }), 600);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed");
+    } finally {
+      setFinishing(false);
+    }
   };
 
   const progress = useMemo(() => ((stepIdx + 1) / STEPS.length) * 100, [stepIdx]);

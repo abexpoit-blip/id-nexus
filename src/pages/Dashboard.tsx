@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api";
 import { BrandFooter } from "@/components/BrandFooter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,56 +29,27 @@ interface Profile {
 }
 
 const Dashboard = () => {
-  const { user, roles } = useAuth();
+  const { user, profile, roles, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ orders: 0, pendingReplacements: 0, lifetimeSpent: 0 });
-
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("profiles")
-      .select("display_name, email, balance_bdt")
-      .eq("id", user.id)
-      .single()
-      .then(({ data, error }) => {
-        if (error) toast.error("Could not load profile");
-        else setProfile(data as Profile);
-        setLoading(false);
-      });
-  }, [user]);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const [ordersRes, repsRes, ledgerRes] = await Promise.all([
-        supabase
-          .from("orders")
-          .select("id", { count: "exact", head: true })
-          .eq("buyer_id", user.id),
-        supabase
-          .from("replacement_items")
-          .select("id", { count: "exact", head: true })
-          .eq("buyer_id", user.id)
-          .eq("outcome", "pending"),
-        supabase
-          .from("balance_ledger")
-          .select("amount_bdt")
-          .eq("user_id", user.id)
-          .eq("kind", "purchase"),
-      ]);
-      if (cancelled) return;
-      const lifetime = (ledgerRes.data ?? []).reduce(
-        (sum, r: { amount_bdt: number }) => sum + Math.abs(Number(r.amount_bdt) || 0),
-        0,
-      );
-      setStats({
-        orders: ordersRes.count ?? 0,
-        pendingReplacements: repsRes.count ?? 0,
-        lifetimeSpent: lifetime,
-      });
+      try {
+        const r = await api.get<{ orders: number; pending_replacements: number; lifetime_spent: number }>(
+          "/api/profiles/me/stats",
+        );
+        if (cancelled) return;
+        setStats({
+          orders: r.orders,
+          pendingReplacements: r.pending_replacements,
+          lifetimeSpent: r.lifetime_spent,
+        });
+      } catch {
+        if (!cancelled) toast.error("Could not load stats");
+      }
     })();
     return () => {
       cancelled = true;
@@ -100,7 +71,7 @@ const Dashboard = () => {
       : { name: "Member", color: "text-muted-foreground", icon: Sparkles };
   const TierIcon = tier.icon;
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />

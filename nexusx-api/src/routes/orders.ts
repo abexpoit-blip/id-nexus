@@ -27,7 +27,12 @@ router.get("/", authRequired, async (req: AuthedReq, res) => {
 
 router.get("/:id", authRequired, async (req: AuthedReq, res) => {
   const [order] = await q(
-    `SELECT * FROM orders WHERE id=$1 AND buyer_id=$2`,
+    `SELECT o.*, c.name AS category_name, c.kind AS category_kind, c.duration_days,
+            b.id AS brand_id, b.name AS brand_name, b.slug AS brand_slug, b.logo_url AS brand_logo_url
+       FROM orders o
+       JOIN categories c ON c.id = o.category_id
+       LEFT JOIN vpn_brands b ON b.id = c.brand_id
+      WHERE o.id=$1 AND o.buyer_id=$2`,
     [req.params.id, req.user!.id]
   );
   if (!order) return res.status(404).json({ error: "not_found" });
