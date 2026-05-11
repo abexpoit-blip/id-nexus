@@ -40,6 +40,10 @@ import { AdminOverview } from "@/components/admin/AdminOverview";
 import { UsersManager } from "@/components/admin/UsersManager";
 import { OrdersManager } from "@/components/admin/OrdersManager";
 import { SellerLeaderboard } from "@/components/admin/SellerLeaderboard";
+import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { RevenueChart } from "@/components/admin/RevenueChart";
+import { ActivityFeed } from "@/components/admin/ActivityFeed";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
 interface RpItem {
   id: string;
@@ -195,54 +199,50 @@ const Admin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="inline h-4 w-4" /> Dashboard
-            </Link>
-            <Logo size="sm" showTagline={false} />
-            <Badge variant="outline" className="border-primary/40 text-primary">Admin</Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/admin/audit">
-                <ScrollText className="mr-2 h-4 w-4" /> Audit log
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full bg-background text-foreground">
+        <AdminSidebar
+          active={section}
+          onSelect={(s) => setSection(s as typeof section)}
+          pendingCounts={{ replacements: counts.pending }}
+        />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border/60 bg-background/80 px-4 backdrop-blur-xl">
+            <div className="flex items-center gap-3">
+              <SidebarTrigger />
+              <Link to="/dashboard" className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline">
+                <ArrowLeft className="inline h-4 w-4" /> Dashboard
               </Link>
-            </Button>
-            <NotificationsBell />
+              <Logo size="sm" showTagline={false} />
+              <Badge variant="outline" className="border-primary/40 text-primary">Admin</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/admin/audit">
+                  <ScrollText className="mr-2 h-4 w-4" /> Audit log
+                </Link>
+              </Button>
+              <NotificationsBell />
+            </div>
+          </header>
+
+          <main className="min-w-0 flex-1 px-4 py-6 md:px-8">
+            <div className="mb-6">
+              <h1 className="font-display text-2xl font-bold md:text-3xl">Admin CMS</h1>
+              <p className="text-sm text-muted-foreground">
+                Manage stock, pricing, categories, seller limits, and resolve replacement issues.
+              </p>
+            </div>
+
+        {section === "overview" && (
+          <div className="space-y-6">
+            <AdminOverview onJump={(s) => setSection(s as typeof section)} />
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="lg:col-span-2"><RevenueChart /></div>
+              <ActivityFeed />
+            </div>
           </div>
-        </div>
-      </header>
-
-      <main className="container py-8">
-        <div className="mb-6">
-          <h1 className="font-display text-2xl font-bold md:text-3xl">Admin CMS</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage stock, pricing, categories, seller daily limits, and resolve replacement issues.
-          </p>
-        </div>
-
-        <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)} className="mb-6">
-          <TabsList className="flex w-full flex-wrap justify-start gap-1 sm:w-auto">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="users">Users & money</TabsTrigger>
-            <TabsTrigger value="orders">Orders</TabsTrigger>
-            <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
-            <TabsTrigger value="replacements">Replacements{counts.pending ? ` (${counts.pending})` : ""}</TabsTrigger>
-            <TabsTrigger value="stock">Stock</TabsTrigger>
-            <TabsTrigger value="categories">Categories & pricing</TabsTrigger>
-            <TabsTrigger value="vpn_brands">VPN brands</TabsTrigger>
-            <TabsTrigger value="sellers">Seller limits</TabsTrigger>
-            <TabsTrigger value="applications">Seller applications</TabsTrigger>
-            <TabsTrigger value="payments">Payments</TabsTrigger>
-            <TabsTrigger value="accounts">Payment accounts</TabsTrigger>
-            <TabsTrigger value="brand">Brand credit</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        {section === "overview" && <AdminOverview onJump={(s) => setSection(s as typeof section)} />}
+        )}
         {section === "users" && <UsersManager />}
         {section === "orders" && <OrdersManager />}
         {section === "leaderboard" && <SellerLeaderboard />}
