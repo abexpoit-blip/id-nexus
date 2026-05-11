@@ -39,6 +39,7 @@ import { PaymentAccountsManager } from "@/components/admin/PaymentAccountsManage
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import { UsersManager } from "@/components/admin/UsersManager";
 import { OrdersManager } from "@/components/admin/OrdersManager";
+import { SellerLeaderboard } from "@/components/admin/SellerLeaderboard";
 
 interface RpItem {
   id: string;
@@ -74,7 +75,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
   const [section, setSection] = useState<
-    "overview" | "users" | "orders" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "accounts" | "brand"
+    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "accounts" | "brand"
   >("overview");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
@@ -228,6 +229,7 @@ const Admin = () => {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users & money</TabsTrigger>
             <TabsTrigger value="orders">Orders</TabsTrigger>
+            <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
             <TabsTrigger value="replacements">Replacements{counts.pending ? ` (${counts.pending})` : ""}</TabsTrigger>
             <TabsTrigger value="stock">Stock</TabsTrigger>
             <TabsTrigger value="categories">Categories & pricing</TabsTrigger>
@@ -243,6 +245,7 @@ const Admin = () => {
         {section === "overview" && <AdminOverview onJump={(s) => setSection(s as typeof section)} />}
         {section === "users" && <UsersManager />}
         {section === "orders" && <OrdersManager />}
+        {section === "leaderboard" && <SellerLeaderboard />}
         {section === "stock" && <StockOverview />}
         {section === "categories" && <CategoriesManager />}
         {section === "vpn_brands" && <VpnBrandsManager />}
