@@ -42,12 +42,61 @@ router.post("/apply", authRequired, async (req: AuthedReq, res) => {
 router.post("/onboarded", authRequired, requireRole("seller"), async (req: AuthedReq, res) => {
   await q(
     `UPDATE profiles
-        SET buyer_settings = COALESCE(buyer_settings,'{}'::jsonb) || jsonb_build_object('seller_onboarded', true),
+        SET buyer_settings = COALESCE(buyer_settings,'{}'::jsonb)
+                             || jsonb_build_object('seller_onboarded', true,
+                                                   'seller_onboarded_at', to_jsonb(now())),
             updated_at = now()
       WHERE id=$1`,
     [req.user!.id]
   );
   res.json({ ok: true });
+});
+
+// Aggregated seller dashboard overview
+router.get("/overview", authRequired, requireRole("seller"), async (req: AuthedReq, res) => {
+  const sellerId = req.user!.id;
+  const [categories, myAccounts, recent, [todayRow], [weekRow], replacements, [limitRow], [usedRow]] = await Promise.all([
+    q(`SELECT id, name, slug, price_bdt FROM categories
+         WHERE is_active=true AND kind='fb_account' ORDER BY sort_order, name`),
+    q(`SELECT id, category_id, status FROM accounts WHERE seller_id=$1`, [sellerId]),
+    q(`SELECT uid, status, sold_at, created_at, category_id FROM accounts
+         WHERE seller_id=$1 ORDER BY created_at DESC LIMIT 20`, [sellerId]),
+    q<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM accounts
+         WHERE seller_id=$1 AND status='sold' AND sold_at >= date_trunc('day', now())`, [sellerId]),
+    q<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM accounts
+         WHERE seller_id=$1 AND status='sold' AND sold_at >= date_trunc('day', now()) - interval '6 days'`, [sellerId]),
+    q(`SELECT id, reported_uid, outcome, outcome_reason, in_window, created_at, account_id
+         FROM replacement_items WHERE seller_id=$1 ORDER BY created_at DESC LIMIT 100`, [sellerId]),
+    q<{ daily_limit: number }>(`SELECT daily_limit FROM seller_daily_limits WHERE seller_id=$1`, [sellerId]),
+    q<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM accounts
+         WHERE seller_id=$1 AND created_at >= date_trunc('day', now() at time zone 'UTC')`, [sellerId]),
+  ]);
+  res.json({
+    categories,
+    my_accounts: myAccounts,
+    recent,
+    sold_today: todayRow?.c ?? 0,
+    sold_week: weekRow?.c ?? 0,
+    replacements,
+    daily_limit: Number(limitRow?.daily_limit ?? 0),
+    used_today: usedRow?.c ?? 0,
+  });
+});
+
+// Check a batch of UIDs against the global accounts table
+// Returns { in_stock_other_or_self: string[], in_file_dups: handled client side, replaced: string[], owned_in_stock: string[] }
+router.post("/check-uids", authRequired, requireRole("seller"), async (req: AuthedReq, res) => {
+  const { uids } = req.body || {};
+  if (!Array.isArray(uids) || uids.length === 0) return res.json({ rows: [] });
+  if (uids.length > 5000) return res.status(400).json({ error: "too_many" });
+  const rows = await q<{ uid: string; status: string; seller_id: string }>(
+    `SELECT uid, status, seller_id FROM accounts WHERE uid = ANY($1)`,
+    [uids]
+  );
+  res.json({ rows, self_id: req.user!.id });
 });
 
 router.get("/application", authRequired, async (req: AuthedReq, res) => {
