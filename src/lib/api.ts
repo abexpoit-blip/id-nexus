@@ -67,6 +67,23 @@ export const api = {
   upload: <T = any>(p: string, formData: FormData) =>
     request<T>(p, { method: "POST", body: formData as any }),
   raw: request,
+  download: async (path: string, filename: string, query?: Record<string, any>) => {
+    let url = API_BASE + (path.startsWith("/") ? path : "/" + path);
+    if (query) {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== null && v !== "") qs.append(k, String(v));
+      const s = qs.toString();
+      if (s) url += (url.includes("?") ? "&" : "?") + s;
+    }
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) throw new ApiError(res.status, "Download failed");
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  },
 };
 
 export type ApiUser = { id: string; email: string };
