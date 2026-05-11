@@ -17,6 +17,7 @@ import NotFound from "./pages/NotFound.tsx";
 
 // Lazy — heavier authenticated routes; split into separate chunks
 const AdminLogin = lazy(() => import("./pages/AdminLogin.tsx"));
+const SellerLogin = lazy(() => import("./pages/SellerLogin.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const Browse = lazy(() => import("./pages/Browse.tsx"));
 const OrderDetail = lazy(() => import("./pages/OrderDetail.tsx"));
@@ -87,6 +88,7 @@ const App = () => (
             <Route path="/register" element={<Register />} />
             <Route path="/auth" element={<Navigate to="/login" replace />} />
             <Route path="/admin-login" element={<AdminLogin />} />
+            <Route path="/seller-login" element={<SellerLogin />} />
             <Route
               path="/dashboard"
               element={
@@ -130,7 +132,7 @@ const App = () => (
             <Route
               path="/seller"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole="seller">
                   <SellerDashboard />
                 </ProtectedRoute>
               }
@@ -146,7 +148,7 @@ const App = () => (
             <Route
               path="/seller/onboarding"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole="seller">
                   <SellerOnboarding />
                 </ProtectedRoute>
               }
@@ -171,7 +173,7 @@ const App = () => (
             <Route
               path="/admin"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole="admin">
                   <Admin />
                 </ProtectedRoute>
               }
@@ -179,7 +181,7 @@ const App = () => (
             <Route
               path="/admin/audit"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole="admin">
                   <AuditLog />
                 </ProtectedRoute>
               }
