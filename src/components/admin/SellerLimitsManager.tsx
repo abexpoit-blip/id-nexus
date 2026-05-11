@@ -155,7 +155,7 @@ export const SellerLimitsManager = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Seller</TableHead>
-                  <TableHead>Telegram</TableHead>
+                  <TableHead>Contact</TableHead>
                   <TableHead className="text-right">Used today</TableHead>
                   <TableHead className="text-right">Daily limit</TableHead>
                   <TableHead className="text-right">Actions</TableHead>

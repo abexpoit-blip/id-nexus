@@ -153,7 +153,7 @@ export const SellerApplicationsManager = () => {
               <TableRow>
                 <TableHead className="w-8"></TableHead>
                 <TableHead>Applicant</TableHead>
-                <TableHead>Telegram</TableHead>
+                <TableHead>Contact</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Submitted</TableHead>
@@ -233,7 +233,7 @@ export const SellerApplicationsManager = () => {
                           <div className="text-sm text-muted-foreground">{a.email}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase tracking-widest text-muted-foreground">Telegram</div>
+                          <div className="text-xs uppercase tracking-widest text-muted-foreground">Contact</div>
                           <div className="mt-1 font-mono text-sm">
                             {a.telegram_username ? `@${a.telegram_username}` : "—"}
                           </div>
