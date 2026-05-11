@@ -42,7 +42,7 @@ router.post("/topups/:id/approve", async (req: AuthedReq, res) => {
     `UPDATE topup_requests SET status='approved', reviewed_by=$2, reviewed_at=now(), approved_at=now() WHERE id=$1`,
     [id, req.user!.id]
   );
-  res.json({ ok: true });
+  res.json({ ok: true, new_balance: Number(p.balance_bdt) });
 });
 
 router.post("/topups/:id/reject", async (req: AuthedReq, res) => {
