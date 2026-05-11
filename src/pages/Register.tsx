@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +18,7 @@ const nameSchema = z.string().trim().min(2, "Name too short").max(60);
 type RoleChoice = "buyer" | "seller";
 
 const Register = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signUp } = useAuth();
   const navigate = useNavigate();
   const [roleChoice, setRoleChoice] = useState<RoleChoice>("buyer");
   const [email, setEmail] = useState("");
@@ -39,16 +38,7 @@ const Register = () => {
       const cleanPassword = passwordSchema.parse(password);
       const cleanName = nameSchema.parse(displayName);
 
-      const redirectUrl = `${window.location.origin}/dashboard`;
-      const { error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: cleanPassword,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: { display_name: cleanName },
-        },
-      });
-      if (error) throw error;
+      await signUp(cleanEmail, cleanPassword, cleanName);
 
       if (roleChoice === "seller") {
         toast.success("Account created! Redirecting to seller application…");
@@ -59,7 +49,7 @@ const Register = () => {
       }
     } catch (err: any) {
       if (err?.issues?.[0]?.message) toast.error(err.issues[0].message);
-      else if (err?.message?.includes("already registered")) toast.error("Email already registered. Sign in instead.");
+      else if (err?.message === "email_taken") toast.error("Email already registered. Sign in instead.");
       else toast.error(err?.message || "Something went wrong");
     } finally {
       setSubmitting(false);
