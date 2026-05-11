@@ -194,6 +194,20 @@ export const PaymentsManager = () => {
     loadPendingCounts();
   };
 
+  const refreshNow = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadTab(tab, { silent: true }),
+        loadPendingCounts(),
+      ]);
+      setLastRefreshed(new Date());
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // Reload when active tab's filters change
   useEffect(() => {
     loadTab("topups");
@@ -202,15 +216,17 @@ export const PaymentsManager = () => {
     loadTab("withdraws");
   }, [withdrawsFilter]);
 
-  // Pending counts + 30s polling
+  // Pending counts + configurable polling (0 = off)
   useEffect(() => {
     loadPendingCounts();
+    if (!pollMs) return;
     const id = setInterval(() => {
       loadTab(tab, { silent: true });
       loadPendingCounts();
-    }, 30_000);
+      setLastRefreshed(new Date());
+    }, pollMs);
     return () => clearInterval(id);
-  }, [tab]);
+  }, [tab, pollMs]);
 
   // Debounce search inputs
   const topupsSearchTimer = useRef<number | null>(null);
