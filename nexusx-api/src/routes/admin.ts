@@ -375,6 +375,28 @@ router.delete("/payment-accounts/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
+// Toggle a single payment_account row on/off
+router.put("/payment-accounts/:id/toggle", async (req: AuthedReq, res) => {
+  const [r] = await q(
+    `UPDATE payment_accounts SET is_active = NOT is_active, updated_at = now()
+     WHERE id=$1 RETURNING *`,
+    [req.params.id]
+  );
+  if (!r) return res.status(404).json({ error: "not_found" });
+  res.json({ account: r });
+});
+
+// List crypto invoices (admin monitoring)
+router.get("/crypto-invoices", async (_req, res) => {
+  const rows = await q(
+    `SELECT ci.*, u.email AS user_email
+       FROM crypto_invoices ci
+       LEFT JOIN users u ON u.id = ci.user_id
+      ORDER BY ci.created_at DESC LIMIT 200`
+  );
+  res.json({ invoices: rows });
+});
+
 // AUDIT LOGS
 router.get("/audit-logs", async (_req, res) => {
   const rows = await q(`SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200`);

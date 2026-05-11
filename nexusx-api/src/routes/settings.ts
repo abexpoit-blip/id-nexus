@@ -12,6 +12,8 @@ const PUBLIC_KEYS = new Set([
   "support_enabled",
   "seller_applications_enabled",
   "vpn_service_enabled",
+  "payment_methods_enabled",
+  "plisio_enabled",
 ]);
 
 router.get("/", async (req, res) => {

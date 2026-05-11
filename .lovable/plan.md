@@ -1,129 +1,149 @@
+## Scope
 
-# Implementation Plan
+Five things in one batch:
 
-This is a large change — roughly 4 phases. I'll ship them in order so each phase is testable on the live site before moving on.
-
----
-
-## Phase 1 — Two separate login pages
-
-**Frontend (`src/`)**
-- Add `src/pages/SellerLogin.tsx` mirroring `AdminLogin.tsx`:
-  - Email + password form
-  - On submit: sign in → check role; if not `seller` → sign out, show "seller access required"
-- Add route `/seller-login` in `App.tsx`
-- Update normal `/login` (Auth page) so successful login of a *seller-role* user is allowed but the Seller menu is **hidden** unless they came through `/seller-login` is overkill — instead: hide all "Seller" UI from buyers. Only role check matters.
-- In `AppShell` / nav: show "Seller area" link only when `roles.includes('seller')`. Buyers never see it.
-- Add `<ProtectedRoute requiredRole="seller">` guard around `/seller/*` routes; non-sellers → redirect to `/dashboard` with toast.
-- Update `SellerApply` page CTA to point buyers there; once approved, give them the `/seller-login` URL.
-
-**Backend (`nexusx-api/`)**
-- No new routes needed; `/api/auth/me` already returns roles.
+1. Landing pricing card — strip the price numbers (3rd screenshot)
+2. Premium "PART OF BASICTRICK MARKETPLACE" badge (glass + gold accent)
+3. Deploy fix for the `k.roles.map` admin crash (already coded, just needs ship)
+4. Payment toggles — method-level (bKash / Nagad / Binance) AND per-account (rows in `payment_accounts`)
+5. New Plisio crypto auto-deposit gateway, **hidden from users by default**, full create-invoice + webhook flow
 
 ---
 
-## Phase 2 — Manual admin overrides
+## 1. Pricing card (`src/pages/Index.tsx`)
 
-**Backend new endpoints (`nexusx-api/src/routes/admin.ts`)**
-- `POST /api/admin/orders/:id/cancel-refund` — set order status `cancelled`, refund buyer wallet, mark accounts back to `available`, write ledger + audit
-- `POST /api/admin/replacements/:itemId/manual-replace` — body `{ account_id }`. Admin picks any available account to fulfill replacement
-- `POST /api/admin/bulk` — body `{ entity: 'orders'|'topups'|'withdraws'|'seller_apps'|'replacements', ids: [], action: 'approve'|'reject'|'delete', note? }`
-- All wrapped in DB transactions; all write to `audit_logs`
+In the "Today's pricing" hero card, drop `৳ 120 / 180 / 99 / 299` and the `/ PC` unit. Keep product name, tag (Standard / Premium / Subscription), and stock count. Replace the right-side price column with a small "Live" pulse + stock count, so the card still looks dense.
 
-**Frontend `src/pages/Admin.tsx` (or split into tabs)**
-- Each table row: kebab menu with new actions (Cancel & Refund, Manual Replace, Force Reject)
-- Manual-replace dialog: searchable account picker (by category, available stock)
-- Bulk: row checkboxes + sticky action bar at bottom (Approve N / Reject N / Delete N)
+## 2. Premium brand badge (`src/components/BrandTagline.tsx`)
 
----
+Rebuild as a glass-pill with a subtle **gold gradient border** (HSL tokens) and a thin gold inner shimmer:
 
-## Phase 3 — Upgraded admin dashboard
+- Border: gradient `hsl(45 90% 60%) → hsl(35 80% 45%) → hsl(45 90% 60%)` masked onto the rounded outline (use `padding-box` + `border-box` background trick)
+- Backdrop: `backdrop-blur-2xl` + 8% white overlay
+- Type: existing display font, tighter tracking `0.28em`, gold text-shadow
+- Sparkle icons → `Crown` icon on the left only, gold-tinted
+- Add gold tokens `--brand-gold`, `--brand-gold-soft` to `index.css`
 
-Redesign `Admin.tsx` shell into a sidebar + content layout (shadcn `Sidebar`):
+## 3. Ship the admin crash fix
 
-```text
-┌──────────┬─────────────────────────────────────┐
-│ Sidebar  │  Topbar: GlobalSearch | Notif | Me  │
-│ Overview ├─────────────────────────────────────┤
-│ Orders   │  KPI cards row                      │
-│ Stock    │  Charts row (revenue, orders/day)   │
-│ Topups   ├──────────────┬──────────────────────┤
-│ Withdraw │  Main panel  │  Activity feed       │
-│ Sellers  │              │  (live updates)      │
-│ Reports  │              │                      │
-└──────────┴──────────────┴──────────────────────┘
-```
+Already in `src/components/admin/UsersManager.tsx` (defensive `roles` array). VPS deploy commands at the end.
 
-**Components**
-- `AdminSidebar.tsx` — collapsible icon sidebar, sections per area
-- `AdminTopbar.tsx` — `GlobalSearch` (cmd-k style) querying `/api/admin/search?q=` across users/orders/accounts/txns
-- `KpiCards.tsx` — today's revenue, pending topups, pending withdraws, low-stock alerts
-- `RevenueChart.tsx` + `OrdersChart.tsx` — using existing `recharts` (already in `charts-*.js` bundle)
-- `ActivityFeed.tsx` — Supabase Realtime channel on `audit_logs` table; live new-event toasts
-- `SellerLeaderboard.tsx` — top-10 sellers by 30-day revenue, with risk badge if replacement-rate > 5%
+## 4. Payment method on/off — two layers
 
-**Backend additions**
-- `GET /api/admin/dashboard/kpis` — aggregate counts/sums
-- `GET /api/admin/dashboard/timeseries?days=30` — daily revenue + order count
-- `GET /api/admin/dashboard/leaderboard` — top sellers + risk metrics
-- `GET /api/admin/search?q=` — fuzzy across users.email, orders.id, accounts.uid, ledger.note
+### DB migration (additive, in `nexusx-api/sql/schema.sql` + new migration script)
 
----
-
-## Phase 4 — Seller payout schedule
-
-**DB migration on VPS postgres** (NOT Supabase — backend uses its own DB):
 ```sql
-CREATE TABLE seller_payout_runs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  period_start date NOT NULL,
-  period_end date NOT NULL,
-  status text NOT NULL DEFAULT 'pending', -- pending|approved|paid
-  created_at timestamptz DEFAULT now(),
-  approved_by uuid, approved_at timestamptz, paid_at timestamptz
-);
-CREATE TABLE seller_payout_items (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  run_id uuid REFERENCES seller_payout_runs(id) ON DELETE CASCADE,
-  seller_id uuid NOT NULL,
-  gross_bdt numeric NOT NULL,
-  refunds_bdt numeric NOT NULL DEFAULT 0,
-  net_bdt numeric NOT NULL,
-  status text NOT NULL DEFAULT 'pending', -- pending|approved|paid|skipped
-  payout_txn_id text, note text
-);
+ALTER TABLE payment_accounts ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true;
+-- already exists actually; just ensures presence
+
+-- Method-level toggles stored under app_settings key 'payment_methods_enabled'
+-- value JSON: { "bkash": true, "nagad": true, "binance": true, "plisio": false }
 ```
 
-**Backend**
-- `POST /api/admin/payouts/generate?from&to` — creates a run + per-seller items
-- `POST /api/admin/payouts/:runId/approve`
-- `POST /api/admin/payouts/items/:id/mark-paid` — body `{ txn_id }` → credits seller wallet
-- Cron-style endpoint protected by `X-Cron-Secret` header for weekly auto-generation (you'd hit it from a system cron)
+### Backend (`nexusx-api/src/routes/admin.ts` + `settings.ts`)
 
-**Frontend**
-- New tab in admin: "Payouts" — list of runs, drill into items, approve / mark paid
+- Already has `PUT /api/admin/settings/:key` — whitelist `payment_methods_enabled`
+- `PUT /api/admin/payment-accounts/:id/toggle` → flip `is_active`
+- `GET /api/settings` → expose `payment_methods_enabled` publicly
+
+### Frontend
+
+- `PaymentAccountsManager.tsx`: per-method **switch** at the top of each method card
+- `PaymentAccountsManager.tsx`: per-account row toggle in the existing accounts list section
+- `usePaymentAccounts.tsx`: load `payment_methods_enabled`, expose `enabledMethods`
+- `DepositWizard.tsx`: hide methods where enabled === false
+
+## 5. Plisio crypto auto-deposit (full integration, hidden from users initially)
+
+### Secret
+
+Request `PLISIO_SECRET_KEY` via add_secret. Stored on the VPS env (will need to be added to `nexusx-api/.env` after the user pastes it).
+
+### DB migration
+
+```sql
+CREATE TABLE IF NOT EXISTS crypto_invoices (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  provider text NOT NULL DEFAULT 'plisio',
+  invoice_id text NOT NULL UNIQUE,        -- Plisio txn_id
+  order_number text NOT NULL UNIQUE,      -- our local ref
+  amount_bdt numeric NOT NULL,
+  amount_usd numeric,
+  currency text,                          -- e.g. USDT_TRX
+  status text NOT NULL DEFAULT 'new',     -- new|pending|completed|expired|cancelled|error
+  invoice_url text,
+  raw jsonb,
+  topup_id uuid REFERENCES topup_requests(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS crypto_invoices_user_idx ON crypto_invoices(user_id, created_at DESC);
+```
+
+Also add row to `app_settings`: `plisio_enabled = false`, `bdt_to_usd_rate = 0.0085` (admin-editable).
+
+### Backend — new file `nexusx-api/src/routes/plisio.ts`
+
+- `POST /api/wallet/plisio/create` (auth required)
+  1. Validate amount ≥ min
+  2. Convert BDT → USD with admin rate
+  3. Generate `order_number = NX-<userId-prefix>-<ts>`
+  4. `GET https://api.plisio.net/api/v1/invoices/new?api_key=…&source_currency=USD&source_amount=…&order_number=…&order_name=Wallet+topup&callback_url=…&email=…&currency=USDT_TRX`
+  5. Insert `crypto_invoices` row (status=`new`)
+  6. Return `{ invoice_url, invoice_id, order_number }`
+- `POST /api/webhooks/plisio` (no auth, HMAC-verified)
+  1. Verify `verify_hash` per Plisio spec (sort params, JSON-stringify, HMAC SHA1 with secret)
+  2. Find invoice by `txn_id`
+  3. Update status; on `completed` & not yet credited:
+     - Create `topup_requests` row already-approved with `source='plisio'`, `method='binance'` (closest existing), `txn_id=invoice_id`, `screenshot_url=null`
+     - Insert `balance_ledger` topup
+     - `UPDATE profiles SET balance_bdt += amount`
+     - Insert user notification
+  4. Return `{ status: 'success' }` (Plisio expects this exact body)
+
+Wire in `server.ts`. Add `verify_jwt = false` equivalent — since Express, just no `authRequired` on webhook.
+
+### Frontend (admin only — hidden from users until enabled)
+
+- `PaymentAccountsManager.tsx` → new "Auto crypto gateways" section with **Plisio toggle** + BDT→USD rate input
+- `DepositWizard.tsx` → adds Plisio as a 4th method ONLY if `plisio_enabled` AND `payment_methods_enabled.plisio`. Different flow: button "Generate crypto invoice" → calls `/api/wallet/plisio/create` → opens `invoice_url` in new tab → shows pending status. No screenshot step.
+- New "Crypto deposits" admin tab (lightweight) listing `crypto_invoices` for monitoring
+
+**Default state**: both `plisio_enabled = false` AND `payment_methods_enabled.plisio = false`, so users see nothing; admin sees the toggles greyed-on.
 
 ---
 
-## Phase 5 — Systemd already covered
+## Deploy commands (after I push)
 
-Done in chat — `/etc/systemd/system/nexusx-api.service`. No code change needed.
+You'll need to run on VPS once code is merged:
+
+```bash
+cd /var/www/nexusx/nexusx-api
+git pull
+npm install
+echo "PLISIO_SECRET_KEY=…" >> .env   # I'll prompt you for it
+echo "PUBLIC_API_BASE=https://api.nexus-x.cloud" >> .env
+npm run migrate                       # runs the new SQL
+npm run build
+pm2 restart nexusx-api
+
+# frontend
+cd /var/www/nexusx
+git pull && npm install && npm run build
+rsync -a --delete dist/ /var/www/buy.nexus-x.cloud/
+```
+
+And in Plisio dashboard set callback URL → `https://api.nexus-x.cloud/api/webhooks/plisio`.
 
 ---
 
-## Suggested rollout
+## Order of implementation
 
-1. Start with **Phase 1** (small, isolated, immediate UX win).
-2. Then **Phase 2** (high-value admin power, no schema change).
-3. Then **Phase 3** (visual upgrade, builds on phase 2 endpoints).
-4. **Phase 4** last (touches new tables, deploy carefully).
+1. Migration SQL (Plisio table + new app_settings keys) — needs your approval first
+2. Backend routes (plisio.ts, settings whitelist update, payment_accounts toggle)
+3. Frontend (Logo card, BrandTagline, PaymentAccountsManager, DepositWizard, hook)
+4. Request `PLISIO_SECRET_KEY`
+5. Hand you the deploy block
 
----
-
-## What I need from you to proceed
-
-1. **Confirm rollout order** above, or reorder.
-2. **Authorize Phase 1 start** — I'll implement seller-login + role guards immediately, you redeploy with the standard command and we test before moving on.
-3. For Phase 2/3, I'll need to know: do you want **email notifications** to sellers/buyers for these admin actions, or **in-app only**?
-
-Reply "go" + any changes and I'll start with Phase 1.
+Confirm and I'll execute.

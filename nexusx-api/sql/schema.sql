@@ -304,6 +304,37 @@ CREATE TABLE IF NOT EXISTS payment_accounts (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Crypto invoices (Plisio + future auto-deposit gateways)
+CREATE TABLE IF NOT EXISTS crypto_invoices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL DEFAULT 'plisio',
+  invoice_id TEXT NOT NULL UNIQUE,
+  order_number TEXT NOT NULL UNIQUE,
+  amount_bdt NUMERIC NOT NULL,
+  amount_usd NUMERIC,
+  currency TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
+  invoice_url TEXT,
+  raw JSONB,
+  topup_id UUID REFERENCES topup_requests(id),
+  credited BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS crypto_invoices_user_idx ON crypto_invoices(user_id, created_at DESC);
+
+-- Seed default settings (idempotent)
+INSERT INTO app_settings(key, value)
+VALUES ('payment_methods_enabled', '{"bkash":true,"nagad":true,"binance":true,"plisio":false}'::jsonb)
+ON CONFLICT(key) DO NOTHING;
+INSERT INTO app_settings(key, value)
+VALUES ('plisio_enabled', 'false'::jsonb)
+ON CONFLICT(key) DO NOTHING;
+INSERT INTO app_settings(key, value)
+VALUES ('bdt_to_usd_rate', '0.0085'::jsonb)
+ON CONFLICT(key) DO NOTHING;
+
 -- ATOMIC place_order
 CREATE OR REPLACE FUNCTION place_order(p_buyer UUID, p_category UUID, p_quantity INT)
 RETURNS JSONB LANGUAGE plpgsql AS $$

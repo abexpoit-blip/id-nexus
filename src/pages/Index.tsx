@@ -110,10 +110,10 @@ const Index = () => {
               </div>
               <div className="space-y-3">
                 {[
-                  { name: "FB ID — 61xxx", price: "৳ 120", stock: 384, tag: "Standard" },
-                  { name: "FB ID — 1000xxx", price: "৳ 180", stock: 217, tag: "Premium" },
-                  { name: "VPN — 7 days", price: "৳ 99", stock: "∞", tag: "Subscription" },
-                  { name: "VPN — 30 days", price: "৳ 299", stock: "∞", tag: "Subscription" },
+                  { name: "FB ID — 61xxx", stock: 384, tag: "Standard" },
+                  { name: "FB ID — 1000xxx", stock: 217, tag: "Premium" },
+                  { name: "VPN — 7 days", stock: "∞", tag: "Subscription" },
+                  { name: "VPN — 30 days", stock: "∞", tag: "Subscription" },
                 ].map((p) => (
                   <div
                     key={p.name}
@@ -121,11 +121,17 @@ const Index = () => {
                   >
                     <div>
                       <div className="text-sm font-medium">{p.name}</div>
-                      <div className="text-xs text-muted-foreground">{p.tag} · stock {p.stock}</div>
+                      <div className="text-xs text-muted-foreground">{p.tag}</div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-display text-base font-semibold text-primary">{p.price}</div>
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">/ pc</div>
+                    <div className="flex items-center gap-2 text-right">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+                      </span>
+                      <div>
+                        <div className="font-display text-base font-semibold text-primary">{p.stock}</div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">in stock</div>
+                      </div>
                     </div>
                   </div>
                 ))}

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowLeft, ArrowRight, Check, Copy, Loader2, Upload, AlertTriangle, Sparkles,
+  ArrowLeft, ArrowRight, Check, Copy, Loader2, Upload, AlertTriangle, Sparkles, Bitcoin, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -34,10 +34,15 @@ const MAX_SIZE_BYTES = 5 * 1024 * 1024;
  * Reads payment numbers + per-method min deposit from app_settings via realtime.
  */
 export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
-  const { accounts, minDeposit } = usePaymentAccounts();
+  const { accounts, minDeposit, enabledMethods, plisioOn } = usePaymentAccounts();
+
+  const visibleMethods = PAYMENT_METHODS.filter((m) => enabledMethods[m]);
+  const showPlisio = plisioOn && enabledMethods.plisio;
 
   const [stepIdx, setStepIdx] = useState(0);
-  const [method, setMethod] = useState<PaymentMethod>("bkash");
+  const [method, setMethod] = useState<PaymentMethod | "plisio">(
+    visibleMethods[0] ?? (showPlisio ? "plisio" : "bkash")
+  );
   const [sender, setSender] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -46,22 +51,27 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [plisioInvoice, setPlisioInvoice] = useState<{ invoice_url: string; order_number: string; amount_usd: number } | null>(null);
 
   const step = STEPS[stepIdx];
-  const acc = accounts[method];
-  const min = minDeposit[method];
+  const isPlisio = method === "plisio";
+  const acc = isPlisio ? null : accounts[method as PaymentMethod];
+  const min = isPlisio ? 100 : minDeposit[method as PaymentMethod];
   const amt = Number(amount);
 
   const senderValid = useMemo(() => {
+    if (isPlisio) return true;
     const v = sender.trim();
     if (method === "binance") return v.length >= 4;
     return /^01\d{9}$/.test(v);
-  }, [sender, method]);
+  }, [sender, method, isPlisio]);
 
   const reset = () => {
     if (preview) URL.revokeObjectURL(preview);
-    setStepIdx(0); setMethod("bkash"); setSender(""); setAmount("");
+    setStepIdx(0); setMethod(visibleMethods[0] ?? "bkash"); setSender(""); setAmount("");
     setNote(""); setTxn(""); setFile(null); setPreview(null);
+    setPlisioInvoice(null);
   };
 
   const copy = (text: string) => {
@@ -88,7 +98,11 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
 
   const next = () => {
     if (step.key === "method") {
-      // method picked, move on
+      if (isPlisio) {
+        // Skip sender + screenshot for crypto flow; jump to amount
+        setStepIdx(2);
+        return;
+      }
     } else if (step.key === "sender") {
       if (!senderValid) {
         toast.error(method === "binance" ? "Enter valid Binance ID/UID" : "Enter valid 11-digit number (01XXXXXXXXX)");
@@ -96,12 +110,36 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
       }
     } else if (step.key === "amount") {
       if (!amt || amt < min) { toast.error(`Minimum deposit ৳${min}`); return; }
-      if (!txn.trim()) { toast.error("Transaction ID required"); return; }
+      if (!isPlisio && !txn.trim()) { toast.error("Transaction ID required"); return; }
+      if (isPlisio) {
+        // Generate Plisio invoice instead of moving to screenshot step
+        void createPlisioInvoice();
+        return;
+      }
     }
     setStepIdx((i) => Math.min(i + 1, STEPS.length - 1));
   };
 
-  const back = () => setStepIdx((i) => Math.max(0, i - 1));
+  const back = () => {
+    if (isPlisio && stepIdx === 2) { setStepIdx(0); return; }
+    setStepIdx((i) => Math.max(0, i - 1));
+  };
+
+  const createPlisioInvoice = async () => {
+    setCreatingInvoice(true);
+    try {
+      const data = await api.post<{ invoice_url: string; order_number: string; amount_usd: number }>(
+        "/api/wallet/plisio/create",
+        { amount_bdt: amt }
+      );
+      setPlisioInvoice(data);
+      window.open(data.invoice_url, "_blank", "noopener,noreferrer");
+      toast.success("Crypto invoice created — complete payment in the new tab");
+      onSubmitted();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to create invoice");
+    } finally { setCreatingInvoice(false); }
+  };
 
   const uploadScreenshot = async (): Promise<string | null> => {
     if (!file) return null;
@@ -197,7 +235,7 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
         <div className="space-y-3">
           <Label>📱 Choose payment method</Label>
           <div className="grid gap-3 md:grid-cols-3">
-            {PAYMENT_METHODS.map((m) => {
+            {visibleMethods.map((m) => {
               const a = accounts[m];
               const active = method === m;
               return (
@@ -220,8 +258,29 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
                 </button>
               );
             })}
+            {showPlisio && (
+              <button
+                type="button"
+                onClick={() => setMethod("plisio")}
+                className={`group relative overflow-hidden rounded-xl border p-4 text-left transition-all ${
+                  method === "plisio"
+                    ? "border-warning bg-warning/10 shadow-[0_0_24px_-6px_hsl(var(--warning)/0.7)]"
+                    : "border-border/60 bg-card/40 hover:border-warning/40"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="font-display text-base font-bold flex items-center gap-1.5">
+                    <Bitcoin className="h-4 w-4 text-warning" /> Crypto
+                  </div>
+                  {method === "plisio" && <Check className="h-4 w-4 text-warning" />}
+                </div>
+                <div className="mt-2 text-sm text-warning">USDT / BTC / TRX…</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Auto-credit · Min ৳100</div>
+              </button>
+            )}
           </div>
 
+          {!isPlisio && acc && (
           <div
             className="mt-4 rounded-lg border border-primary/40 bg-primary/5 p-4"
             style={{ boxShadow: "0 0 24px -8px hsl(var(--primary) / 0.5)" }}
@@ -239,6 +298,13 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
               মিনিমাম ডিপোজিট ৳{min}{method === "binance" ? " (≈ 1$)" : ""}
             </div>
           </div>
+          )}
+          {isPlisio && (
+            <div className="mt-4 rounded-lg border border-warning/40 bg-warning/5 p-4">
+              <div className="text-xs uppercase tracking-widest text-warning">Automatic crypto deposit</div>
+              <div className="mt-2 text-sm">আপনি BDT পরিমাণ লিখলে আমরা USD invoice তৈরি করব। Payment confirm হলে automatic balance যোগ হবে।</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -266,6 +332,23 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
 
       {step.key === "amount" && (
         <div className="space-y-3">
+          {plisioInvoice ? (
+            <div className="rounded-lg border border-warning/40 bg-warning/5 p-4 text-sm space-y-2">
+              <div className="font-display text-base font-semibold flex items-center gap-2">
+                <Bitcoin className="h-4 w-4 text-warning" /> Invoice ready
+              </div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Order:</span><span className="font-mono text-xs">{plisioInvoice.order_number}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">USD:</span><span className="font-bold">${plisioInvoice.amount_usd.toFixed(2)}</span></div>
+              <a
+                href={plisioInvoice.invoice_url}
+                target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-warning underline"
+              >
+                Open payment page <ExternalLink className="h-3 w-3" />
+              </a>
+              <p className="text-xs text-muted-foreground">Payment confirm হলে balance auto-credit হবে।</p>
+            </div>
+          ) : (<>
           <div>
             <Label>💰 কত টাকা পাঠিয়েছেন?</Label>
             <Input
@@ -277,9 +360,10 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
               className="text-lg"
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Minimum ৳{min}{method === "binance" ? " (Binance ≈ 1$)" : ""}
+              Minimum ৳{min}{method === "binance" ? " (Binance ≈ 1$)" : ""}{isPlisio ? " · Auto USD conversion" : ""}
             </p>
           </div>
+          {!isPlisio && (<>
           <div>
             <Label>🔢 Transaction ID (TrxID)</Label>
             <Input
@@ -293,6 +377,8 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
             <Label>📝 Note (optional)</Label>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
           </div>
+          </>)}
+          </>)}
         </div>
       )}
 
@@ -350,8 +436,14 @@ export const DepositWizard = ({ isSeller, onSubmitted }: Props) => {
         </Button>
 
         {stepIdx < STEPS.length - 1 ? (
-          <Button type="button" onClick={next} className="bg-gradient-brand text-primary-foreground">
-            Next <ArrowRight className="ml-1 h-4 w-4" />
+          <Button
+            type="button"
+            onClick={next}
+            disabled={creatingInvoice}
+            className="bg-gradient-brand text-primary-foreground"
+          >
+            {creatingInvoice && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isPlisio && stepIdx === 2 && !plisioInvoice ? "Generate crypto invoice" : (<>Next <ArrowRight className="ml-1 h-4 w-4" /></>)}
           </Button>
         ) : (
           <Button
