@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/Logo";
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, Loader2, Send, Sparkles, Store, Upload, User2,
+  ArrowLeft, ArrowRight, CheckCircle2, Loader2, Sparkles, Store, Upload, User2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,7 +22,6 @@ interface Category {
 
 const STEPS = [
   { key: "profile", label: "Profile", icon: User2 },
-  { key: "telegram", label: "Telegram link", icon: Send },
   { key: "category", label: "Category", icon: Store },
   { key: "upload", label: "First upload", icon: Upload },
 ] as const;
