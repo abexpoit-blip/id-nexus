@@ -21,6 +21,7 @@ import seller from "./routes/seller";
 import notifications from "./routes/notifications";
 import vpn from "./routes/vpn";
 import uploads from "./routes/uploads";
+import settings from "./routes/settings";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -50,7 +51,6 @@ app.use("/api/seller", seller);
 app.use("/api/notifications", notifications);
 app.use("/api/vpn", vpn);
 app.use("/api/uploads", uploads);
-import settings from "./routes/settings";
 app.use("/api/settings", settings);
 
 app.use((err: any, _req: any, res: any, _next: any) => {
