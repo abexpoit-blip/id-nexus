@@ -47,7 +47,11 @@ export const UsersManager = () => {
     setLoading(true);
     try {
       const { users } = await api.get<{ users: UserRow[] }>("/api/admin/users/search", { q: query.trim() });
-      setUsers(users ?? []);
+      const normalized = (users ?? []).map((u) => ({
+        ...u,
+        roles: Array.isArray(u.roles) ? u.roles : [],
+      }));
+      setUsers(normalized);
     } catch (e: any) { toast.error(e?.message || "Failed"); }
     finally { setLoading(false); }
   };
