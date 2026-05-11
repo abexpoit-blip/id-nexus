@@ -33,6 +33,7 @@ import { parseSellerUpload } from "@/lib/parseSellerUpload";
 import { SampleFormatHelp } from "@/components/seller/SampleFormatHelp";
 import { MessagesPanel } from "@/components/MessagesPanel";
 import { NotificationPrefsPanel } from "@/components/NotificationPrefsPanel";
+import { NoticesBoard } from "@/components/NoticesBoard";
 import {
   Dialog,
   DialogContent,
@@ -852,6 +853,7 @@ const SellerDashboard = () => {
         </Button>
       }
     >
+        <div className="mb-6"><NoticesBoard title="Seller notices" /></div>
 
         {/* Stats */}
         <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
