@@ -304,7 +304,7 @@ export const AppShell = ({ mode, title, subtitle, actions, children }: AppShellP
                   {primaryRole}
                 </Badge>
                 <span className="hidden text-sm text-muted-foreground lg:inline">
-                  {user?.user_metadata?.display_name || user?.email}
+                  {profile?.display_name || user?.email}
                 </span>
                 <Button variant="ghost" size="sm" onClick={signOut} className="hidden sm:inline-flex">
                   <LogOut className="mr-2 h-4 w-4" /> Sign out
