@@ -58,7 +58,11 @@ router.get("/mine", authRequired, async (req: AuthedReq, res) => {
     `SELECT * FROM replacement_requests WHERE buyer_id=$1 ORDER BY created_at DESC LIMIT 100`,
     [req.user!.id]
   );
-  res.json({ requests });
+  const items = await q(
+    `SELECT * FROM replacement_items WHERE buyer_id=$1 ORDER BY created_at DESC LIMIT 500`,
+    [req.user!.id]
+  );
+  res.json({ requests, items });
 });
 
 router.get("/:id", authRequired, async (req: AuthedReq, res) => {
