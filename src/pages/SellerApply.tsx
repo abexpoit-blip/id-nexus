@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -36,31 +36,24 @@ const SellerApply = () => {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase
-      .from("seller_applications")
-      .select("id, status, telegram_username, reason, admin_note, created_at, reviewed_at")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (data) {
-      setApp(data as Application);
-      setTgUsername(data.telegram_username ?? "");
-      setReason(data.reason ?? "");
+    try {
+      const { application } = await api.get<{ application: Application | null }>("/api/seller/application");
+      if (application) {
+        setApp(application);
+        setTgUsername(application.telegram_username ?? "");
+        setReason(application.reason ?? "");
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     load();
-    if (!user) return;
-    const ch = supabase
-      .channel("apply-" + user.id)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "seller_applications", filter: `user_id=eq.${user.id}` },
-        load,
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -70,14 +63,18 @@ const SellerApply = () => {
       return toast.error("Contact handle: 3-32 chars, only a-z, 0-9, _");
     }
     setSubmitting(true);
-    const { error } = await supabase.rpc("submit_seller_application", {
-      p_telegram_username: handle,
-      p_reason: reason.trim() || null,
-    });
-    setSubmitting(false);
-    if (error) return toast.error(error.message);
-    toast.success(app?.status === "rejected" ? "Re-submitted — admin will review again." : "Application submitted!");
-    load();
+    try {
+      await api.post("/api/seller/apply", {
+        telegram_username: handle,
+        reason: reason.trim() || null,
+      });
+      toast.success(app?.status === "rejected" ? "Re-submitted — admin will review again." : "Application submitted!");
+      load();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Submit failed");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
