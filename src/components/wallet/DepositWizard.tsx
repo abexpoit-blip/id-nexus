@@ -29,7 +29,7 @@ const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
 const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 
 /**
- * Telegram-bot-style multi-step deposit wizard.
+ * Multi-step deposit wizard.
  * Steps: Method → Sender number → Amount → Screenshot → Submit.
  * Reads payment numbers + per-method min deposit from app_settings via realtime.
  */

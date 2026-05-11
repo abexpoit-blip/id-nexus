@@ -65,13 +65,13 @@ const SellerApply = () => {
   }, [user?.id]);
 
   const submit = async () => {
-    const tg = tgUsername.trim().replace(/^@/, "").toLowerCase();
-    if (tg.length < 3 || !/^[a-z0-9_]{3,32}$/.test(tg)) {
-      return toast.error("Telegram username: 3-32 chars, only a-z, 0-9, _");
+    const handle = tgUsername.trim().replace(/^@/, "").toLowerCase();
+    if (handle.length < 3 || !/^[a-z0-9_]{3,32}$/.test(handle)) {
+      return toast.error("Contact handle: 3-32 chars, only a-z, 0-9, _");
     }
     setSubmitting(true);
     const { error } = await supabase.rpc("submit_seller_application", {
-      p_telegram_username: tg,
+      p_telegram_username: handle,
       p_reason: reason.trim() || null,
     });
     setSubmitting(false);
@@ -127,7 +127,7 @@ const SellerApply = () => {
                   Submitted {new Date(app.created_at).toLocaleString()}. An admin will approve or reject your request soon. You'll get a notification.
                 </p>
                 <div className="mt-4 grid gap-2 text-sm">
-                  <div><span className="text-muted-foreground">Telegram:</span> <strong>@{app.telegram_username}</strong></div>
+                  <div><span className="text-muted-foreground">Contact:</span> <strong>@{app.telegram_username}</strong></div>
                   {app.reason && <div><span className="text-muted-foreground">Reason:</span> {app.reason}</div>}
                 </div>
               </div>
@@ -161,7 +161,7 @@ const SellerApply = () => {
 
             <div className="space-y-4">
               <div>
-                <Label htmlFor="tg">Telegram username <span className="text-destructive">*</span></Label>
+                <Label htmlFor="tg">Contact handle <span className="text-destructive">*</span></Label>
                 <Input
                   id="tg"
                   value={tgUsername}
@@ -170,7 +170,7 @@ const SellerApply = () => {
                   maxLength={33}
                   className="mt-1.5"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">Used for order/payout coordination via the Telegram bot.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Username admin can reach you on (e.g. WhatsApp, Discord).</p>
               </div>
               <div>
                 <Label htmlFor="reason">Why do you want to sell? (optional)</Label>

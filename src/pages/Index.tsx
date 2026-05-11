@@ -72,7 +72,7 @@ const Index = () => {
             </h1>
             <p className="mt-6 max-w-xl text-base text-muted-foreground md:text-lg">
               Agency-approved Facebook ad IDs and verified VPN access for Bangladeshi resellers.
-              Instant Excel delivery, replacement protection, and a Telegram bot to manage every order on the go.
+              Instant Excel delivery, replacement protection, and a clean dashboard to manage every order.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" className="bg-gradient-brand text-primary-foreground shadow-glow hover:opacity-90">
@@ -201,7 +201,7 @@ const Index = () => {
             {[
               { icon: Wallet, t: "1. Top up", d: "Add balance via bKash / Nagad. Admin approves manually." },
               { icon: Zap, t: "2. Buy ID", d: "Pick category & quantity. Pay from balance — instant." },
-              { icon: Bot, t: "3. Get delivery", d: "Excel + copy options on website and Telegram bot." },
+              { icon: Bot, t: "3. Get delivery", d: "Instant Excel download with copy-friendly UID:PASS lines." },
               { icon: RefreshCcw, t: "4. Replacement", d: "Bad ID? Submit within 2h (1–2 pcs) or 6h (3+) for swap." },
             ].map((s, i) => (
               <div key={s.t} className="relative rounded-xl border border-border/60 bg-card/60 p-6">
@@ -290,7 +290,7 @@ const Index = () => {
               },
               {
                 q: "How fast is delivery?",
-                a: "Instant. Once you pay from balance, the IDs appear in your dashboard as a downloadable Excel file and inside the Telegram bot.",
+                a: "Instant. Once you pay from balance, the IDs appear in your dashboard as a downloadable Excel file you can use right away.",
               },
               {
                 q: "What if an ID has a problem?",
@@ -299,10 +299,6 @@ const Index = () => {
               {
                 q: "Which payment methods do you accept?",
                 a: "bKash and Nagad (manual approval) at launch. Cryptomus crypto payments are coming next.",
-              },
-              {
-                q: "How do I link the Telegram bot?",
-                a: "After signup you'll see a one-time code in your dashboard. Send /start <code> to our bot and your account is permanently linked.",
               },
             ].map((item, i) => (
               <AccordionItem key={i} value={`item-${i}`} className="border-border/60">

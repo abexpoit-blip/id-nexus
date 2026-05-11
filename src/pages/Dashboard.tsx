@@ -11,9 +11,6 @@ import {
   ShoppingBag,
   RefreshCcw,
   Upload,
-  Bot,
-  Copy,
-  CheckCircle2,
   ArrowUpRight,
   Sparkles,
   Crown,
@@ -29,9 +26,6 @@ interface Profile {
   display_name: string | null;
   email: string | null;
   balance_bdt: number;
-  telegram_link_code: string;
-  telegram_chat_id: number | null;
-  buyer_settings: { telegram_template?: "compact" | "detailed" } | null;
 }
 
 const Dashboard = () => {
@@ -45,7 +39,7 @@ const Dashboard = () => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("display_name, email, balance_bdt, telegram_link_code, telegram_chat_id, buyer_settings")
+      .select("display_name, email, balance_bdt")
       .eq("id", user.id)
       .single()
       .then(({ data, error }) => {
@@ -95,29 +89,6 @@ const Dashboard = () => {
   const isAdmin = roles.includes("admin");
   const primaryRole = isAdmin ? "admin" : isSeller ? "seller" : "buyer";
 
-  const copyTgCode = () => {
-    if (!profile) return;
-    navigator.clipboard.writeText(`/start ${profile.telegram_link_code}`);
-    toast.success("Telegram command copied");
-  };
-
-  const template: "compact" | "detailed" = profile?.buyer_settings?.telegram_template ?? "compact";
-
-  const setTemplate = async (next: "compact" | "detailed") => {
-    if (!user || !profile) return;
-    const newSettings = { ...(profile.buyer_settings ?? {}), telegram_template: next };
-    setProfile({ ...profile, buyer_settings: newSettings });
-    const { error } = await supabase
-      .from("profiles")
-      .update({ buyer_settings: newSettings })
-      .eq("id", user.id);
-    if (error) {
-      toast.error("Could not save template preference");
-    } else {
-      toast.success(`Telegram template set to ${next}`);
-    }
-  };
-
   // Simple loyalty tier from lifetime spend
   const tier =
     stats.lifetimeSpent >= 50000
@@ -141,7 +112,7 @@ const Dashboard = () => {
     <AppShell
       mode="buyer"
       title={`Welcome back, ${profile?.display_name ?? "trader"}.`}
-      subtitle="Manage your purchases, replacements, and Telegram bot link from here."
+      subtitle="Manage your purchases, replacements, and wallet from here."
     >
         {/* Hero balance card — premium */}
         <Card className="relative overflow-hidden rounded-2xl border-border/60 bg-gradient-card p-6 shadow-card md:p-8">
@@ -250,58 +221,6 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        {/* Telegram link card */}
-        <Card className="mt-6 overflow-hidden border-border/60 bg-gradient-card p-6 shadow-card">
-          <div className="grid gap-6 md:grid-cols-[1fr,auto] md:items-center">
-            <div>
-              <div className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-primary" />
-                <div className="font-display text-lg font-semibold">Telegram bot</div>
-                {profile?.telegram_chat_id ? (
-                  <Badge className="bg-success/20 text-success hover:bg-success/20">
-                    <CheckCircle2 className="mr-1 h-3 w-3" /> Linked
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="border-warning/40 text-warning">
-                    Not linked
-                  </Badge>
-                )}
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Open our Telegram bot and send the command below to permanently link this account.
-                Bot delivers orders, replacements, and balance updates in real time.
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <code className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-sm">
-                  /start {profile?.telegram_link_code}
-                </code>
-                <Button size="sm" variant="outline" onClick={copyTgCode}>
-                  <Copy className="mr-2 h-3.5 w-3.5" /> Copy
-                </Button>
-              </div>
-              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/40 pt-4">
-                <span className="text-xs uppercase tracking-widest text-muted-foreground">Message template</span>
-                <Button
-                  size="sm"
-                  variant={template === "compact" ? "default" : "outline"}
-                  onClick={() => setTemplate("compact")}
-                  className={template === "compact" ? "bg-gradient-brand text-primary-foreground hover:opacity-90" : ""}
-                >
-                  Compact (UID:PASS only)
-                </Button>
-                <Button
-                  size="sm"
-                  variant={template === "detailed" ? "default" : "outline"}
-                  onClick={() => setTemplate("detailed")}
-                  className={template === "detailed" ? "bg-gradient-brand text-primary-foreground hover:opacity-90" : ""}
-                >
-                  Detailed (with header & 2FA)
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Card>
-
         {/* Role-specific quick actions */}
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
@@ -364,11 +283,7 @@ const Dashboard = () => {
         )}
 
         {user && (
-          <RecentOrdersPanel
-            userId={user.id}
-            telegramLinked={!!profile?.telegram_chat_id}
-            template={template}
-          />
+          <RecentOrdersPanel userId={user.id} />
         )}
       <BrandFooter />
     </AppShell>

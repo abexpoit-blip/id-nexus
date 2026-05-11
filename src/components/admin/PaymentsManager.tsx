@@ -229,7 +229,6 @@ export const PaymentsManager = () => {
                     <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
                     <TableCell className="text-sm">
                       {userLabel(r.user_id)}
-                      {r.source === "telegram_bot" && <Badge className="ml-1 bg-primary/20 text-primary hover:bg-primary/20">bot</Badge>}
                     </TableCell>
                     <TableCell>{r.method}</TableCell>
                     <TableCell className="font-semibold">৳ {Number(r.amount_bdt).toFixed(0)}</TableCell>
