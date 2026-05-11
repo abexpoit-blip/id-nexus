@@ -75,6 +75,130 @@ router.post("/topups/:id/reject", async (req: AuthedReq, res) => {
   });
 });
 
+// ===== BULK PAYMENT ACTIONS =====
+// All bulk endpoints process items sequentially and return a per-id result.
+// They never throw on individual failures so the client always gets a summary.
+
+type BulkRow = {
+  id: string;
+  ok: boolean;
+  user_id?: string;
+  amount?: number;
+  balance_before?: number;
+  balance_after?: number;
+  error?: string;
+};
+
+const sanitizeIds = (raw: unknown): string[] => {
+  if (!Array.isArray(raw)) return [];
+  return Array.from(
+    new Set(
+      raw
+        .filter((x): x is string => typeof x === "string" && x.length > 0)
+        .slice(0, 200)
+    )
+  );
+};
+
+router.post("/topups/bulk-approve", async (req: AuthedReq, res) => {
+  const ids = sanitizeIds(req.body?.ids);
+  if (ids.length === 0) return res.status(400).json({ error: "no_ids" });
+  const results: BulkRow[] = [];
+  for (const id of ids) {
+    try {
+      const [r] = await q(`SELECT * FROM topup_requests WHERE id=$1 FOR UPDATE`, [id]);
+      if (!r) { results.push({ id, ok: false, error: "not_found" }); continue; }
+      if (r.status !== "pending") {
+        results.push({ id, ok: false, user_id: r.user_id, amount: Number(r.amount_bdt), error: "already_reviewed" });
+        continue;
+      }
+      const [pre] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1 FOR UPDATE`, [r.user_id]);
+      const before = Number(pre?.balance_bdt ?? 0);
+      await q(`UPDATE profiles SET balance_bdt = balance_bdt + $1 WHERE id=$2`, [r.amount_bdt, r.user_id]);
+      const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1`, [r.user_id]);
+      const after = Number(p.balance_bdt);
+      await q(
+        `INSERT INTO balance_ledger(user_id, kind, amount_bdt, balance_after, reference_id, note)
+         VALUES($1,'topup',$2,$3,$4,$5)`,
+        [r.user_id, r.amount_bdt, after, r.id, "Top-up approved (bulk)"]
+      );
+      await q(
+        `UPDATE topup_requests SET status='approved', reviewed_by=$2, reviewed_at=now(), approved_at=now() WHERE id=$1`,
+        [id, req.user!.id]
+      );
+      results.push({
+        id, ok: true, user_id: r.user_id, amount: Number(r.amount_bdt),
+        balance_before: before, balance_after: after,
+      });
+    } catch (e: any) {
+      results.push({ id, ok: false, error: e?.message || "internal_error" });
+    }
+  }
+  res.json({ results });
+});
+
+router.post("/topups/bulk-reject", async (req: AuthedReq, res) => {
+  const ids = sanitizeIds(req.body?.ids);
+  const note = typeof req.body?.note === "string" ? req.body.note : null;
+  if (ids.length === 0) return res.status(400).json({ error: "no_ids" });
+  const results: BulkRow[] = [];
+  for (const id of ids) {
+    try {
+      const [r] = await q(`SELECT user_id, amount_bdt, status FROM topup_requests WHERE id=$1`, [id]);
+      if (!r) { results.push({ id, ok: false, error: "not_found" }); continue; }
+      if (r.status !== "pending") {
+        results.push({ id, ok: false, user_id: r.user_id, amount: Number(r.amount_bdt), error: "already_reviewed" });
+        continue;
+      }
+      await q(
+        `UPDATE topup_requests SET status='rejected', admin_note=$2, reviewed_by=$3, reviewed_at=now()
+           WHERE id=$1 AND status='pending'`,
+        [id, note, req.user!.id]
+      );
+      const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1`, [r.user_id]);
+      const bal = Number(p?.balance_bdt ?? 0);
+      results.push({
+        id, ok: true, user_id: r.user_id, amount: Number(r.amount_bdt),
+        balance_before: bal, balance_after: bal,
+      });
+    } catch (e: any) {
+      results.push({ id, ok: false, error: e?.message || "internal_error" });
+    }
+  }
+  res.json({ results });
+});
+
+router.post("/withdraws/bulk-reject", async (req: AuthedReq, res) => {
+  const ids = sanitizeIds(req.body?.ids);
+  const note = typeof req.body?.note === "string" ? req.body.note : null;
+  if (ids.length === 0) return res.status(400).json({ error: "no_ids" });
+  const results: BulkRow[] = [];
+  for (const id of ids) {
+    try {
+      const [w] = await q(`SELECT user_id, amount_bdt, status FROM withdraw_requests WHERE id=$1`, [id]);
+      if (!w) { results.push({ id, ok: false, error: "not_found" }); continue; }
+      if (w.status !== "pending") {
+        results.push({ id, ok: false, user_id: w.user_id, amount: Number(w.amount_bdt), error: "already_reviewed" });
+        continue;
+      }
+      await q(
+        `UPDATE withdraw_requests SET status='rejected', admin_note=$2, reviewed_by=$3, reviewed_at=now()
+           WHERE id=$1 AND status='pending'`,
+        [id, note, req.user!.id]
+      );
+      const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1`, [w.user_id]);
+      const bal = Number(p?.balance_bdt ?? 0);
+      results.push({
+        id, ok: true, user_id: w.user_id, amount: Number(w.amount_bdt),
+        balance_before: bal, balance_after: bal,
+      });
+    } catch (e: any) {
+      results.push({ id, ok: false, error: e?.message || "internal_error" });
+    }
+  }
+  res.json({ results });
+});
+
 // USERS
 router.get("/users", async (_req, res) => {
   const rows = await q(

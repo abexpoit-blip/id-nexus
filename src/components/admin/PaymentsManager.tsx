@@ -8,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -18,6 +20,7 @@ import { format } from "date-fns";
 import {
   Loader2, Check, X, Banknote, Image as ImageIcon, CheckCircle2,
   Search, CalendarIcon, RotateCcw, ChevronLeft, ChevronRight, RefreshCw,
+  AlertTriangle, CheckSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -90,6 +93,38 @@ export const PaymentsManager = () => {
   const [topupsSearchInput, setTopupsSearchInput] = useState("");
   const [withdrawsSearchInput, setWithdrawsSearchInput] = useState("");
 
+  // Bulk selection
+  const [selectedTopups, setSelectedTopups] = useState<Set<string>>(new Set());
+  const [selectedWithdraws, setSelectedWithdraws] = useState<Set<string>>(new Set());
+
+  // Bulk confirm dialog
+  type BulkAction = "approve-topups" | "reject-topups" | "reject-withdraws";
+  const [bulkConfirm, setBulkConfirm] = useState<BulkAction | null>(null);
+  const [bulkNote, setBulkNote] = useState("");
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+
+  // Bulk result modal
+  type BulkResultRow = {
+    id: string;
+    ok: boolean;
+    user_id?: string;
+    amount?: number;
+    balance_before?: number;
+    balance_after?: number;
+    error?: string;
+  };
+  const [bulkResults, setBulkResults] = useState<{
+    action: BulkAction;
+    rows: BulkResultRow[];
+  } | null>(null);
+
+  // Auto-refresh error tracking
+  const [refreshError, setRefreshError] = useState<{
+    message: string;
+    when: Date;
+    source: "tab" | "counts" | "manual";
+  } | null>(null);
+
   // Pay dialog
   const [payOpen, setPayOpen] = useState(false);
   const [payTarget, setPayTarget] = useState<Withdraw | null>(null);
@@ -159,7 +194,7 @@ export const PaymentsManager = () => {
     });
   };
 
-  const loadTab = async (kind: TabKind, opts: { silent?: boolean } = {}) => {
+  const loadTab = async (kind: TabKind, opts: { silent?: boolean; source?: "tab" | "manual" } = {}) => {
     if (!opts.silent) setLoading(true);
     try {
       const f = kind === "topups" ? topupsFilter : withdrawsFilter;
@@ -177,21 +212,31 @@ export const PaymentsManager = () => {
         setWithdrawsTotal(data.total ?? rows.length);
       }
       setLastRefreshed(new Date());
+      setRefreshError((prev) => (prev?.source === (opts.source ?? "tab") ? null : prev));
+      return true;
     } catch (e: any) {
-      toast.error(e?.message || "Failed to load payments");
+      const msg = e?.message || "Failed to load payments";
+      setRefreshError({ message: msg, when: new Date(), source: opts.source ?? "tab" });
+      if (!opts.silent) toast.error(msg);
+      else toast.error(`Auto-refresh failed: ${msg}`);
+      return false;
     } finally {
       if (!opts.silent) setLoading(false);
     }
   };
 
-  const loadPendingCounts = async () => {
+  const loadPendingCounts = async (opts: { source?: "counts" | "manual" } = {}) => {
     try {
       const c = await api.get<{ topups: number; withdraws: number }>(
         "/api/admin/payments/pending-counts"
       );
       setPendingCounts(c);
-    } catch {
-      /* ignore */
+      setRefreshError((prev) => (prev?.source === (opts.source ?? "counts") ? null : prev));
+      return true;
+    } catch (e: any) {
+      const msg = e?.message || "Failed to load pending counts";
+      setRefreshError({ message: msg, when: new Date(), source: opts.source ?? "counts" });
+      return false;
     }
   };
 
@@ -203,12 +248,18 @@ export const PaymentsManager = () => {
   const refreshNow = async () => {
     if (refreshing) return;
     setRefreshing(true);
+    setRefreshError(null);
     try {
-      await Promise.all([
-        loadTab(tab, { silent: true }),
-        loadPendingCounts(),
+      const [a, b] = await Promise.all([
+        loadTab(tab, { silent: true, source: "manual" }),
+        loadPendingCounts({ source: "manual" }),
       ]);
-      setLastRefreshed(new Date());
+      if (a && b) {
+        toast.success("Refreshed");
+        setLastRefreshed(new Date());
+      } else {
+        toast.error("Refresh failed — see banner");
+      }
     } finally {
       setRefreshing(false);
     }
@@ -217,9 +268,11 @@ export const PaymentsManager = () => {
   // Reload when active tab's filters change
   useEffect(() => {
     loadTab("topups");
+    setSelectedTopups(new Set());
   }, [topupsFilter]);
   useEffect(() => {
     loadTab("withdraws");
+    setSelectedWithdraws(new Set());
   }, [withdrawsFilter]);
 
   // Pending counts + configurable polling (0 = off)
@@ -438,6 +491,139 @@ export const PaymentsManager = () => {
 
   const fmtBdt = (n: number | null | undefined) =>
     n == null ? "—" : `৳ ${Number(n).toFixed(0)}`;
+
+  // ===== Bulk selection helpers =====
+  const isTopupSelectable = (r: Topup) => r.status === "pending";
+  const isWithdrawSelectable = (r: Withdraw) =>
+    r.status === "pending" || r.status === "approved";
+
+  const toggleTopup = (id: string) =>
+    setSelectedTopups((s) => {
+      const next = new Set(s);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const toggleWithdraw = (id: string) =>
+    setSelectedWithdraws((s) => {
+      const next = new Set(s);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const selectableTopupIds = topups.filter(isTopupSelectable).map((r) => r.id);
+  const selectableWithdrawIds = withdraws
+    .filter((r) => r.status === "pending") // only pending can be bulk-rejected
+    .map((r) => r.id);
+
+  const allTopupsSelected =
+    selectableTopupIds.length > 0 &&
+    selectableTopupIds.every((id) => selectedTopups.has(id));
+  const allWithdrawsSelected =
+    selectableWithdrawIds.length > 0 &&
+    selectableWithdrawIds.every((id) => selectedWithdraws.has(id));
+
+  const toggleAllTopups = () =>
+    setSelectedTopups(allTopupsSelected ? new Set() : new Set(selectableTopupIds));
+  const toggleAllWithdraws = () =>
+    setSelectedWithdraws(allWithdrawsSelected ? new Set() : new Set(selectableWithdrawIds));
+
+  // Build summary for confirmation dialog
+  type BulkSummary = {
+    rows: Array<{
+      id: string;
+      userId: string;
+      userLabel: string;
+      amount: number;
+      balance: number | null;
+      projected: number | null;
+      method: string;
+      warning?: string;
+    }>;
+    totalAmount: number;
+    perUser: Record<string, { label: string; current: number | null; delta: number; after: number | null; insufficient?: boolean }>;
+  };
+
+  const buildBulkSummary = (action: BulkAction): BulkSummary => {
+    const isApprove = action === "approve-topups";
+    const sourceRows = action === "reject-withdraws"
+      ? withdraws.filter((r) => selectedWithdraws.has(r.id))
+      : topups.filter((r) => selectedTopups.has(r.id));
+    const sign = action === "approve-topups" ? 1 : 0; // reject = no balance change
+    const rows = sourceRows.map((r: any) => {
+      const bal = userBalance(r.user_id);
+      const amount = Number(r.amount_bdt);
+      const projected = bal == null ? null : bal + sign * amount;
+      return {
+        id: r.id,
+        userId: r.user_id,
+        userLabel: userLabel(r.user_id),
+        amount,
+        balance: bal,
+        projected,
+        method: r.method,
+      };
+    });
+    // Aggregate per user (multiple selected items per user accumulate)
+    const perUser: BulkSummary["perUser"] = {};
+    for (const r of rows) {
+      const cur = perUser[r.userId] ?? {
+        label: r.userLabel,
+        current: r.balance,
+        delta: 0,
+        after: r.balance,
+      };
+      cur.delta += sign * r.amount;
+      cur.after = cur.current == null ? null : cur.current + cur.delta;
+      perUser[r.userId] = cur;
+    }
+    return {
+      rows,
+      totalAmount: rows.reduce((s, r) => s + r.amount, 0),
+      perUser,
+    };
+  };
+
+  const submitBulk = async () => {
+    if (!bulkConfirm) return;
+    const ids = bulkConfirm === "reject-withdraws"
+      ? Array.from(selectedWithdraws)
+      : Array.from(selectedTopups);
+    if (ids.length === 0) return;
+    setBulkSubmitting(true);
+    try {
+      const path =
+        bulkConfirm === "approve-topups"
+          ? "/api/admin/topups/bulk-approve"
+          : bulkConfirm === "reject-topups"
+            ? "/api/admin/topups/bulk-reject"
+            : "/api/admin/withdraws/bulk-reject";
+      const body: any = { ids };
+      if (bulkConfirm !== "approve-topups") body.note = bulkNote || null;
+      const data = await api.post<{ results: BulkResultRow[] }>(path, body);
+      const rows = data.results || [];
+      const okCount = rows.filter((r) => r.ok).length;
+      const failCount = rows.length - okCount;
+      if (failCount === 0) toast.success(`${okCount} request${okCount === 1 ? "" : "s"} processed`);
+      else if (okCount === 0) toast.error(`All ${failCount} failed`);
+      else toast.warning(`${okCount} succeeded, ${failCount} failed`);
+      setBulkResults({ action: bulkConfirm, rows });
+      setBulkConfirm(null);
+      setBulkNote("");
+      // Clear selection of items that succeeded
+      const okIds = new Set(rows.filter((r) => r.ok).map((r) => r.id));
+      if (bulkConfirm === "reject-withdraws") {
+        setSelectedWithdraws((s) => new Set(Array.from(s).filter((id) => !okIds.has(id))));
+      } else {
+        setSelectedTopups((s) => new Set(Array.from(s).filter((id) => !okIds.has(id))));
+      }
+      // Refresh authoritative state
+      loadAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Bulk action failed");
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
 
   const pendingTopups = pendingCounts.topups;
   const pendingWds = pendingCounts.withdraws;
@@ -659,6 +845,36 @@ export const PaymentsManager = () => {
         </div>
       </div>
 
+      {refreshError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle className="flex items-center justify-between">
+            <span>
+              {refreshError.source === "manual"
+                ? "Manual refresh failed"
+                : refreshError.source === "counts"
+                  ? "Pending counts failed to refresh"
+                  : "Auto-refresh failed"}
+            </span>
+            <span className="text-xs font-normal opacity-80">
+              {refreshError.when.toLocaleTimeString()}
+            </span>
+          </AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span className="break-all">{refreshError.message}</span>
+            <div className="flex shrink-0 gap-2">
+              <Button size="sm" variant="outline" className="h-7" onClick={refreshNow} disabled={refreshing}>
+                <RefreshCw className={cn("mr-1 h-3 w-3", refreshing && "animate-spin")} />
+                Retry
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7" onClick={() => setRefreshError(null)}>
+                Dismiss
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKind)}>
         <TabsList>
           <TabsTrigger value="topups">Top-ups {pendingTopups > 0 && <Badge className="ml-2 bg-warning/20 text-warning hover:bg-warning/20">{pendingTopups}</Badge>}</TabsTrigger>
@@ -674,16 +890,54 @@ export const PaymentsManager = () => {
             setTopupsSearchInput,
             () => setTopupsSearchInput(""),
           )}
+          {selectedTopups.size > 0 && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-primary" />
+                <span><strong>{selectedTopups.size}</strong> top-up{selectedTopups.size === 1 ? "" : "s"} selected</span>
+                <span className="text-muted-foreground">
+                  · total ৳ {topups.filter((r) => selectedTopups.has(r.id)).reduce((s, r) => s + Number(r.amount_bdt), 0).toFixed(0)}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setBulkConfirm("approve-topups")}>
+                  <Check className="mr-1 h-3 w-3" /> Approve all
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setBulkConfirm("reject-topups")}>
+                  <X className="mr-1 h-3 w-3" /> Reject all
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedTopups(new Set())}>Clear</Button>
+              </div>
+            </div>
+          )}
           {loading && tab === "topups" ? (
             <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : topups.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">No top-up requests match these filters.</p>
           ) : (
             <div className="overflow-x-auto"><Table>
-              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow>
+                <TableHead className="w-8">
+                  <Checkbox
+                    checked={allTopupsSelected}
+                    disabled={selectableTopupIds.length === 0}
+                    onCheckedChange={toggleAllTopups}
+                    aria-label="Select all pending top-ups"
+                  />
+                </TableHead>
+                <TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader>
               <TableBody>
                 {topups.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} data-state={selectedTopups.has(r.id) ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedTopups.has(r.id)}
+                        disabled={!isTopupSelectable(r)}
+                        onCheckedChange={() => toggleTopup(r.id)}
+                        aria-label={`Select top-up ${r.txn_id}`}
+                      />
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
                     <TableCell className="text-sm">
                       {userLabel(r.user_id)}
@@ -739,16 +993,54 @@ export const PaymentsManager = () => {
             setWithdrawsSearchInput,
             () => setWithdrawsSearchInput(""),
           )}
+          {selectedWithdraws.size > 0 && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-primary" />
+                <span><strong>{selectedWithdraws.size}</strong> withdraw{selectedWithdraws.size === 1 ? "" : "s"} selected</span>
+                <span className="text-muted-foreground">
+                  · total ৳ {withdraws.filter((r) => selectedWithdraws.has(r.id)).reduce((s, r) => s + Number(r.amount_bdt), 0).toFixed(0)}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setBulkConfirm("reject-withdraws")}>
+                  <X className="mr-1 h-3 w-3" /> Reject all
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedWithdraws(new Set())}>Clear</Button>
+              </div>
+              <div className="basis-full text-[11px] text-muted-foreground">
+                Bulk payouts are intentionally disabled — pay each withdraw individually so a unique payout TxnID can be entered.
+              </div>
+            </div>
+          )}
           {loading && tab === "withdraws" ? (
             <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : withdraws.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">No withdraw requests match these filters.</p>
           ) : (
             <div className="overflow-x-auto"><Table>
-              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Receiver</TableHead><TableHead>Status</TableHead><TableHead>Payout TxnID</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow>
+                <TableHead className="w-8">
+                  <Checkbox
+                    checked={allWithdrawsSelected}
+                    disabled={selectableWithdrawIds.length === 0}
+                    onCheckedChange={toggleAllWithdraws}
+                    aria-label="Select all pending withdraws"
+                  />
+                </TableHead>
+                <TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Receiver</TableHead><TableHead>Status</TableHead><TableHead>Payout TxnID</TableHead><TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader>
               <TableBody>
                 {withdraws.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} data-state={selectedWithdraws.has(r.id) ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedWithdraws.has(r.id)}
+                        disabled={r.status !== "pending"}
+                        onCheckedChange={() => toggleWithdraw(r.id)}
+                        aria-label={`Select withdraw ${r.id}`}
+                      />
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
                     <TableCell className="text-sm">{userLabel(r.user_id)}</TableCell>
                     <TableCell className="font-mono text-xs">
@@ -998,6 +1290,192 @@ export const PaymentsManager = () => {
                 </div>
                 <DialogFooter>
                   <Button onClick={() => setActionResult(null)}>Done</Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk action confirmation */}
+      <Dialog open={!!bulkConfirm} onOpenChange={(o) => { if (!o) { setBulkConfirm(null); setBulkNote(""); } }}>
+        <DialogContent className="max-w-2xl">
+          {bulkConfirm && (() => {
+            const summary = buildBulkSummary(bulkConfirm);
+            const isApprove = bulkConfirm === "approve-topups";
+            const title = isApprove
+              ? "Approve top-ups in bulk"
+              : bulkConfirm === "reject-topups"
+                ? "Reject top-ups in bulk"
+                : "Reject withdraws in bulk";
+            const usersList = Object.entries(summary.perUser);
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    {isApprove
+                      ? <Check className="h-5 w-5 text-success" />
+                      : <X className="h-5 w-5 text-destructive" />}
+                    {title}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2 text-sm">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Requests</div>
+                      <div className="mt-0.5 font-display text-xl font-semibold">{summary.rows.length}</div>
+                    </div>
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total amount</div>
+                      <div className={`mt-0.5 font-display text-xl font-semibold ${isApprove ? "text-success" : "text-muted-foreground"}`}>
+                        ৳ {summary.totalAmount.toFixed(0)}
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Affected users</div>
+                      <div className="mt-0.5 font-display text-xl font-semibold">{usersList.length}</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
+                      Per-user balance preview
+                    </div>
+                    <div className="max-h-[240px] overflow-y-auto rounded-md border border-border/60">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>User</TableHead>
+                            <TableHead className="text-right">Before</TableHead>
+                            <TableHead className="text-right">Δ</TableHead>
+                            <TableHead className="text-right">After</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {usersList.map(([uid, u]) => (
+                            <TableRow key={uid}>
+                              <TableCell className="text-sm">{u.label}</TableCell>
+                              <TableCell className="text-right font-mono text-xs">{fmtBdt(u.current)}</TableCell>
+                              <TableCell className={`text-right font-mono text-xs ${u.delta > 0 ? "text-success" : u.delta < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                                {u.delta === 0 ? "৳ 0" : `${u.delta > 0 ? "+" : "−"} ৳ ${Math.abs(u.delta).toFixed(0)}`}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-xs text-primary">
+                                {fmtBdt(u.after)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    {!isApprove && (
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        Rejecting does not change wallet balances.
+                      </p>
+                    )}
+                  </div>
+
+                  {!isApprove && (
+                    <div>
+                      <label className="text-xs text-muted-foreground">Reason (sent to all selected users)</label>
+                      <Textarea
+                        value={bulkNote}
+                        onChange={(e) => setBulkNote(e.target.value)}
+                        rows={2}
+                        placeholder="e.g. Invalid TxnID — please re-submit"
+                      />
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setBulkConfirm(null)} disabled={bulkSubmitting}>Cancel</Button>
+                  <Button
+                    variant={isApprove ? "default" : "destructive"}
+                    onClick={submitBulk}
+                    disabled={bulkSubmitting || summary.rows.length === 0}
+                  >
+                    {bulkSubmitting && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                    {isApprove
+                      ? `Approve ${summary.rows.length} top-up${summary.rows.length === 1 ? "" : "s"}`
+                      : `Reject ${summary.rows.length}`}
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk result modal */}
+      <Dialog open={!!bulkResults} onOpenChange={(o) => !o && setBulkResults(null)}>
+        <DialogContent className="max-w-2xl">
+          {bulkResults && (() => {
+            const okRows = bulkResults.rows.filter((r) => r.ok);
+            const failRows = bulkResults.rows.filter((r) => !r.ok);
+            const totalAmt = okRows.reduce((s, r) => s + (r.amount || 0), 0);
+            const isApprove = bulkResults.action === "approve-topups";
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    {failRows.length === 0
+                      ? <CheckCircle2 className="h-5 w-5 text-success" />
+                      : okRows.length === 0
+                        ? <X className="h-5 w-5 text-destructive" />
+                        : <AlertTriangle className="h-5 w-5 text-warning" />}
+                    Bulk action complete
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2 text-sm">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-md border border-success/30 bg-success/10 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Succeeded</div>
+                      <div className="mt-0.5 font-display text-xl font-semibold text-success">{okRows.length}</div>
+                    </div>
+                    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Failed</div>
+                      <div className="mt-0.5 font-display text-xl font-semibold text-destructive">{failRows.length}</div>
+                    </div>
+                    <div className="rounded-md border border-border/60 bg-background/40 p-3 text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{isApprove ? "Total credited" : "Total amount"}</div>
+                      <div className={`mt-0.5 font-display text-xl font-semibold ${isApprove ? "text-success" : "text-muted-foreground"}`}>
+                        ৳ {totalAmt.toFixed(0)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="max-h-[260px] overflow-y-auto rounded-md border border-border/60">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead className="text-right">Before</TableHead>
+                          <TableHead className="text-right">After</TableHead>
+                          <TableHead>Result</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bulkResults.rows.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="text-xs">
+                              {r.user_id ? userLabel(r.user_id) : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs">{fmtBdt(r.amount)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs">{fmtBdt(r.balance_before)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs text-primary">{fmtBdt(r.balance_after)}</TableCell>
+                            <TableCell>
+                              {r.ok
+                                ? <Badge className="bg-success/20 text-success hover:bg-success/20">ok</Badge>
+                                : <Badge className="bg-destructive/20 text-destructive hover:bg-destructive/20">{r.error || "failed"}</Badge>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button onClick={() => setBulkResults(null)}>Done</Button>
                 </DialogFooter>
               </>
             );
