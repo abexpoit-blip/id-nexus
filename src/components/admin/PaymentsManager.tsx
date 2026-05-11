@@ -890,16 +890,54 @@ export const PaymentsManager = () => {
             setTopupsSearchInput,
             () => setTopupsSearchInput(""),
           )}
+          {selectedTopups.size > 0 && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-primary" />
+                <span><strong>{selectedTopups.size}</strong> top-up{selectedTopups.size === 1 ? "" : "s"} selected</span>
+                <span className="text-muted-foreground">
+                  · total ৳ {topups.filter((r) => selectedTopups.has(r.id)).reduce((s, r) => s + Number(r.amount_bdt), 0).toFixed(0)}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setBulkConfirm("approve-topups")}>
+                  <Check className="mr-1 h-3 w-3" /> Approve all
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setBulkConfirm("reject-topups")}>
+                  <X className="mr-1 h-3 w-3" /> Reject all
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedTopups(new Set())}>Clear</Button>
+              </div>
+            </div>
+          )}
           {loading && tab === "topups" ? (
             <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : topups.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">No top-up requests match these filters.</p>
           ) : (
             <div className="overflow-x-auto"><Table>
-              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow>
+                <TableHead className="w-8">
+                  <Checkbox
+                    checked={allTopupsSelected}
+                    disabled={selectableTopupIds.length === 0}
+                    onCheckedChange={toggleAllTopups}
+                    aria-label="Select all pending top-ups"
+                  />
+                </TableHead>
+                <TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Balance</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader>
               <TableBody>
                 {topups.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} data-state={selectedTopups.has(r.id) ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedTopups.has(r.id)}
+                        disabled={!isTopupSelectable(r)}
+                        onCheckedChange={() => toggleTopup(r.id)}
+                        aria-label={`Select top-up ${r.txn_id}`}
+                      />
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
                     <TableCell className="text-sm">
                       {userLabel(r.user_id)}
