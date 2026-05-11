@@ -395,19 +395,87 @@ router.post("/replacement-items/:id/replace-from", async (req: AuthedReq, res) =
   res.json({ ok: true });
 });
 
-// PAYMENTS — list both (with profile labels)
-router.get("/payments", async (_req, res) => {
-  const topups = await q(
-    `SELECT t.*, p.display_name, p.email AS user_email
-       FROM topup_requests t LEFT JOIN profiles p ON p.id=t.user_id
-       ORDER BY t.created_at DESC LIMIT 200`
+// PAYMENTS — pending counts for tab badges
+router.get("/payments/pending-counts", async (_req, res) => {
+  const [tp] = await q<{ c: number }>(
+    `SELECT COUNT(*)::int AS c FROM topup_requests WHERE status='pending'`
   );
-  const withdraws = await q(
-    `SELECT w.*, p.display_name, p.email AS user_email
-       FROM withdraw_requests w LEFT JOIN profiles p ON p.id=w.user_id
-       ORDER BY w.created_at DESC LIMIT 200`
+  const [wd] = await q<{ c: number }>(
+    `SELECT COUNT(*)::int AS c FROM withdraw_requests WHERE status='pending'`
   );
-  res.json({ topups, withdraws });
+  res.json({ topups: tp.c, withdraws: wd.c });
+});
+
+// PAYMENTS — paginated list with filters
+// Query: kind=topups|withdraws, q, status, from (ISO), to (ISO), page (1-based), page_size
+router.get("/payments", async (req, res) => {
+  const kind = String(req.query.kind || "topups") === "withdraws" ? "withdraws" : "topups";
+  const search = (req.query.q ? String(req.query.q) : "").trim();
+  const status = req.query.status ? String(req.query.status) : "";
+  const from = req.query.from ? String(req.query.from) : "";
+  const to = req.query.to ? String(req.query.to) : "";
+  const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+  const pageSize = Math.min(100, Math.max(5, parseInt(String(req.query.page_size || "25"), 10) || 25));
+  const offset = (page - 1) * pageSize;
+
+  const isTopups = kind === "topups";
+  const table = isTopups ? "topup_requests" : "withdraw_requests";
+  const alias = isTopups ? "t" : "w";
+
+  const where: string[] = [];
+  const params: any[] = [];
+  const add = (clause: string, ...vals: any[]) => {
+    vals.forEach((v) => params.push(v));
+    where.push(clause);
+  };
+
+  if (status) add(`${alias}.status = $${params.length + 1}`, status);
+  if (from) add(`${alias}.created_at >= $${params.length + 1}`, from);
+  if (to) add(`${alias}.created_at <= $${params.length + 1}`, to);
+  if (search) {
+    const like = `%${search.toLowerCase()}%`;
+    const idMatch = /^[0-9a-f-]{8,}$/i.test(search) ? search : null;
+    if (isTopups) {
+      const i = params.length;
+      params.push(like, like, like, like);
+      let clause = `(LOWER(p.display_name) LIKE $${i + 1}
+        OR LOWER(p.email) LIKE $${i + 2}
+        OR LOWER(t.txn_id) LIKE $${i + 3}
+        OR LOWER(t.sender_number) LIKE $${i + 4})`;
+      if (idMatch) {
+        params.push(idMatch);
+        clause = `(${clause} OR t.user_id::text = $${params.length} OR t.id::text = $${params.length})`;
+      }
+      where.push(clause);
+    } else {
+      const i = params.length;
+      params.push(like, like, like, like);
+      let clause = `(LOWER(p.display_name) LIKE $${i + 1}
+        OR LOWER(p.email) LIKE $${i + 2}
+        OR LOWER(w.payout_txn_id) LIKE $${i + 3}
+        OR LOWER(w.receiver_number) LIKE $${i + 4})`;
+      if (idMatch) {
+        params.push(idMatch);
+        clause = `(${clause} OR w.user_id::text = $${params.length} OR w.id::text = $${params.length})`;
+      }
+      where.push(clause);
+    }
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const baseFrom = `FROM ${table} ${alias} LEFT JOIN profiles p ON p.id=${alias}.user_id ${whereSql}`;
+
+  const [{ c: total }] = await q<{ c: number }>(`SELECT COUNT(*)::int AS c ${baseFrom}`, params);
+
+  const rows = await q(
+    `SELECT ${alias}.*, p.display_name, p.email AS user_email
+       ${baseFrom}
+       ORDER BY ${alias}.created_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, pageSize, offset]
+  );
+
+  res.json({ rows, total, page, page_size: pageSize });
 });
 
 // Withdraws — pay

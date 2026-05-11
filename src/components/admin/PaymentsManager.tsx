@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Check, X, Banknote, Image as ImageIcon, CheckCircle2 } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import {
+  Loader2, Check, X, Banknote, Image as ImageIcon, CheckCircle2,
+  Search, CalendarIcon, RotateCcw, ChevronLeft, ChevronRight,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface Topup {
@@ -31,11 +41,31 @@ const statusBadge = (s: string) => {
 };
 
 export const PaymentsManager = () => {
+  type TabKind = "topups" | "withdraws";
+  const [tab, setTab] = useState<TabKind>("topups");
   const [topups, setTopups] = useState<Topup[]>([]);
   const [withdraws, setWithdraws] = useState<Withdraw[]>([]);
+  const [topupsTotal, setTopupsTotal] = useState(0);
+  const [withdrawsTotal, setWithdrawsTotal] = useState(0);
+  const [pendingCounts, setPendingCounts] = useState({ topups: 0, withdraws: 0 });
   const [profiles, setProfiles] = useState<Record<string, { display_name: string | null; email: string | null }>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+
+  // Filters per tab
+  type Filter = {
+    q: string;
+    status: string; // "" = all
+    from?: Date;
+    to?: Date;
+    page: number;
+    pageSize: number;
+  };
+  const defaultFilter = (): Filter => ({ q: "", status: "all", page: 1, pageSize: 25 });
+  const [topupsFilter, setTopupsFilter] = useState<Filter>(defaultFilter());
+  const [withdrawsFilter, setWithdrawsFilter] = useState<Filter>(defaultFilter());
+  const [topupsSearchInput, setTopupsSearchInput] = useState("");
+  const [withdrawsSearchInput, setWithdrawsSearchInput] = useState("");
 
   // Pay dialog
   const [payOpen, setPayOpen] = useState(false);
@@ -60,32 +90,114 @@ export const PaymentsManager = () => {
     userId: string;
   } | null>(null);
 
-  const loadAll = async () => {
-    try {
-      const data = await api.get<{ topups: any[]; withdraws: any[] }>("/api/admin/payments");
-      const tp = data.topups ?? [];
-      const wd = data.withdraws ?? [];
-      setTopups(tp as Topup[]);
-      setWithdraws(wd as Withdraw[]);
-      const map: Record<string, any> = {};
-      [...tp, ...wd].forEach((r: any) => {
-        if (r.user_id && !map[r.user_id]) {
-          map[r.user_id] = { display_name: r.display_name ?? null, email: r.email ?? null };
+  const buildQuery = (kind: TabKind, f: Filter) => {
+    const q: Record<string, any> = {
+      kind,
+      page: f.page,
+      page_size: f.pageSize,
+    };
+    if (f.q.trim()) q.q = f.q.trim();
+    if (f.status && f.status !== "all") q.status = f.status;
+    if (f.from) q.from = f.from.toISOString();
+    if (f.to) {
+      // Include the entire "to" day (end of day)
+      const end = new Date(f.to);
+      end.setHours(23, 59, 59, 999);
+      q.to = end.toISOString();
+    }
+    return q;
+  };
+
+  const mergeProfiles = (rows: any[]) => {
+    setProfiles((prev) => {
+      const next = { ...prev };
+      rows.forEach((r: any) => {
+        if (r.user_id) {
+          next[r.user_id] = {
+            display_name: r.display_name ?? next[r.user_id]?.display_name ?? null,
+            email: r.user_email ?? r.email ?? next[r.user_id]?.email ?? null,
+          };
         }
       });
-      setProfiles(map);
+      return next;
+    });
+  };
+
+  const loadTab = async (kind: TabKind, opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoading(true);
+    try {
+      const f = kind === "topups" ? topupsFilter : withdrawsFilter;
+      const data = await api.get<{ rows: any[]; total: number }>(
+        "/api/admin/payments",
+        buildQuery(kind, f)
+      );
+      const rows = data.rows ?? [];
+      mergeProfiles(rows);
+      if (kind === "topups") {
+        setTopups(rows as Topup[]);
+        setTopupsTotal(data.total ?? rows.length);
+      } else {
+        setWithdraws(rows as Withdraw[]);
+        setWithdrawsTotal(data.total ?? rows.length);
+      }
     } catch (e: any) {
       toast.error(e?.message || "Failed to load payments");
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   };
 
+  const loadPendingCounts = async () => {
+    try {
+      const c = await api.get<{ topups: number; withdraws: number }>(
+        "/api/admin/payments/pending-counts"
+      );
+      setPendingCounts(c);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const loadAll = () => {
+    loadTab(tab, { silent: true });
+    loadPendingCounts();
+  };
+
+  // Reload when active tab's filters change
   useEffect(() => {
-    loadAll();
-    const id = setInterval(loadAll, 30_000);
+    loadTab("topups");
+  }, [topupsFilter]);
+  useEffect(() => {
+    loadTab("withdraws");
+  }, [withdrawsFilter]);
+
+  // Pending counts + 30s polling
+  useEffect(() => {
+    loadPendingCounts();
+    const id = setInterval(() => {
+      loadTab(tab, { silent: true });
+      loadPendingCounts();
+    }, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [tab]);
+
+  // Debounce search inputs
+  const topupsSearchTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (topupsSearchTimer.current) window.clearTimeout(topupsSearchTimer.current);
+    topupsSearchTimer.current = window.setTimeout(() => {
+      setTopupsFilter((f) => (f.q === topupsSearchInput ? f : { ...f, q: topupsSearchInput, page: 1 }));
+    }, 300);
+    return () => { if (topupsSearchTimer.current) window.clearTimeout(topupsSearchTimer.current); };
+  }, [topupsSearchInput]);
+  const withdrawsSearchTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (withdrawsSearchTimer.current) window.clearTimeout(withdrawsSearchTimer.current);
+    withdrawsSearchTimer.current = window.setTimeout(() => {
+      setWithdrawsFilter((f) => (f.q === withdrawsSearchInput ? f : { ...f, q: withdrawsSearchInput, page: 1 }));
+    }, 300);
+    return () => { if (withdrawsSearchTimer.current) window.clearTimeout(withdrawsSearchTimer.current); };
+  }, [withdrawsSearchInput]);
 
   const fetchBalanceWithRetry = async (
     userId: string,
@@ -211,21 +323,190 @@ export const PaymentsManager = () => {
     return p?.display_name || p?.email || id.slice(0, 8);
   };
 
-  if (loading) return <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+  const pendingTopups = pendingCounts.topups;
+  const pendingWds = pendingCounts.withdraws;
 
-  const pendingTopups = topups.filter((r) => r.status === "pending").length;
-  const pendingWds = withdraws.filter((r) => r.status === "pending").length;
+  const renderFilters = (
+    kind: TabKind,
+    filter: Filter,
+    setFilter: (updater: (f: Filter) => Filter) => void,
+    searchInput: string,
+    setSearchInput: (v: string) => void,
+    resetSearchInput: () => void,
+  ) => {
+    const statusOptions = kind === "topups"
+      ? ["all", "pending", "approved", "rejected"]
+      : ["all", "pending", "approved", "paid", "rejected"];
+    return (
+      <div className="mb-4 flex flex-wrap items-end gap-2">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder={kind === "topups"
+              ? "Search user, email, TxnID, sender…"
+              : "Search user, email, payout TxnID, receiver…"}
+            className="h-9 pl-7"
+          />
+        </div>
+
+        <Select
+          value={filter.status || "all"}
+          onValueChange={(v) => setFilter((f) => ({ ...f, status: v, page: 1 }))}
+        >
+          <SelectTrigger className="h-9 w-[140px]">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            {statusOptions.map((s) => (
+              <SelectItem key={s} value={s} className="capitalize">
+                {s === "all" ? "All statuses" : s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                "h-9 w-[150px] justify-start text-left font-normal",
+                !filter.from && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+              {filter.from ? format(filter.from, "MMM d, yyyy") : "From"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={filter.from}
+              onSelect={(d) => setFilter((f) => ({ ...f, from: d, page: 1 }))}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                "h-9 w-[150px] justify-start text-left font-normal",
+                !filter.to && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+              {filter.to ? format(filter.to, "MMM d, yyyy") : "To"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={filter.to}
+              onSelect={(d) => setFilter((f) => ({ ...f, to: d, page: 1 }))}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Select
+          value={String(filter.pageSize)}
+          onValueChange={(v) => setFilter((f) => ({ ...f, pageSize: parseInt(v, 10), page: 1 }))}
+        >
+          <SelectTrigger className="h-9 w-[110px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[10, 25, 50, 100].map((n) => (
+              <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {(filter.q || (filter.status && filter.status !== "all") || filter.from || filter.to) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9"
+            onClick={() => {
+              resetSearchInput();
+              setFilter(() => defaultFilter());
+            }}
+          >
+            <RotateCcw className="mr-1 h-3 w-3" /> Reset
+          </Button>
+        )}
+      </div>
+    );
+  };
+
+  const renderPagination = (
+    filter: Filter,
+    setFilter: (updater: (f: Filter) => Filter) => void,
+    total: number,
+    rowsLen: number,
+  ) => {
+    const totalPages = Math.max(1, Math.ceil(total / filter.pageSize));
+    const start = total === 0 ? 0 : (filter.page - 1) * filter.pageSize + 1;
+    const end = (filter.page - 1) * filter.pageSize + rowsLen;
+    return (
+      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+        <div>
+          {total === 0 ? "No results" : `Showing ${start}–${end} of ${total}`}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            disabled={filter.page <= 1 || loading}
+            onClick={() => setFilter((f) => ({ ...f, page: Math.max(1, f.page - 1) }))}
+          >
+            <ChevronLeft className="h-3 w-3" />
+          </Button>
+          <span className="tabular-nums">Page {filter.page} / {totalPages}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            disabled={filter.page >= totalPages || loading}
+            onClick={() => setFilter((f) => ({ ...f, page: Math.min(totalPages, f.page + 1) }))}
+          >
+            <ChevronRight className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <Card className="border-border/60 bg-gradient-card p-6">
-      <Tabs defaultValue="topups">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKind)}>
         <TabsList>
           <TabsTrigger value="topups">Top-ups {pendingTopups > 0 && <Badge className="ml-2 bg-warning/20 text-warning hover:bg-warning/20">{pendingTopups}</Badge>}</TabsTrigger>
           <TabsTrigger value="withdraws">Withdraws {pendingWds > 0 && <Badge className="ml-2 bg-warning/20 text-warning hover:bg-warning/20">{pendingWds}</Badge>}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="topups" className="mt-4">
-          {topups.length === 0 ? <p className="text-sm text-muted-foreground">No top-up requests yet.</p> : (
+          {renderFilters(
+            "topups",
+            topupsFilter,
+            (u) => setTopupsFilter((f) => u(f)),
+            topupsSearchInput,
+            setTopupsSearchInput,
+            () => setTopupsSearchInput(""),
+          )}
+          {loading && tab === "topups" ? (
+            <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : topups.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">No top-up requests match these filters.</p>
+          ) : (
             <div className="overflow-x-auto"><Table>
               <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Sender</TableHead><TableHead>TxnID</TableHead><TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
@@ -266,10 +547,23 @@ export const PaymentsManager = () => {
               </TableBody>
             </Table></div>
           )}
+          {renderPagination(topupsFilter, (u) => setTopupsFilter((f) => u(f)), topupsTotal, topups.length)}
         </TabsContent>
 
         <TabsContent value="withdraws" className="mt-4">
-          {withdraws.length === 0 ? <p className="text-sm text-muted-foreground">No withdraw requests yet.</p> : (
+          {renderFilters(
+            "withdraws",
+            withdrawsFilter,
+            (u) => setWithdrawsFilter((f) => u(f)),
+            withdrawsSearchInput,
+            setWithdrawsSearchInput,
+            () => setWithdrawsSearchInput(""),
+          )}
+          {loading && tab === "withdraws" ? (
+            <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : withdraws.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">No withdraw requests match these filters.</p>
+          ) : (
             <div className="overflow-x-auto"><Table>
               <TableHeader><TableRow><TableHead>When</TableHead><TableHead>User</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Receiver</TableHead><TableHead>Status</TableHead><TableHead>Payout TxnID</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
@@ -299,6 +593,7 @@ export const PaymentsManager = () => {
               </TableBody>
             </Table></div>
           )}
+          {renderPagination(withdrawsFilter, (u) => setWithdrawsFilter((f) => u(f)), withdrawsTotal, withdraws.length)}
         </TabsContent>
       </Tabs>
 
