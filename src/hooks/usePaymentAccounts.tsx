@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState, useCallback } from "react";
+import { api } from "@/lib/api";
 
 export type PaymentMethod = "bkash" | "nagad" | "binance";
 
@@ -30,6 +30,7 @@ const DEFAULT_ACCOUNTS: PaymentAccountsMap = {
 const DEFAULT_MIN: MinDepositMap = { bkash: 10, nagad: 10, binance: 120 };
 
 const CACHE_KEY = "nx_payment_accounts_v1";
+const POLL_MS = 60_000;
 
 const sanitize = (raw: any): { accounts: PaymentAccountsMap; min: MinDepositMap } => {
   const a = raw?.accounts ?? {};
@@ -60,52 +61,36 @@ const writeCache = (data: { accounts: PaymentAccountsMap; min: MinDepositMap }) 
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
 };
 
-/**
- * Loads payment account numbers + per-method min deposits from app_settings,
- * with localStorage cache fallback and realtime updates.
- */
 export const usePaymentAccounts = () => {
   const cached = readCache();
   const [accounts, setAccounts] = useState<PaymentAccountsMap>(cached?.accounts ?? DEFAULT_ACCOUNTS);
   const [minDeposit, setMinDeposit] = useState<MinDepositMap>(cached?.min ?? DEFAULT_MIN);
   const [loading, setLoading] = useState(true);
 
-  const apply = (accRaw: any, minRaw: any) => {
-    const next = sanitize({ accounts: accRaw, min: minRaw });
-    setAccounts(next.accounts);
-    setMinDeposit(next.min);
-    writeCache(next);
-  };
-
-  const refresh = async () => {
-    const { data } = await supabase
-      .from("app_settings")
-      .select("key,value")
-      .in("key", ["payment_accounts", "min_deposit"]);
-    const accRow = data?.find((r) => r.key === "payment_accounts")?.value;
-    const minRow = data?.find((r) => r.key === "min_deposit")?.value;
-    apply(accRow, minRow);
-    setLoading(false);
-  };
+  const refresh = useCallback(async () => {
+    try {
+      const res = await api.get<{ settings: Record<string, any> }>("/api/settings", {
+        keys: "payment_accounts,min_deposit",
+      });
+      const next = sanitize({
+        accounts: res.settings?.payment_accounts,
+        min: res.settings?.min_deposit,
+      });
+      setAccounts(next.accounts);
+      setMinDeposit(next.min);
+      writeCache(next);
+    } catch {
+      /* keep cached */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     refresh();
-    const ch = supabase
-      .channel("payment-accounts-settings")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "app_settings", filter: "key=eq.payment_accounts" },
-        refresh
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "app_settings", filter: "key=eq.min_deposit" },
-        refresh
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const timer = setInterval(refresh, POLL_MS);
+    return () => clearInterval(timer);
+  }, [refresh]);
 
   return { accounts, minDeposit, loading, refresh };
 };
