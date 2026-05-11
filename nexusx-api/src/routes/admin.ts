@@ -489,7 +489,8 @@ router.get("/payments", async (req, res) => {
   const [{ c: total }] = await q<{ c: number }>(`SELECT COUNT(*)::int AS c ${baseFrom}`, params);
 
   const rows = await q(
-    `SELECT ${alias}.*, p.display_name, p.email AS user_email
+    `SELECT ${alias}.*, p.display_name, p.email AS user_email,
+            p.balance_bdt AS user_balance_bdt
        ${baseFrom}
        ORDER BY ${alias}.created_at DESC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
