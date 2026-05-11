@@ -38,7 +38,6 @@ import { VpnBrandsManager } from "@/components/admin/VpnBrandsManager";
 import { PaymentAccountsManager } from "@/components/admin/PaymentAccountsManager";
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import { UsersManager } from "@/components/admin/UsersManager";
-import { TelegramSettingsManager } from "@/components/admin/TelegramSettingsManager";
 
 interface RpItem {
   id: string;
