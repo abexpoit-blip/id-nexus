@@ -1,39 +1,143 @@
-name: Deploy to Contabo VPS
+name: Deploy NexusX to VPS
+
+# Builds the React frontend and the nexusx-api backend on the GitHub
+# runner, then ships the artifacts to the Contabo VPS via rsync over SSH.
+# The VPS does NOT need git, npm, or build tools to run this.
+#
+# Required GitHub repo secrets (Settings → Secrets and variables → Actions):
+#   VPS_HOST           161.97.100.218
+#   VPS_USER           deploy   (or root)
+#   VPS_SSH_KEY        private SSH key (PEM, full file incl. BEGIN/END lines)
+#   VPS_SSH_PORT       22       (optional)
+#   VITE_API_BASE      https://api.nexus-x.cloud
+#
+# VPS layout (created once by scripts/01-vps-bootstrap.sh):
+#   /var/www/buy.nexus-x.cloud      <- frontend dist/
+#   /var/www/api.nexus-x.cloud      <- backend (dist/, package.json, node_modules)
+#   /var/www/api.nexus-x.cloud/.env <- created manually, never overwritten
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
 jobs:
-  deploy:
+  build-frontend:
+    name: Build frontend
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install deps
+        run: bun install --frozen-lockfile || bun install
+      - name: Build
+        env:
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+        run: bun run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+          retention-days: 3
+
+  build-backend:
+    name: Build backend (nexusx-api)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        working-directory: nexusx-api
+        run: npm ci || npm install
+      - name: Build
+        working-directory: nexusx-api
+        run: npm run build
+      - name: Prune to production deps
+        working-directory: nexusx-api
+        run: |
+          rm -rf node_modules
+          npm ci --omit=dev || npm install --omit=dev
+      - name: Bundle artifact
+        run: |
+          mkdir -p out
+          cp -r nexusx-api/dist out/dist
+          cp -r nexusx-api/node_modules out/node_modules
+          cp nexusx-api/package.json out/package.json
+          [ -f nexusx-api/package-lock.json ] && cp nexusx-api/package-lock.json out/ || true
+          [ -d nexusx-api/sql ] && cp -r nexusx-api/sql out/sql || true
+          [ -f nexusx-api/ecosystem.config.cjs ] && cp nexusx-api/ecosystem.config.cjs out/ || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-bundle
+          path: out
+          retention-days: 3
+
+  deploy:
+    name: Ship to VPS
+    needs: [build-frontend, build-backend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-bundle
+          path: backend-bundle
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p ${{ secrets.VPS_SSH_PORT || 22 }} -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync frontend → /var/www/buy.nexus-x.cloud
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/id_ed25519 -p ${{ secrets.VPS_SSH_PORT || 22 }}" \
+            frontend-dist/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/buy.nexus-x.cloud/
+
+      - name: Sync backend → /var/www/api.nexus-x.cloud
+        run: |
+          rsync -az --delete \
+            --exclude '.env' \
+            --exclude 'logs' \
+            --exclude 'uploads' \
+            -e "ssh -i ~/.ssh/id_ed25519 -p ${{ secrets.VPS_SSH_PORT || 22 }}" \
+            backend-bundle/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/api.nexus-x.cloud/
+
+      - name: Restart backend (PM2) + reload Nginx
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: 22
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script: |
             set -e
-            echo "==> Frontend deploy"
-            cd /var/www/nexusx-frontend
-            git pull origin main
-            npm install
-            npm run build
-            echo "✅ Frontend built"
-
-            echo "==> Backend deploy (nexusx-api subfolder)"
-            cd /var/www/nexusx-frontend/nexusx-api
+            cd /var/www/api.nexus-x.cloud
             if [ ! -f .env ]; then
-              echo "⚠️  nexusx-api/.env missing — skipping backend deploy. Create it once, then re-run."
+              echo "::warning::/var/www/api.nexus-x.cloud/.env missing — backend will not start until you create it."
               exit 0
             fi
-            npm install
-            npm run build
-            npm run migrate || echo "migrate already applied"
-            pm2 restart nexusx-api --update-env || pm2 start dist/server.js --name nexusx-api --update-env
+            # Run migrations if the script exists in package.json
+            if node -e "process.exit(!(require('./package.json').scripts||{}).migrate)" 2>/dev/null; then
+              npm run migrate || echo "migrate skipped"
+            fi
+            pm2 reload nexusx-api --update-env 2>/dev/null \
+              || pm2 start dist/server.js --name nexusx-api --update-env
             pm2 save
-            echo "✅ Backend deployed at $(date)"
+            sudo nginx -t && sudo systemctl reload nginx || true
+            echo "✅ Deployed at $(date -u)"
