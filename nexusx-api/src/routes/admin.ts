@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { q } from "../db";
-import { authRequired, requireRole, AuthedReq } from "../auth";
+import { authRequired, requireRole, AuthedReq, setAuthCookies } from "../auth";
 
 const router = Router();
 router.use(authRequired, requireRole("admin"));
