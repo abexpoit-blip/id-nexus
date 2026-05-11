@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, Sparkles } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Save, Sparkles, Bitcoin, Power } from "lucide-react";
 import { toast } from "sonner";
 import {
   usePaymentAccounts, PAYMENT_METHODS, METHOD_LABELS, type PaymentMethod,
@@ -17,14 +18,35 @@ import {
  * minimum deposits. Saves via admin_save_payment_accounts RPC, with audit logging.
  */
 export const PaymentAccountsManager = () => {
-  const { accounts, minDeposit, refresh } = usePaymentAccounts();
+  const { accounts, minDeposit, enabledMethods, plisioOn, refresh } = usePaymentAccounts();
   const [draft, setDraft] = useState<PaymentAccountsMap>(accounts);
   const [draftMin, setDraftMin] = useState<MinDepositMap>(minDeposit);
+  const [draftEnabled, setDraftEnabled] = useState({ ...enabledMethods });
+  const [draftPlisio, setDraftPlisio] = useState(plisioOn);
+  const [draftRate, setDraftRate] = useState<number>(0.0085);
+  const [accountRows, setAccountRows] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Hydrate when realtime updates land
   useEffect(() => { setDraft(accounts); }, [accounts]);
   useEffect(() => { setDraftMin(minDeposit); }, [minDeposit]);
+  useEffect(() => { setDraftEnabled({ ...enabledMethods }); }, [enabledMethods]);
+  useEffect(() => { setDraftPlisio(plisioOn); }, [plisioOn]);
+
+  // Load admin-only data: per-account rows and BDT/USD rate
+  useEffect(() => {
+    (async () => {
+      try {
+        const [{ accounts }, { settings }] = await Promise.all([
+          api.get<{ accounts: any[] }>("/api/admin/payment-accounts"),
+          api.get<{ settings: any[] }>("/api/admin/settings"),
+        ]);
+        setAccountRows(accounts ?? []);
+        const rate = (settings ?? []).find((s) => s.key === "bdt_to_usd_rate")?.value;
+        if (rate != null) setDraftRate(Number(rate));
+      } catch { /* ignore */ }
+    })();
+  }, []);
 
   const updateField = (m: PaymentMethod, field: keyof PaymentAccount, value: string) => {
     setDraft((d) => ({ ...d, [m]: { ...d[m], [field]: value } }));
@@ -39,11 +61,22 @@ export const PaymentAccountsManager = () => {
     try {
       await api.put(`/api/admin/settings/payment_accounts`, { value: draft });
       await api.put(`/api/admin/settings/min_deposit`, { value: draftMin });
+      await api.put(`/api/admin/settings/payment_methods_enabled`, { value: draftEnabled });
+      await api.put(`/api/admin/settings/plisio_enabled`, { value: draftPlisio });
+      await api.put(`/api/admin/settings/bdt_to_usd_rate`, { value: draftRate });
       toast.success("✅ Payment accounts saved");
       refresh();
     } catch (e: any) {
       toast.error(e?.message ?? "Save failed");
     } finally { setSaving(false); }
+  };
+
+  const toggleAccount = async (id: string) => {
+    try {
+      const { account } = await api.put<{ account: any }>(`/api/admin/payment-accounts/${id}/toggle`, {});
+      setAccountRows((rs) => rs.map((r) => (r.id === id ? account : r)));
+      toast.success(account.is_active ? "Account enabled" : "Account disabled");
+    } catch (e: any) { toast.error(e?.message ?? "Toggle failed"); }
   };
 
   return (
@@ -64,9 +97,15 @@ export const PaymentAccountsManager = () => {
             <div key={m} className="space-y-3 rounded-lg border border-border/60 bg-card/40 p-4">
               <div className="flex items-center justify-between">
                 <div className="font-display text-base font-bold">{METHOD_LABELS[m]}</div>
-                <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
-                  {m}
-                </span>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={draftEnabled[m]}
+                    onCheckedChange={(v) => setDraftEnabled((d) => ({ ...d, [m]: v }))}
+                  />
+                  <span className={`text-[10px] uppercase tracking-widest ${draftEnabled[m] ? "text-success" : "text-muted-foreground"}`}>
+                    {draftEnabled[m] ? "On" : "Off"}
+                  </span>
+                </div>
               </div>
               <div>
                 <Label>Number / ID</Label>
@@ -105,6 +144,41 @@ export const PaymentAccountsManager = () => {
           ))}
         </div>
 
+        {/* Auto crypto gateway (Plisio) */}
+        <div className="mt-6 rounded-lg border border-warning/30 bg-warning/5 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bitcoin className="h-4 w-4 text-warning" />
+              <div>
+                <div className="font-display text-base font-bold">Plisio (Auto crypto)</div>
+                <p className="text-xs text-muted-foreground">USDT/BTC/TRX automatic deposit. Hidden from users when off.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={draftEnabled.plisio} onCheckedChange={(v) => setDraftEnabled((d) => ({ ...d, plisio: v }))} />
+              <span className="text-[10px] uppercase tracking-widest">Method</span>
+              <Switch checked={draftPlisio} onCheckedChange={setDraftPlisio} />
+              <span className="text-[10px] uppercase tracking-widest">Provider</span>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div>
+              <Label>BDT → USD rate (1 BDT = ? USD)</Label>
+              <Input
+                type="number" step="0.0001" min={0.001}
+                value={draftRate}
+                onChange={(e) => setDraftRate(Number(e.target.value))}
+                className="font-mono"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">e.g. 0.0085 → ৳1000 ≈ $8.50</p>
+            </div>
+            <div className="text-xs text-muted-foreground self-end">
+              Webhook: <code className="font-mono">/api/webhooks/plisio</code><br/>
+              Set <code className="font-mono">PLISIO_SECRET_KEY</code> in API .env
+            </div>
+          </div>
+        </div>
+
         <div className="mt-6 flex justify-end">
           <Button onClick={save} disabled={saving} className="bg-gradient-brand text-primary-foreground">
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -112,6 +186,31 @@ export const PaymentAccountsManager = () => {
           </Button>
         </div>
       </Card>
+
+      {/* Per-account on/off list */}
+      {accountRows.length > 0 && (
+        <Card className="border-border/60 bg-gradient-card p-6">
+          <div className="mb-3 flex items-center gap-2 font-display text-lg font-semibold">
+            <Power className="h-4 w-4 text-primary" /> Individual accounts (toggle on/off)
+          </div>
+          <div className="space-y-2">
+            {accountRows.map((a) => (
+              <div key={a.id} className="flex items-center justify-between rounded-md border border-border/60 bg-card/40 p-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold truncate">{a.label} <span className="text-xs text-muted-foreground">· {a.method}</span></div>
+                  <div className="font-mono text-xs text-primary truncate">{a.account_number}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] uppercase tracking-widest ${a.is_active ? "text-success" : "text-muted-foreground"}`}>
+                    {a.is_active ? "Active" : "Off"}
+                  </span>
+                  <Switch checked={!!a.is_active} onCheckedChange={() => toggleAccount(a.id)} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Live preview of how user will see the deposit step */}
       <Card className="border-border/60 bg-gradient-card p-6">
