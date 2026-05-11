@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Clock, CheckCircle2, XCircle, Loader2, Store } from "lucide-react";
+import { ArrowLeft, Clock, CheckCircle2, XCircle, Loader2, Store, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 interface Application {
@@ -30,6 +30,7 @@ const SellerApply = () => {
   const [tgUsername, setTgUsername] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [intakeEnabled, setIntakeEnabled] = useState<boolean>(true);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
@@ -37,7 +38,11 @@ const SellerApply = () => {
     if (!user) return;
     setLoading(true);
     try {
-      const { application } = await api.get<{ application: Application | null }>("/api/seller/application");
+      const [{ application }, { enabled }] = await Promise.all([
+        api.get<{ application: Application | null }>("/api/seller/application"),
+        api.get<{ enabled: boolean }>("/api/seller/apply-enabled").catch(() => ({ enabled: true })),
+      ]);
+      setIntakeEnabled(enabled);
       if (application) {
         setApp(application);
         setTgUsername(application.telegram_username ?? "");
@@ -58,6 +63,9 @@ const SellerApply = () => {
   }, [user?.id]);
 
   const submit = async () => {
+    if (!intakeEnabled) {
+      return toast.error("Seller applications are currently closed by the admin.");
+    }
     const handle = tgUsername.trim().replace(/^@/, "").toLowerCase();
     if (handle.length < 3 || !/^[a-z0-9_]{3,32}$/.test(handle)) {
       return toast.error("Contact handle: 3-32 chars, only a-z, 0-9, _");
@@ -114,6 +122,18 @@ const SellerApply = () => {
 
         {loading ? (
           <div className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+        ) : !intakeEnabled && !(app && app.status === "approved") ? (
+          <Card className="border-destructive/40 bg-destructive/5 p-6">
+            <div className="flex items-start gap-3">
+              <Lock className="mt-1 h-5 w-5 text-destructive" />
+              <div>
+                <div className="font-display text-lg font-semibold text-destructive">Applications closed</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  The admin has temporarily disabled new seller applications. Please check back later.
+                </p>
+              </div>
+            </div>
+          </Card>
         ) : app && app.status === "pending" ? (
           <Card className="border-warning/40 bg-warning/5 p-6">
             <div className="flex items-start gap-3">
