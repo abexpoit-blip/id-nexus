@@ -777,4 +777,18 @@ router.get("/audit-logs/filtered", async (req, res) => {
   res.json({ logs: rows });
 });
 
+// Admin impersonation: log in as any user. Issues that user's auth cookies.
+router.post("/users/:id/impersonate", authRequired, requireRole("admin"), async (req: AuthedReq, res) => {
+  const targetId = req.params.id;
+  const [u] = await q(`SELECT id, email FROM users WHERE id=$1`, [targetId]);
+  if (!u) return res.status(404).json({ error: "user_not_found" });
+  await q(
+    `INSERT INTO audit_log(actor_id, event, target_id, meta)
+     VALUES($1,'admin.impersonate',$2,$3)`,
+    [req.user!.id, targetId, JSON.stringify({ target_email: u.email })]
+  ).catch(() => {});
+  setAuthCookies(res, u.id);
+  res.json({ ok: true, user: { id: u.id, email: u.email } });
+});
+
 export default router;
