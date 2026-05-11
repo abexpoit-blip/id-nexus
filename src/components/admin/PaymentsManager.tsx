@@ -56,6 +56,11 @@ export const PaymentsManager = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 15_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Polling — configurable interval. 0 = off.
   const POLL_KEY = "paymentsManager.pollMs";
