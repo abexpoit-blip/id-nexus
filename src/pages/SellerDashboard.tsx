@@ -589,7 +589,7 @@ const SellerDashboard = () => {
         raw: false, // force string conversion so 1.00093E+14 stays as text
       }) as any[][];
       const result = parseSellerUpload(matrix);
-      if (!result.ok) {
+      if (result.ok === false) {
         const msg =
           result.reason === "empty"
             ? "The file appears to be empty."
