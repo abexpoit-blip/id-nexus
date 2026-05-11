@@ -41,12 +41,19 @@ router.post("/withdraw", authRequired, async (req: AuthedReq, res) => {
   const { method, amount_bdt, receiver_number, note } = req.body || {};
   if (!method || !amount_bdt || !receiver_number)
     return res.status(400).json({ error: "invalid_input" });
+  if (!["bkash", "nagad"].includes(String(method)))
+    return res.status(400).json({ error: "invalid_method", message: "Only bKash and Nagad are supported" });
+  const amt = Number(amount_bdt);
+  if (!Number.isFinite(amt) || amt < 100)
+    return res.status(400).json({ error: "min_amount", message: "Minimum withdraw is ৳100" });
+  if (!/^01[0-9]{9}$/.test(String(receiver_number).trim()))
+    return res.status(400).json({ error: "invalid_number", message: "Enter a valid 11-digit BD mobile number" });
   const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1 FOR UPDATE`, [req.user!.id]);
-  if (Number(p.balance_bdt) < Number(amount_bdt)) return res.status(400).json({ error: "insufficient_balance" });
+  if (Number(p.balance_bdt) < amt) return res.status(400).json({ error: "insufficient_balance" });
   const [r] = await q(
     `INSERT INTO withdraw_requests(user_id, method, amount_bdt, receiver_number, note)
      VALUES($1,$2,$3,$4,$5) RETURNING *`,
-    [req.user!.id, method, amount_bdt, receiver_number, note || null]
+    [req.user!.id, method, amt, String(receiver_number).trim(), note || null]
   );
   res.json({ withdraw: r });
 });
