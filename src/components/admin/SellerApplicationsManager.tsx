@@ -20,7 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, CheckCircle2, XCircle, UserPlus, ChevronRight, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, UserPlus, ChevronRight, AlertTriangle, Power } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 interface Application {
@@ -52,11 +53,17 @@ export const SellerApplicationsManager = () => {
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
+  const [intakeEnabled, setIntakeEnabled] = useState<boolean>(true);
+  const [toggling, setToggling] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const { applications } = await api.get<{ applications: Application[] }>("/api/admin/seller-applications");
+      const [{ applications }, en] = await Promise.all([
+        api.get<{ applications: Application[] }>("/api/admin/seller-applications"),
+        api.get<{ enabled: boolean }>("/api/seller/apply-enabled").catch(() => ({ enabled: true })),
+      ]);
+      setIntakeEnabled(en.enabled);
       setApps(applications ?? []);
     } catch (e: any) { toast.error(e?.message || "Failed"); }
     finally { setLoading(false); }
@@ -88,6 +95,17 @@ export const SellerApplicationsManager = () => {
     finally { setSubmitting(false); }
   };
 
+  const toggleIntake = async (next: boolean) => {
+    setToggling(true);
+    try {
+      await api.post("/api/seller/admin/applications-toggle", { enabled: next });
+      setIntakeEnabled(next);
+      toast.success(`Seller applications ${next ? "enabled" : "disabled"}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Toggle failed");
+    } finally { setToggling(false); }
+  };
+
   const filtered = tab === "pending" ? apps.filter((a) => a.status === "pending") : apps;
   const pendingCount = apps.filter((a) => a.status === "pending").length;
   const requiredConfirm = action === "approve" ? "APPROVE" : "REJECT";
@@ -103,7 +121,15 @@ export const SellerApplicationsManager = () => {
             <Badge className="bg-warning/20 text-warning">{pendingCount} pending</Badge>
           )}
         </div>
-        <div className="flex gap-1 rounded-md border border-border/60 p-1">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-1.5">
+            <Power className={`h-4 w-4 ${intakeEnabled ? "text-success" : "text-muted-foreground"}`} />
+            <span className="text-xs font-medium">
+              Intake {intakeEnabled ? "open" : "closed"}
+            </span>
+            <Switch checked={intakeEnabled} disabled={toggling} onCheckedChange={toggleIntake} />
+          </div>
+          <div className="flex gap-1 rounded-md border border-border/60 p-1">
           <Button
             size="sm"
             variant={tab === "pending" ? "default" : "ghost"}
@@ -118,6 +144,7 @@ export const SellerApplicationsManager = () => {
           >
             All ({apps.length})
           </Button>
+          </div>
         </div>
       </div>
 
