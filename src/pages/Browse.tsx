@@ -18,6 +18,7 @@ import { ShoppingCart, Loader2, ShieldCheck, Zap, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { TopSellersBadge } from "@/components/TopSellersBadge";
+import { CategorySellersStrip } from "@/components/CategorySellersStrip";
 
 interface Category {
   id: string;
@@ -177,6 +178,7 @@ const Browse = () => {
                       <ShoppingCart className="mr-1.5 h-4 w-4" /> Buy
                     </Button>
                   </div>
+                  {(cat.stock ?? 0) > 0 && <CategorySellersStrip categoryId={cat.id} />}
                 </Card>
               );
             })}
