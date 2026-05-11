@@ -76,6 +76,24 @@ export type Database = {
           },
         ]
       }
+      admin_message_threads: {
+        Row: {
+          closed_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          closed_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          closed_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       admin_messages: {
         Row: {
           body: string
@@ -667,6 +685,77 @@ export type Database = {
           seller_id?: string
           server_response?: Json | null
           skip_duplicates_setting?: boolean
+        }
+        Relationships: []
+      }
+      support_ticket_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          sender_id: string
+          sender_is_admin: boolean
+          ticket_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          sender_id: string
+          sender_is_admin?: boolean
+          ticket_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          sender_id?: string
+          sender_is_admin?: boolean
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_ticket_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          category: Database["public"]["Enums"]["support_ticket_category"]
+          closed_at: string | null
+          created_at: string
+          id: string
+          last_message_at: string
+          status: Database["public"]["Enums"]["support_ticket_status"]
+          subject: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["support_ticket_category"]
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          status?: Database["public"]["Enums"]["support_ticket_status"]
+          subject: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["support_ticket_category"]
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          status?: Database["public"]["Enums"]["support_ticket_status"]
+          subject?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1303,6 +1392,13 @@ export type Database = {
         | "not_yours"
       replacement_status: "pending" | "processing" | "resolved" | "rejected"
       seller_application_status: "pending" | "approved" | "rejected"
+      support_ticket_category:
+        | "order"
+        | "payment"
+        | "account"
+        | "technical"
+        | "other"
+      support_ticket_status: "open" | "pending" | "resolved" | "closed"
       telegram_delivery_status: "pending" | "sending" | "sent" | "failed"
       topup_status: "pending" | "approved" | "rejected"
       withdraw_status: "pending" | "approved" | "paid" | "rejected"
@@ -1476,6 +1572,14 @@ export const Constants = {
       ],
       replacement_status: ["pending", "processing", "resolved", "rejected"],
       seller_application_status: ["pending", "approved", "rejected"],
+      support_ticket_category: [
+        "order",
+        "payment",
+        "account",
+        "technical",
+        "other",
+      ],
+      support_ticket_status: ["open", "pending", "resolved", "closed"],
       telegram_delivery_status: ["pending", "sending", "sent", "failed"],
       topup_status: ["pending", "approved", "rejected"],
       withdraw_status: ["pending", "approved", "paid", "rejected"],
