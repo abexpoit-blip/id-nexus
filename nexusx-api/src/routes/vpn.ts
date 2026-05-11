@@ -1,8 +1,38 @@
 import { Router } from "express";
 import { q } from "../db";
-import { authRequired, requireRole } from "../auth";
+import { authRequired, requireRole, AuthedReq } from "../auth";
 
 const router = Router();
+
+async function vpnEnabled(): Promise<boolean> {
+  const [r] = await q<{ value: any }>(
+    `SELECT value FROM app_settings WHERE key='vpn_service_enabled'`
+  );
+  if (!r) return true;
+  return r.value === true || r.value === "true";
+}
+
+// Public — current status of the VPN service
+router.get("/enabled", async (_req, res) => {
+  res.json({ enabled: await vpnEnabled() });
+});
+
+// Admin — toggle VPN service availability
+router.post("/admin/toggle", authRequired, requireRole("admin"), async (req: AuthedReq, res) => {
+  const enabled = !!req.body?.enabled;
+  await q(
+    `INSERT INTO app_settings(key, value, updated_by, updated_at)
+       VALUES('vpn_service_enabled', to_jsonb($1::boolean), $2, now())
+     ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_by=EXCLUDED.updated_by, updated_at=now()`,
+    [enabled, req.user!.id]
+  );
+  await q(
+    `INSERT INTO audit_logs(actor_id, actor_email, event_type, summary)
+       VALUES($1,$2,'vpn_service_toggle',$3)`,
+    [req.user!.id, req.user!.email, `VPN service ${enabled ? "enabled" : "disabled"}`]
+  );
+  res.json({ ok: true, enabled });
+});
 
 router.get("/brands", async (_req, res) => {
   const rows = await q(

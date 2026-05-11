@@ -5,8 +5,40 @@ import { authRequired, requireRole, AuthedReq } from "../auth";
 
 const router = Router();
 
+async function applicationsEnabled(): Promise<boolean> {
+  const [r] = await q<{ value: any }>(
+    `SELECT value FROM app_settings WHERE key='seller_applications_enabled'`
+  );
+  if (!r) return true;
+  return r.value === true || r.value === "true";
+}
+
+// Public — current status of seller-application intake
+router.get("/apply-enabled", async (_req, res) => {
+  res.json({ enabled: await applicationsEnabled() });
+});
+
+// Admin — toggle seller-application intake on/off
+router.post("/admin/applications-toggle", authRequired, requireRole("admin"), async (req: AuthedReq, res) => {
+  const enabled = !!req.body?.enabled;
+  await q(
+    `INSERT INTO app_settings(key, value, updated_by, updated_at)
+       VALUES('seller_applications_enabled', to_jsonb($1::boolean), $2, now())
+     ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_by=EXCLUDED.updated_by, updated_at=now()`,
+    [enabled, req.user!.id]
+  );
+  await q(
+    `INSERT INTO audit_logs(actor_id, actor_email, event_type, summary)
+       VALUES($1,$2,'seller_applications_toggle',$3)`,
+    [req.user!.id, req.user!.email, `Seller applications ${enabled ? "enabled" : "disabled"}`]
+  );
+  res.json({ ok: true, enabled });
+});
+
 // Apply to become a seller
 router.post("/apply", authRequired, async (req: AuthedReq, res) => {
+  if (!(await applicationsEnabled()))
+    return res.status(403).json({ error: "applications_disabled" });
   const schema = z.object({
     display_name: z.string().min(1).max(120).optional(),
     telegram_username: z.string().max(120).optional(),

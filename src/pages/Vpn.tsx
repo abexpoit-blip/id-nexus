@@ -15,7 +15,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ShoppingCart, Loader2, Globe, ShieldCheck, Sparkles, Crown } from "lucide-react";
+import { ShoppingCart, Loader2, Globe, ShieldCheck, Sparkles, Crown, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 
@@ -49,15 +49,18 @@ const Vpn = () => {
   const [selected, setSelected] = useState<PlanCategory | null>(null);
   const [qty, setQty] = useState<number>(1);
   const [placing, setPlacing] = useState(false);
+  const [serviceEnabled, setServiceEnabled] = useState<boolean>(true);
   const balance = Number(profile?.balance_bdt ?? 0);
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [brandsR, catsR] = await Promise.all([
+      const [brandsR, catsR, enabledR] = await Promise.all([
         api.get<{ brands: Brand[] }>("/api/vpn/brands"),
         api.get<{ categories: any[] }>("/api/categories"),
+        api.get<{ enabled: boolean }>("/api/vpn/enabled").catch(() => ({ enabled: true })),
       ]);
+      setServiceEnabled(enabledR.enabled);
       setBrands(brandsR.brands || []);
       setPlans(
         (catsR.categories || [])
@@ -88,6 +91,10 @@ const Vpn = () => {
   }, [user?.id]);
 
   const openBuy = (cat: PlanCategory) => {
+    if (!serviceEnabled) {
+      toast.error("VPN service is currently disabled by the admin.");
+      return;
+    }
     if (!user) {
       navigate("/login");
       return;
@@ -165,6 +172,14 @@ const Vpn = () => {
         <div className="flex justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      ) : !serviceEnabled ? (
+        <Card className="border-destructive/40 bg-destructive/5 p-8 text-center">
+          <Lock className="mx-auto mb-3 h-10 w-10 text-destructive" />
+          <h2 className="font-display text-xl font-semibold text-destructive">VPN service paused</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+            The admin has temporarily disabled VPN sales. New orders are not accepted right now — please check back soon.
+          </p>
+        </Card>
       ) : visibleBrands.length === 0 && otherPlans.length === 0 ? (
         <Card className="p-8 text-center text-muted-foreground">
           No VPN services available right now. Check back soon.
