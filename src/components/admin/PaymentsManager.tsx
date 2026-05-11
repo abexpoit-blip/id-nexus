@@ -128,6 +128,15 @@ export const PaymentsManager = () => {
       });
       return next;
     });
+    setUserBalances((prev) => {
+      const next = { ...prev };
+      rows.forEach((r: any) => {
+        if (r.user_id && r.user_balance_bdt != null) {
+          next[r.user_id] = Number(r.user_balance_bdt);
+        }
+      });
+      return next;
+    });
   };
 
   const loadTab = async (kind: TabKind, opts: { silent?: boolean } = {}) => {
@@ -227,56 +236,88 @@ export const PaymentsManager = () => {
     return { balance: null, error: lastErr ?? "Unknown error" };
   };
 
-  const refreshApprovedBalance = async () => {
-    if (!approvedInfo) return;
-    setApprovedInfo({ ...approvedInfo, balanceLoading: true, balanceError: null });
-    const res = await fetchBalanceWithRetry(approvedInfo.userId, 3);
-    setApprovedInfo((prev) =>
+  type ApiActionResp = {
+    ok?: true;
+    balance_before?: number;
+    balance_after?: number;
+    new_balance?: number;
+    amount?: number;
+  };
+
+  const refreshActionBalance = async () => {
+    if (!actionResult) return;
+    setActionResult({ ...actionResult, balanceLoading: true, balanceError: null });
+    const res = await fetchBalanceWithRetry(actionResult.userId, 3);
+    setActionResult((prev) =>
       prev
         ? {
             ...prev,
             balanceLoading: false,
-            newBalance: res.balance,
+            balanceAfter: res.balance,
             balanceError: res.error,
           }
         : prev,
     );
   };
 
+  const openActionResultFromResponse = (
+    base: Omit<ActionResult, "balanceBefore" | "balanceAfter" | "balanceError" | "balanceLoading">,
+    resp: ApiActionResp,
+  ) => {
+    const before = typeof resp.balance_before === "number" ? resp.balance_before : null;
+    const after =
+      typeof resp.balance_after === "number"
+        ? resp.balance_after
+        : typeof resp.new_balance === "number"
+          ? resp.new_balance
+          : null;
+    const needsFetch = after === null;
+    setActionResult({
+      ...base,
+      balanceBefore: before,
+      balanceAfter: after,
+      balanceError: null,
+      balanceLoading: needsFetch,
+    });
+    if (needsFetch) {
+      fetchBalanceWithRetry(base.userId, 3).then((res) => {
+        setActionResult((prev) =>
+          prev
+            ? {
+                ...prev,
+                balanceAfter: res.balance,
+                balanceError: res.error,
+                balanceLoading: false,
+              }
+            : prev,
+        );
+        if (res.error) toast.error(`Action ok, but balance fetch failed: ${res.error}`);
+      });
+    }
+    if (typeof after === "number") {
+      setUserBalances((prev) => ({ ...prev, [base.userId]: after }));
+    }
+  };
+
   const approveTopup = async (id: string) => {
     const row = topups.find((t) => t.id === id);
+    if (!row) return;
     setBusy(id);
     try {
-      const resp = await api.post<{ ok: true; new_balance?: number }>(`/api/admin/topups/${id}/approve`);
-      setBusy(null);
-      if (row) {
-        setApprovedInfo({
-          userLabel: userLabel(row.user_id),
-          method: row.method,
-          txnId: row.txn_id,
-          amount: Number(row.amount_bdt),
-          newBalance: typeof resp.new_balance === "number" ? resp.new_balance : null,
-          balanceError: null,
-          balanceLoading: typeof resp.new_balance !== "number",
-          userId: row.user_id,
-        });
-        if (typeof resp.new_balance !== "number") {
-          const res = await fetchBalanceWithRetry(row.user_id, 3);
-          setApprovedInfo((prev) => prev ? {
-            ...prev,
-            newBalance: res.balance,
-            balanceError: res.error,
-            balanceLoading: false,
-          } : prev);
-          if (res.error) toast.error(`Approved, but balance fetch failed: ${res.error}`);
-        }
-      } else {
-        toast.success("Top-up approved · balance credited");
-      }
+      const resp = await api.post<ApiActionResp>(`/api/admin/topups/${id}/approve`);
+      openActionResultFromResponse({
+        kind: "approve-topup",
+        userLabel: userLabel(row.user_id),
+        userId: row.user_id,
+        method: row.method,
+        reference: row.txn_id,
+        amount: Number(row.amount_bdt),
+      }, resp);
       loadAll();
     } catch (e: any) {
-      setBusy(null);
       toast.error(e?.message || "Failed");
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -288,12 +329,27 @@ export const PaymentsManager = () => {
     if (!rejTarget) return;
     setBusy(rejTarget.id);
     try {
-      const path = rejTarget.kind === "topup"
+      const isTopup = rejTarget.kind === "topup";
+      const path = isTopup
         ? `/api/admin/topups/${rejTarget.id}/reject`
         : `/api/admin/withdraws/${rejTarget.id}/reject`;
-      await api.post(path, { note: rejNote || null });
-      toast.success("Rejected");
+      const resp = await api.post<ApiActionResp>(path, { note: rejNote || null });
+      const row = isTopup
+        ? topups.find((t) => t.id === rejTarget.id)
+        : withdraws.find((w) => w.id === rejTarget.id);
       setRejOpen(false);
+      if (row) {
+        openActionResultFromResponse({
+          kind: isTopup ? "reject-topup" : "reject-withdraw",
+          userLabel: userLabel(row.user_id),
+          userId: row.user_id,
+          method: row.method,
+          reference: isTopup ? (row as Topup).txn_id : ((row as Withdraw).payout_txn_id || ""),
+          amount: Number(row.amount_bdt),
+        }, resp);
+      } else {
+        toast.success("Rejected");
+      }
       loadAll();
     } catch (e: any) {
       toast.error(e?.message || "Failed");
@@ -311,12 +367,20 @@ export const PaymentsManager = () => {
     if (payTxn.trim().length < 3) return toast.error("Enter payout TxnID");
     setBusy(payTarget.id);
     try {
-      await api.post(`/api/admin/withdraws/${payTarget.id}/pay`, {
+      const resp = await api.post<ApiActionResp>(`/api/admin/withdraws/${payTarget.id}/pay`, {
         payout_txn_id: payTxn,
         note: payNote || null,
       });
-      toast.success("Withdraw paid · balance deducted");
+      const w = payTarget;
       setPayOpen(false);
+      openActionResultFromResponse({
+        kind: "pay-withdraw",
+        userLabel: userLabel(w.user_id),
+        userId: w.user_id,
+        method: w.method,
+        reference: payTxn,
+        amount: Number(w.amount_bdt),
+      }, resp);
       loadAll();
     } catch (e: any) {
       toast.error(e?.message || "Failed");
