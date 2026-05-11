@@ -48,6 +48,7 @@ import { PayoutScheduleManager } from "@/components/admin/PayoutScheduleManager"
 import { BuyerRiskQueue } from "@/components/admin/BuyerRiskQueue";
 import { MessagesManager } from "@/components/admin/MessagesManager";
 import { SupportTicketsManager } from "@/components/admin/SupportTicketsManager";
+import { NoticesManager } from "@/components/admin/NoticesManager";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
 interface RpItem {
@@ -84,7 +85,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
   const [section, setSection] = useState<
-    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages" | "support"
+    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages" | "support" | "notices"
   >("overview");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
@@ -262,6 +263,7 @@ const Admin = () => {
         {section === "orders" && <OrdersManager />}
         {section === "messages" && <MessagesManager />}
         {section === "support" && <SupportTicketsManager />}
+        {section === "notices" && <NoticesManager />}
         {section === "leaderboard" && <SellerLeaderboard />}
         {section === "stock" && <StockOverview />}
         {section === "categories" && <CategoriesManager />}
