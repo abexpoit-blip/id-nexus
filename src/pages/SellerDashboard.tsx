@@ -1010,21 +1010,24 @@ const SellerDashboard = () => {
             </p>
           )}
           {parseError && (
-            <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              <span className="flex items-center gap-2">
-                <AlertTriangle className="h-3 w-3" /> {parseError}
-              </span>
-              {lastFile && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 gap-1 px-2 text-xs text-destructive hover:bg-destructive/20"
-                  onClick={retryParsing}
-                  disabled={uploading || uploadStep === "parsing" || uploadStep === "validating"}
-                >
-                  <RefreshCw className="h-3 w-3" /> Retry parsing
-                </Button>
-              )}
+            <div className="mt-2 space-y-3">
+              <div className="flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="h-3 w-3" /> {parseError}
+                </span>
+                {lastFile && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 gap-1 px-2 text-xs text-destructive hover:bg-destructive/20"
+                    onClick={retryParsing}
+                    disabled={uploading || uploadStep === "parsing" || uploadStep === "validating"}
+                  >
+                    <RefreshCw className="h-3 w-3" /> Retry parsing
+                  </Button>
+                )}
+              </div>
+              <SampleFormatHelp message={parseError} />
             </div>
           )}
           {uploadError && (
