@@ -93,6 +93,7 @@ const Admin = () => {
   const [customMessage, setCustomMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [unreadMsgs, setUnreadMsgs] = useState(0);
 
   const load = async () => {
     if (!isAdmin) return;
@@ -117,7 +118,14 @@ const Admin = () => {
         );
       })
       .catch(() => {});
-    return () => clearInterval(t);
+    const loadMsgs = () => {
+      api.get<{ unread: number }>("/api/messages/admin/unread-summary")
+        .then((r) => setUnreadMsgs(r.unread ?? 0))
+        .catch(() => {});
+    };
+    loadMsgs();
+    const tm = setInterval(loadMsgs, 20_000);
+    return () => { clearInterval(t); clearInterval(tm); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
@@ -208,7 +216,7 @@ const Admin = () => {
         <AdminSidebar
           active={section}
           onSelect={(s) => setSection(s as typeof section)}
-          pendingCounts={{ replacements: counts.pending }}
+          pendingCounts={{ replacements: counts.pending, messages: unreadMsgs }}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border/60 bg-background/80 px-4 backdrop-blur-xl">
