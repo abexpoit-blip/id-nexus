@@ -55,6 +55,23 @@ router.post("/withdraw", authRequired, async (req: AuthedReq, res) => {
      VALUES($1,$2,$3,$4,$5) RETURNING *`,
     [req.user!.id, method, amt, String(receiver_number).trim(), note || null]
   );
+  // Notify all admins of the new pending withdraw
+  try {
+    const [u] = await q<{ email: string }>(`SELECT email FROM users WHERE id=$1`, [req.user!.id]);
+    const admins = await q<{ user_id: string }>(`SELECT user_id FROM user_roles WHERE role='admin'`);
+    for (const a of admins) {
+      await q(
+        `INSERT INTO notifications(user_id, kind, title, body, reference_id)
+         VALUES($1,'withdraw_pending',$2,$3,$4)`,
+        [
+          a.user_id,
+          `New withdraw ৳${amt.toFixed(2)}`,
+          `${u?.email ?? "A user"} requested ${method} payout to ${String(receiver_number).trim()}.`,
+          r.id,
+        ]
+      );
+    }
+  } catch { /* notifications are best-effort */ }
   res.json({ withdraw: r });
 });
 
