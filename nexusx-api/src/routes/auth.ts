@@ -53,7 +53,9 @@ router.post("/refresh", (req, res) => {
 
 router.get("/me", authRequired, async (req: AuthedReq, res) => {
   const [p] = await q(`SELECT * FROM profiles WHERE id=$1`, [req.user!.id]);
-  res.json({ user: req.user, profile: p });
+  const rolesRows = await q(`SELECT role FROM user_roles WHERE user_id=$1`, [req.user!.id]);
+  const roles = rolesRows.map((r: any) => r.role);
+  res.json({ user: req.user, profile: p, roles });
 });
 
 export default router;
