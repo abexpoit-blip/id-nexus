@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -75,14 +75,11 @@ export const VpnBrandsManager = () => {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("vpn_brands")
-      .select("id, name, slug, description, logo_url, is_active, sort_order")
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true });
-    if (error) toast.error(error.message);
-    setBrands((data ?? []) as VpnBrand[]);
-    setLoading(false);
+    try {
+      const { brands } = await api.get<{ brands: VpnBrand[] }>("/api/vpn/brands");
+      setBrands(brands ?? []);
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => {
@@ -134,15 +131,11 @@ export const VpnBrandsManager = () => {
       img.src = url;
     });
     try {
-      const ext = file.name.split(".").pop()?.toLowerCase() || "png";
-      const baseSlug = slugify(form.slug || form.name || "brand") || "brand";
-      const path = `${baseSlug}-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("vpn-logos")
-        .upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("vpn-logos").getPublicUrl(path);
-      setForm((f) => ({ ...f, logo_url: pub.publicUrl }));
+      const fd = new FormData();
+      fd.append("file", file);
+      const { url } = await api.upload<{ url: string }>("/api/uploads/vpn-logo", fd);
+      const fullUrl = url.startsWith("http") ? url : `${api.base}${url}`;
+      setForm((f) => ({ ...f, logo_url: fullUrl }));
       setLogoMeta({
         width: dims?.w ?? 0,
         height: dims?.h ?? 0,
@@ -169,59 +162,49 @@ export const VpnBrandsManager = () => {
       return;
     }
     setSubmitting(true);
-    const { error } = await supabase.rpc("admin_upsert_vpn_brand", {
-      p_id: form.id || null,
-      p_name: form.name.trim(),
-      p_slug: slug,
-      p_description: form.description.trim() || null,
-      p_logo_url: form.logo_url.trim() || null,
-      p_is_active: form.is_active,
-      p_sort_order: form.sort_order,
-    });
-    setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(form.id ? "Brand updated" : "Brand created");
-    setOpen(false);
-    setForm(emptyForm);
-    load();
+    try {
+      await api.post("/api/admin/vpn-brands/upsert", {
+        id: form.id || null,
+        name: form.name.trim(),
+        slug,
+        description: form.description.trim() || null,
+        logo_url: form.logo_url.trim() || null,
+        is_active: form.is_active,
+        sort_order: form.sort_order,
+      });
+      toast.success(form.id ? "Brand updated" : "Brand created");
+      setOpen(false);
+      setForm(emptyForm);
+      load();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setSubmitting(false); }
   };
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    const { error } = await supabase.rpc("admin_delete_vpn_brand", { p_id: deleteTarget.id });
-    setDeleting(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(`Deleted ${deleteTarget.name}`);
-    setDeleteTarget(null);
-    load();
+    try {
+      await api.del(`/api/admin/vpn-brands/${deleteTarget.id}`);
+      toast.success(`Deleted ${deleteTarget.name}`);
+      setDeleteTarget(null);
+      load();
+    } catch (e: any) { toast.error(e?.message || "Failed"); }
+    finally { setDeleting(false); }
   };
 
   const toggleActive = async (b: VpnBrand) => {
     setTogglingId(b.id);
     setBrands((prev) => prev.map((x) => (x.id === b.id ? { ...x, is_active: !x.is_active } : x)));
-    const { error } = await supabase.rpc("admin_upsert_vpn_brand", {
-      p_id: b.id,
-      p_name: b.name,
-      p_slug: b.slug,
-      p_description: b.description,
-      p_logo_url: b.logo_url,
-      p_is_active: !b.is_active,
-      p_sort_order: b.sort_order,
-    });
-    setTogglingId(null);
-    if (error) {
+    try {
+      await api.post("/api/admin/vpn-brands/upsert", {
+        id: b.id, name: b.name, slug: b.slug, description: b.description,
+        logo_url: b.logo_url, is_active: !b.is_active, sort_order: b.sort_order,
+      });
+      toast.success(`${b.name} ${!b.is_active ? "activated" : "hidden"}`);
+    } catch (e: any) {
       setBrands((prev) => prev.map((x) => (x.id === b.id ? { ...x, is_active: b.is_active } : x)));
-      toast.error(error.message);
-      return;
-    }
-    toast.success(`${b.name} ${!b.is_active ? "activated" : "hidden"}`);
+      toast.error(e?.message || "Failed");
+    } finally { setTogglingId(null); }
   };
 
   const filteredBrands = useMemo(() => {
