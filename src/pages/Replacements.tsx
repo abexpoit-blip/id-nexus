@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -60,38 +60,22 @@ const Replacements = () => {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: reqs }, { data: its }] = await Promise.all([
-      supabase
-        .from("replacement_requests")
-        .select("id, status, parsed_uid_count, matched_count, created_at, admin_note")
-        .eq("buyer_id", user.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("replacement_items")
-        .select("id, reported_uid, outcome, outcome_reason, in_window, window_hours, created_at, request_id")
-        .eq("buyer_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(200),
-    ]);
-    setRequests((reqs ?? []) as Request[]);
-    setItems((its ?? []) as Item[]);
-    setLoading(false);
+    try {
+      const res = await api.get<{ requests: Request[]; items: Item[] }>("/api/replacements/mine");
+      setRequests(res.requests ?? []);
+      setItems(res.items ?? []);
+    } catch {
+      toast.error("Could not load replacements");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     load();
     if (!user) return;
-    const ch = supabase
-      .channel(`replacement-items-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "replacement_items", filter: `buyer_id=eq.${user.id}` },
-        () => load(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    const timer = setInterval(load, 30_000);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -126,18 +110,18 @@ const Replacements = () => {
       return;
     }
     setSubmitting(true);
-    const { data, error } = await supabase.rpc("submit_replacement_request", {
-      p_raw_input: text.slice(0, 100000),
-    });
-    setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const result = await api.post<{ parsed: number; matched: number }>("/api/replacements", {
+        raw_input: text.slice(0, 100000),
+      });
+      toast.success(`Detected ${result.parsed} UIDs, ${result.matched} matched your purchases.`);
+      setText("");
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not submit");
+    } finally {
+      setSubmitting(false);
     }
-    const result = data as { parsed: number; matched: number };
-    toast.success(`Detected ${result.parsed} UIDs, ${result.matched} matched your purchases.`);
-    setText("");
-    load();
   };
 
   return (
