@@ -29,6 +29,8 @@ import { ArrowLeft, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangl
 import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { AppShell } from "@/components/layout/AppShell";
+import { parseSellerUpload } from "@/lib/parseSellerUpload";
+import { SampleFormatHelp } from "@/components/seller/SampleFormatHelp";
 import {
   Dialog,
   DialogContent,
@@ -579,37 +581,38 @@ const SellerDashboard = () => {
         : XLSX.read(merged, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
 
-      // Header validation BEFORE row parsing
-      const headerRows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
-      const headerRow = (headerRows[0] ?? []).map((h) => String(h ?? "").trim().toLowerCase().replace(/[\s\-]/g, "_"));
-      const presentTargets = new Set<string>();
-      headerRow.forEach((h) => {
-        const t = HEADER_MAP[h];
-        if (t) presentTargets.add(t);
-      });
-      const missing = REQUIRED_HEADER_TARGETS.filter((r) => !presentTargets.has(r.target));
-      if (missing.length > 0) {
-        const msg = `Missing required column${missing.length > 1 ? "s" : ""}: ${missing
-          .map((m) => `${m.label} (accepts: ${m.aliases.join(", ")})`)
-          .join("; ")}`;
+      // Smart parser: handles named-header layout + headerless 3-col cookie format
+      // (auto-extracts UID from `c_user=` and recovers from Excel scientific notation).
+      const matrix: any[][] = XLSX.utils.sheet_to_json(ws, {
+        header: 1,
+        defval: "",
+        raw: false, // force string conversion so 1.00093E+14 stays as text
+      }) as any[][];
+      const result = parseSellerUpload(matrix);
+      if (result.ok === false) {
+        const msg =
+          result.reason === "empty"
+            ? "The file appears to be empty."
+            : result.detail || "Format not recognised.";
         setParseError(msg);
         setUploadStep("error");
         toast.error(msg);
         setParsed(null);
         return;
       }
-
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-      const normalized: ParsedRow[] = [];
-      for (const r of rows) {
-        const out: any = {};
-        for (const k of Object.keys(r)) {
-          const key = k.toString().trim().toLowerCase().replace(/[\s\-]/g, "_");
-          const target = HEADER_MAP[key];
-          if (target) out[target] = String(r[k]).trim();
-        }
-        if (out.uid && out.password) normalized.push(out as ParsedRow);
+      const normalized: ParsedRow[] = result.rows.map((r) => ({
+        uid: r.uid,
+        password: r.password,
+        two_fa: r.two_fa,
+        email: r.email,
+        email_password: r.email_password,
+      }));
+      if (result.recoveredFromCookie > 0) {
+        toast.message(
+          `Recovered ${result.recoveredFromCookie} UID${
+            result.recoveredFromCookie > 1 ? "s" : ""
+          } from cookies (Excel scientific-notation auto-fixed).`,
+        );
       }
       if (normalized.length === 0) {
         const msg = "No valid rows. Need columns: UID, Password (2FA, Email optional).";
@@ -1007,21 +1010,24 @@ const SellerDashboard = () => {
             </p>
           )}
           {parseError && (
-            <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              <span className="flex items-center gap-2">
-                <AlertTriangle className="h-3 w-3" /> {parseError}
-              </span>
-              {lastFile && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 gap-1 px-2 text-xs text-destructive hover:bg-destructive/20"
-                  onClick={retryParsing}
-                  disabled={uploading || uploadStep === "parsing" || uploadStep === "validating"}
-                >
-                  <RefreshCw className="h-3 w-3" /> Retry parsing
-                </Button>
-              )}
+            <div className="mt-2 space-y-3">
+              <div className="flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="h-3 w-3" /> {parseError}
+                </span>
+                {lastFile && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 gap-1 px-2 text-xs text-destructive hover:bg-destructive/20"
+                    onClick={retryParsing}
+                    disabled={uploading || uploadStep === "parsing" || uploadStep === "validating"}
+                  >
+                    <RefreshCw className="h-3 w-3" /> Retry parsing
+                  </Button>
+                )}
+              </div>
+              <SampleFormatHelp message={parseError} />
             </div>
           )}
           {uploadError && (
