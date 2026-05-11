@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,30 +61,30 @@ export const PaymentsManager = () => {
   } | null>(null);
 
   const loadAll = async () => {
-    setLoading(true);
-    const [{ data: tp }, { data: wd }] = await Promise.all([
-      supabase.from("topup_requests").select("*").order("created_at", { ascending: false }).limit(200),
-      supabase.from("withdraw_requests").select("*").order("created_at", { ascending: false }).limit(200),
-    ]);
-    setTopups((tp ?? []) as Topup[]);
-    setWithdraws((wd ?? []) as Withdraw[]);
-    const ids = Array.from(new Set([...(tp ?? []).map((r: any) => r.user_id), ...(wd ?? []).map((r: any) => r.user_id)]));
-    if (ids.length > 0) {
-      const { data: profs } = await supabase.from("profiles").select("id, display_name, email").in("id", ids);
+    try {
+      const data = await api.get<{ topups: any[]; withdraws: any[] }>("/api/admin/payments");
+      const tp = data.topups ?? [];
+      const wd = data.withdraws ?? [];
+      setTopups(tp as Topup[]);
+      setWithdraws(wd as Withdraw[]);
       const map: Record<string, any> = {};
-      (profs ?? []).forEach((p: any) => { map[p.id] = { display_name: p.display_name, email: p.email }; });
+      [...tp, ...wd].forEach((r: any) => {
+        if (r.user_id && !map[r.user_id]) {
+          map[r.user_id] = { display_name: r.display_name ?? null, email: r.email ?? null };
+        }
+      });
       setProfiles(map);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to load payments");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     loadAll();
-    const ch = supabase.channel("admin-payments")
-      .on("postgres_changes", { event: "*", schema: "public", table: "topup_requests" }, loadAll)
-      .on("postgres_changes", { event: "*", schema: "public", table: "withdraw_requests" }, loadAll)
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    const id = setInterval(loadAll, 30_000);
+    return () => clearInterval(id);
   }, []);
 
   const fetchBalanceWithRetry = async (
@@ -93,16 +93,14 @@ export const PaymentsManager = () => {
   ): Promise<{ balance: number | null; error: string | null }> => {
     let lastErr: string | null = null;
     for (let i = 0; i < attempts; i++) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("balance_bdt")
-        .eq("id", userId)
-        .maybeSingle();
-      if (!error && data) {
-        return { balance: Number(data.balance_bdt), error: null };
+      try {
+        const data = await api.get<{ users: any[] }>("/api/admin/users/search", { q: userId });
+        const u = (data.users || []).find((x: any) => x.user_id === userId);
+        if (u) return { balance: Number(u.balance_bdt), error: null };
+        lastErr = "Profile not found";
+      } catch (e: any) {
+        lastErr = e?.message || "Unknown error";
       }
-      lastErr = error?.message ?? (data ? null : "Profile not found");
-      // exponential backoff: 300ms, 700ms, 1500ms
       if (i < attempts - 1) {
         await new Promise((r) => setTimeout(r, 300 + i * 400 + i * i * 200));
       }
@@ -129,42 +127,38 @@ export const PaymentsManager = () => {
   const approveTopup = async (id: string) => {
     const row = topups.find((t) => t.id === id);
     setBusy(id);
-    const { error } = await supabase.rpc("admin_approve_topup", { p_id: id, p_note: null });
-    if (error) {
+    try {
+      const resp = await api.post<{ ok: true; new_balance?: number }>(`/api/admin/topups/${id}/approve`);
       setBusy(null);
-      return toast.error(error.message);
-    }
-    setBusy(null);
-    if (row) {
-      // Open modal in loading state, then fetch balance with retries
-      setApprovedInfo({
-        userLabel: userLabel(row.user_id),
-        method: row.method,
-        txnId: row.txn_id,
-        amount: Number(row.amount_bdt),
-        newBalance: null,
-        balanceError: null,
-        balanceLoading: true,
-        userId: row.user_id,
-      });
-      const res = await fetchBalanceWithRetry(row.user_id, 3);
-      setApprovedInfo({
-        userLabel: userLabel(row.user_id),
-        method: row.method,
-        txnId: row.txn_id,
-        amount: Number(row.amount_bdt),
-        newBalance: res.balance,
-        balanceError: res.error,
-        balanceLoading: false,
-        userId: row.user_id,
-      });
-      if (res.error) {
-        toast.error(`Approved, but balance fetch failed: ${res.error}`);
+      if (row) {
+        setApprovedInfo({
+          userLabel: userLabel(row.user_id),
+          method: row.method,
+          txnId: row.txn_id,
+          amount: Number(row.amount_bdt),
+          newBalance: typeof resp.new_balance === "number" ? resp.new_balance : null,
+          balanceError: null,
+          balanceLoading: typeof resp.new_balance !== "number",
+          userId: row.user_id,
+        });
+        if (typeof resp.new_balance !== "number") {
+          const res = await fetchBalanceWithRetry(row.user_id, 3);
+          setApprovedInfo((prev) => prev ? {
+            ...prev,
+            newBalance: res.balance,
+            balanceError: res.error,
+            balanceLoading: false,
+          } : prev);
+          if (res.error) toast.error(`Approved, but balance fetch failed: ${res.error}`);
+        }
+      } else {
+        toast.success("Top-up approved · balance credited");
       }
-    } else {
-      toast.success("Top-up approved · balance credited");
+      loadAll();
+    } catch (e: any) {
+      setBusy(null);
+      toast.error(e?.message || "Failed");
     }
-    loadAll();
   };
 
   const openReject = (kind: "topup" | "withdraw", id: string) => {
@@ -174,13 +168,19 @@ export const PaymentsManager = () => {
   const submitReject = async () => {
     if (!rejTarget) return;
     setBusy(rejTarget.id);
-    const fn = rejTarget.kind === "topup" ? "admin_reject_topup" : "admin_reject_withdraw";
-    const { error } = await supabase.rpc(fn, { p_id: rejTarget.id, p_note: rejNote || null });
-    setBusy(null);
-    if (error) return toast.error(error.message);
-    toast.success("Rejected");
-    setRejOpen(false);
-    loadAll();
+    try {
+      const path = rejTarget.kind === "topup"
+        ? `/api/admin/topups/${rejTarget.id}/reject`
+        : `/api/admin/withdraws/${rejTarget.id}/reject`;
+      await api.post(path, { note: rejNote || null });
+      toast.success("Rejected");
+      setRejOpen(false);
+      loadAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed");
+    } finally {
+      setBusy(null);
+    }
   };
 
   const openPay = (w: Withdraw) => {
@@ -191,14 +191,19 @@ export const PaymentsManager = () => {
     if (!payTarget) return;
     if (payTxn.trim().length < 3) return toast.error("Enter payout TxnID");
     setBusy(payTarget.id);
-    const { error } = await supabase.rpc("admin_pay_withdraw", {
-      p_id: payTarget.id, p_payout_txn: payTxn, p_note: payNote || null,
-    });
-    setBusy(null);
-    if (error) return toast.error(error.message);
-    toast.success("Withdraw paid · balance deducted");
-    setPayOpen(false);
-    loadAll();
+    try {
+      await api.post(`/api/admin/withdraws/${payTarget.id}/pay`, {
+        payout_txn_id: payTxn,
+        note: payNote || null,
+      });
+      toast.success("Withdraw paid · balance deducted");
+      setPayOpen(false);
+      loadAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed");
+    } finally {
+      setBusy(null);
+    }
   };
 
   const userLabel = (id: string) => {
