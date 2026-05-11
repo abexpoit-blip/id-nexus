@@ -54,4 +54,14 @@ router.post("/topups/:id/reject", async (req: AuthedReq, res) => {
   res.json({ ok: true });
 });
 
+// Smoke-test helper: read telegram delivery row for a given order
+router.get("/orders/:id/delivery", async (req, res) => {
+  const rows = await q(
+    `SELECT id, order_id, buyer_id, status, attempt_count, last_error, sent_at, created_at, updated_at
+     FROM telegram_deliveries WHERE order_id=$1 ORDER BY created_at DESC LIMIT 1`,
+    [req.params.id]
+  );
+  res.json({ delivery: rows[0] || null });
+});
+
 export default router;
