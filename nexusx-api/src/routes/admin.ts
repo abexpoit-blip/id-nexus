@@ -450,14 +450,26 @@ router.get("/users/search", async (req, res) => {
   const wildcard = `%${qs.toLowerCase()}%`;
   const rows = await q(
     `SELECT u.id AS user_id, u.email, u.created_at, p.display_name, p.balance_bdt, p.is_banned,
-       COALESCE(array_agg(r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles
+       COALESCE(array_agg(DISTINCT r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles,
+       COALESCE((SELECT COUNT(*)::int FROM orders o WHERE o.buyer_id=u.id AND o.status='completed'),0) AS orders_count,
+       COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.buyer_id=u.id),0) AS replacements_filed
      FROM users u LEFT JOIN profiles p ON p.id=u.id
      LEFT JOIN user_roles r ON r.user_id=u.id
      ${qs ? `WHERE LOWER(u.email) LIKE $1 OR LOWER(COALESCE(p.display_name,'')) LIKE $1 OR u.id::text = $2` : ""}
      GROUP BY u.id, p.display_name, p.balance_bdt, p.is_banned ORDER BY u.created_at DESC LIMIT 200`,
     qs ? [wildcard, qs] : []
   );
-  res.json({ users: rows });
+  const enriched = rows.map((r: any) => {
+    const oc = Number(r.orders_count || 0);
+    const rf = Number(r.replacements_filed || 0);
+    const rate = oc > 0 ? rf / oc : 0;
+    let risk: "low" | "medium" | "high" = "low";
+    if (oc >= 3 && rate >= 0.5) risk = "high";
+    else if (oc >= 3 && rate >= 0.25) risk = "medium";
+    else if (oc >= 5 && rf >= 4) risk = "medium";
+    return { ...r, replacement_rate: rate, risk_level: risk };
+  });
+  res.json({ users: enriched });
 });
 
 // REPLACEMENTS
