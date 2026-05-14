@@ -931,7 +931,7 @@ const SellerDashboard = () => {
     <AppShell
       mode="seller"
       title="Seller workspace"
-      subtitle="Upload your stock as Excel — UID + Password required, 2FA & email optional. Globally duplicate UIDs are skipped automatically."
+      subtitle="Upload your stock as Excel — columns: UID · PASS · COOKIES. Globally duplicate UIDs are skipped automatically."
       actions={
         <Button
           variant="outline"
@@ -1325,9 +1325,8 @@ const SellerDashboard = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>UID</TableHead>
-                      <TableHead>Password</TableHead>
-                      <TableHead>2FA</TableHead>
-                      <TableHead>Email</TableHead>
+                      <TableHead>PASS</TableHead>
+                      <TableHead>COOKIES</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1335,8 +1334,9 @@ const SellerDashboard = () => {
                       <TableRow key={i}>
                         <TableCell className="font-mono text-xs">{r.uid}</TableCell>
                         <TableCell className="font-mono text-xs">••••••</TableCell>
-                        <TableCell className="font-mono text-xs">{r.two_fa ? "set" : "—"}</TableCell>
-                        <TableCell className="font-mono text-xs">{r.email ?? "—"}</TableCell>
+                        <TableCell className="max-w-[280px] truncate font-mono text-[11px] text-muted-foreground">
+                          {r.cookies ? r.cookies.slice(0, 60) + (r.cookies.length > 60 ? "…" : "") : "—"}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
