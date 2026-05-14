@@ -5,6 +5,18 @@ import { authRequired, requireRole, AuthedReq } from "../auth";
 
 const router = Router();
 
+const normalizeUid = (value: unknown) => String(value ?? "").trim();
+const categoryBaseFrom = (cat: { slug?: string; name?: string }) => {
+  const source = `${cat.slug || ""} ${cat.name || ""}`.toLowerCase();
+  const match = source.match(/(?:^|[^\d])((?:61|1000)\d*)x{2,}/i);
+  return match ? match[1] : null;
+};
+
+const uidMatchesCategory = (uid: string, categoryBase: string | null) => {
+  if (!categoryBase) return true;
+  return new RegExp(`^${categoryBase}\\d+$`).test(uid);
+};
+
 async function applicationsEnabled(): Promise<boolean> {
   const [r] = await q<{ value: any }>(
     `SELECT value FROM app_settings WHERE key='seller_applications_enabled'`
@@ -121,14 +133,25 @@ router.get("/overview", authRequired, requireRole("seller"), async (req: AuthedR
 // Check a batch of UIDs against the global accounts table
 // Returns { in_stock_other_or_self: string[], in_file_dups: handled client side, replaced: string[], owned_in_stock: string[] }
 router.post("/check-uids", authRequired, requireRole("seller"), async (req: AuthedReq, res) => {
-  const { uids } = req.body || {};
+  const { uids, category_id } = req.body || {};
   if (!Array.isArray(uids) || uids.length === 0) return res.json({ rows: [] });
   if (uids.length > 5000) return res.status(400).json({ error: "too_many" });
+  const normalized = uids.map(normalizeUid).filter(Boolean);
+  let invalid_category_uids: string[] = [];
+  if (category_id) {
+    const [cat] = await q<{ id: string; name: string; slug: string; is_active: boolean; kind: string }>(
+      `SELECT id, name, slug, is_active, kind FROM categories WHERE id=$1`,
+      [category_id]
+    );
+    if (!cat || !cat.is_active || cat.kind !== "fb_account") return res.status(404).json({ error: "category_not_found" });
+    const base = categoryBaseFrom(cat);
+    invalid_category_uids = normalized.filter((uid) => !uidMatchesCategory(uid, base));
+  }
   const rows = await q<{ uid: string; status: string; seller_id: string }>(
     `SELECT uid, status, seller_id FROM accounts WHERE uid = ANY($1)`,
-    [uids]
+    [normalized]
   );
-  res.json({ rows, self_id: req.user!.id });
+  res.json({ rows, self_id: req.user!.id, invalid_category_uids });
 });
 
 router.get("/application", authRequired, async (req: AuthedReq, res) => {
