@@ -532,11 +532,12 @@ const SellerDashboard = () => {
     const total =
       info.duplicatesInFile.length +
       info.duplicatesInStock.length +
-      info.duplicatesReplaced.length;
+      info.duplicatesReplaced.length +
+      info.invalidCategoryUids.length;
     toast.success(
       total === 0
-        ? "Recheck complete — no duplicates left."
-        : `Recheck complete — ${total} duplicate UID${total > 1 ? "s" : ""} flagged with latest stock state.`,
+        ? "Recheck complete — no duplicate or category issues left."
+        : `Recheck complete — ${total} UID issue${total > 1 ? "s" : ""} flagged with latest stock state.`,
     );
   };
 
@@ -662,10 +663,11 @@ const SellerDashboard = () => {
       const dupTotal =
         dupInfo.duplicatesInFile.length +
         dupInfo.duplicatesInStock.length +
-        dupInfo.duplicatesReplaced.length;
+        dupInfo.duplicatesReplaced.length +
+        dupInfo.invalidCategoryUids.length;
       if (dupTotal > 0) {
         toast.warning(
-          `Parsed ${normalized.length} rows. ${dupTotal} duplicate UID${dupTotal > 1 ? "s" : ""} detected — review before confirm.`,
+          `Parsed ${normalized.length} rows. ${dupTotal} UID issue${dupTotal > 1 ? "s" : ""} detected — review before confirm.`,
         );
       } else {
         toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
