@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { CategoriesManager } from "@/components/admin/CategoriesManager";
 import { SellerLimitsManager } from "@/components/admin/SellerLimitsManager";
+import { SellerUploadsManager } from "@/components/admin/SellerUploadsManager";
 import { StockOverview } from "@/components/admin/StockOverview";
 import { PaymentsManager } from "@/components/admin/PaymentsManager";
 import { SellerApplicationsManager } from "@/components/admin/SellerApplicationsManager";
@@ -85,7 +86,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
   const [section, setSection] = useState<
-    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages" | "support" | "notices"
+    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "seller_uploads" | "applications" | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages" | "support" | "notices"
   >("overview");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
@@ -269,6 +270,7 @@ const Admin = () => {
         {section === "categories" && <CategoriesManager />}
         {section === "vpn_brands" && <VpnBrandsManager />}
         {section === "sellers" && <SellerLimitsManager />}
+        {section === "seller_uploads" && <SellerUploadsManager />}
         {section === "applications" && <SellerApplicationsManager />}
         {section === "payments" && <PaymentsManager />}
         {section === "payouts" && <PayoutScheduleManager />}
