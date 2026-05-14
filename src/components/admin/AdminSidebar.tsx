@@ -90,13 +90,13 @@ export const AdminSidebar = ({
                           onClick={() => onSelect(item.id)}
                           className={cn(
                             "flex w-full items-center gap-2 hover:bg-muted/50",
-                            isActive && "font-semibold text-primary",
+                            isActive && "nav-active-rainbow font-semibold",
                           )}
                         >
-                          <Icon className="h-4 w-4 shrink-0" />
+                          <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-primary")} />
                           {!collapsed && <span className="flex-1 text-left">{item.title}</span>}
                           {!collapsed && item.badge ? (
-                            <span className="ml-auto rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                            <span className="ml-auto rounded-full bg-gradient-to-r from-amber-500 to-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-md">
                               {item.badge}
                             </span>
                           ) : null}
