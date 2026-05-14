@@ -177,6 +177,48 @@ router.get("/uploads", authRequired, requireRole("seller"), async (req: AuthedRe
   res.json({ audits: rows });
 });
 
+// Seller: wallet summary (balance + lifetime/recent payouts + pipeline counts)
+router.get("/wallet", authRequired, requireRole("seller"), async (req: AuthedReq, res) => {
+  const uid = req.user!.id;
+  const [profile] = await q<{ balance_bdt: string }>(
+    `SELECT balance_bdt FROM profiles WHERE id=$1`, [uid]
+  );
+  const [lifetime] = await q<{ total: string; last7: string; last30: string }>(
+    `SELECT
+        COALESCE(SUM(amount_bdt) FILTER (WHERE kind='seller_payout'),0)::text AS total,
+        COALESCE(SUM(amount_bdt) FILTER (WHERE kind='seller_payout' AND created_at > now() - interval '7 days'),0)::text AS last7,
+        COALESCE(SUM(amount_bdt) FILTER (WHERE kind='seller_payout' AND created_at > now() - interval '30 days'),0)::text AS last30
+      FROM balance_ledger WHERE user_id=$1`, [uid]
+  );
+  const [pipeline] = await q<{ uploaded: string; collected: string; completed: string; rejected: string; pending_payout: string }>(
+    `SELECT
+        COUNT(*) FILTER (WHERE review_status='pending' AND collected_at IS NULL)::text AS uploaded,
+        COUNT(*) FILTER (WHERE review_status='pending' AND collected_at IS NOT NULL)::text AS collected,
+        COUNT(*) FILTER (WHERE review_status='approved')::text AS completed,
+        COUNT(*) FILTER (WHERE review_status='rejected')::text AS rejected,
+        COALESCE(SUM(rows_inserted) FILTER (WHERE review_status='pending'),0)::text AS pending_payout
+      FROM seller_upload_audits WHERE seller_id=$1`, [uid]
+  );
+  const recent = await q(
+    `SELECT id, kind, amount_bdt, balance_after, note, created_at
+       FROM balance_ledger WHERE user_id=$1 ORDER BY created_at DESC LIMIT 8`, [uid]
+  );
+  res.json({
+    balance_bdt: Number(profile?.balance_bdt ?? 0),
+    lifetime_earned_bdt: Number(lifetime?.total ?? 0),
+    last7_earned_bdt: Number(lifetime?.last7 ?? 0),
+    last30_earned_bdt: Number(lifetime?.last30 ?? 0),
+    pipeline: {
+      uploaded: Number(pipeline?.uploaded ?? 0),
+      collected: Number(pipeline?.collected ?? 0),
+      completed: Number(pipeline?.completed ?? 0),
+      rejected: Number(pipeline?.rejected ?? 0),
+      pending_units: Number(pipeline?.pending_payout ?? 0),
+    },
+    recent_ledger: recent,
+  });
+});
+
 // Seller: bulk upload accounts (uid:password lines)
 router.post("/accounts", authRequired, requireRole("seller"), async (req: AuthedReq, res) => {
   const schema = z.object({

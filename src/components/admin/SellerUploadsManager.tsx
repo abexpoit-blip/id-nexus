@@ -34,6 +34,7 @@ interface UploadRow {
   review_status: Tab;
   review_note: string | null;
   reviewed_at: string | null;
+  collected_at?: string | null;
   created_at: string;
 }
 
@@ -78,6 +79,10 @@ export const SellerUploadsManager = () => {
       setRejectedText((upload.rejected_uids || []).join("\n"));
       setUnitPrice(upload.unit_price_bdt != null ? String(upload.unit_price_bdt) : "");
       setNote(upload.review_note || "");
+      // Auto-mark as collected on first open while still pending
+      if (upload.review_status === "pending" && !upload.collected_at) {
+        api.post(`/api/admin/seller-uploads/${row.id}/collect`, {}).then(() => load()).catch(() => {});
+      }
     } catch (e: any) {
       toast.error(e?.message || "Failed to load upload");
     }

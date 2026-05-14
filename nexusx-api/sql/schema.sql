@@ -462,3 +462,7 @@ ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPT
 ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS review_note TEXT;
 CREATE INDEX IF NOT EXISTS idx_seller_upload_audits_review_status
   ON seller_upload_audits(review_status, created_at DESC);
+
+-- Collected/downloaded tracking (admin downloaded the batch)
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ;
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS collected_by UUID REFERENCES users(id);

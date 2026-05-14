@@ -31,6 +31,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { AppShell } from "@/components/layout/AppShell";
 import { parseSellerUpload } from "@/lib/parseSellerUpload";
 import { SampleFormatHelp } from "@/components/seller/SampleFormatHelp";
+import { SellerWalletCard, UploadStatusBadge } from "@/components/seller/SellerWalletCard";
 import { MessagesPanel } from "@/components/MessagesPanel";
 import { NotificationPrefsPanel } from "@/components/NotificationPrefsPanel";
 import { NoticesBoard } from "@/components/NoticesBoard";
@@ -892,6 +893,9 @@ const SellerDashboard = () => {
     >
         <div className="mb-6"><NoticesBoard title="Seller notices" /></div>
 
+        {/* Premium wallet + status pipeline */}
+        <SellerWalletCard refreshKey={audits.length} />
+
         {/* Stats */}
         <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
           <Card className="glass-panel border-0 p-5">
@@ -1538,11 +1542,15 @@ const SellerDashboard = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>When</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>File</TableHead>
                     <TableHead className="text-right">In file</TableHead>
                     <TableHead className="text-right">Sent</TableHead>
                     <TableHead className="text-right">Inserted</TableHead>
+                    <TableHead className="text-right">Accepted</TableHead>
+                    <TableHead className="text-right">Rejected</TableHead>
+                    <TableHead className="text-right">Payout (৳)</TableHead>
                     <TableHead className="text-right">Dup (stock)</TableHead>
                     <TableHead className="text-right">Dup (file)</TableHead>
                     <TableHead className="text-right">Dup (replaced)</TableHead>
@@ -1557,6 +1565,7 @@ const SellerDashboard = () => {
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                         {new Date(a.created_at).toLocaleString()}
                       </TableCell>
+                      <TableCell><UploadStatusBadge audit={a} /></TableCell>
                       <TableCell className="text-xs">{a.category_name ?? "—"}</TableCell>
                       <TableCell className="max-w-[180px] truncate font-mono text-xs">
                         {a.file_name ?? "—"}
@@ -1565,6 +1574,15 @@ const SellerDashboard = () => {
                       <TableCell className="text-right text-xs">{a.rows_sent}</TableCell>
                       <TableCell className="text-right text-xs font-semibold text-success">
                         {a.rows_inserted}
+                      </TableCell>
+                      <TableCell className="text-right text-xs font-semibold text-emerald-500">
+                        {a.review_status === "pending" ? "—" : a.accepted_count}
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-destructive">
+                        {a.review_status === "pending" ? "—" : (a.rejected_count || 0)}
+                      </TableCell>
+                      <TableCell className="text-right text-xs font-mono">
+                        {a.review_status === "pending" ? "—" : `৳ ${Number(a.payout_bdt || 0).toFixed(2)}`}
                       </TableCell>
                       <TableCell className="text-right text-xs">{a.duplicates_in_stock}</TableCell>
                       <TableCell className="text-right text-xs">{a.duplicates_in_file}</TableCell>
