@@ -74,8 +74,9 @@ export const SellerUploadsManager = () => {
   const downloadBatch = async (row: { id: string; file_name: string | null }) => {
     setDownloadingId(row.id);
     try {
-      const safe = (row.file_name || `upload-${row.id}`).replace(/[^a-zA-Z0-9._-]+/g, "_");
-      const fname = safe.endsWith(".txt") ? safe : `${safe}.txt`;
+      const base = (row.file_name || `upload-${row.id}`).replace(/\.(txt|csv|xlsx|xls)$/i, "");
+      const safe = base.replace(/[^a-zA-Z0-9._-]+/g, "_");
+      const fname = `${safe}.xlsx`;
       await api.download(`/api/admin/seller-uploads/${row.id}/download`, fname);
       toast.success("Download started");
       load();
@@ -133,6 +134,31 @@ export const SellerUploadsManager = () => {
       load();
     } catch (e: any) {
       toast.error(e?.message || "Review failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const rejectBatch = async () => {
+    if (!active) return;
+    if (!confirm("Reject the entire batch? Seller will not be paid for any UID.")) return;
+    setSubmitting(true);
+    try {
+      const allUids = uploadUids.length
+        ? uploadUids.map((u) => u.uid)
+        : parsedRejected;
+      const res = await api.post<{
+        ok: boolean; payout_bdt: number; accepted_count: number; rejected_count: number;
+      }>(`/api/admin/seller-uploads/${active.id}/review`, {
+        rejected_uids: allUids,
+        note: note || "Batch rejected",
+        unit_price_bdt: unitPrice ? Number(unitPrice) : null,
+      });
+      toast.success(`Batch rejected (${res.rejected_count} UIDs).`);
+      setActive(null);
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || "Reject failed");
     } finally {
       setSubmitting(false);
     }
@@ -338,14 +364,25 @@ export const SellerUploadsManager = () => {
                 ) : (
                   <Download className="mr-2 h-4 w-4" />
                 )}
-                Download .txt
+                Download .xlsx
               </Button>
             )}
             {active?.review_status === "pending" && (
-              <Button onClick={submit} disabled={submitting}>
-                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Confirm &amp; pay seller
-              </Button>
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={rejectBatch}
+                  disabled={submitting}
+                >
+                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Reject batch
+                </Button>
+                <Button onClick={submit} disabled={submitting}>
+                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Confirm &amp; pay seller
+                </Button>
+              </>
             )}
           </DialogFooter>
         </DialogContent>

@@ -229,6 +229,7 @@ router.post("/accounts", authRequired, requireRole("seller"), async (req: Authed
       email: z.string().optional(),
       email_password: z.string().optional(),
       two_fa: z.string().optional(),
+      cookies: z.string().optional(),
       cost_bdt: z.number().optional(),
     })).min(1).max(5000),
     file_name: z.string().optional(),
@@ -293,9 +294,9 @@ router.post("/accounts", authRequired, requireRole("seller"), async (req: Authed
     if (inserted >= allowedRemaining) { overLimit++; continue; }
     try {
       await q(
-        `INSERT INTO accounts(category_id, seller_id, uid, password, email, email_password, two_fa, cost_bdt)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [category_id, req.user!.id, r.uid, r.password, r.email || null, r.email_password || null, r.two_fa || null, r.cost_bdt || null]
+        `INSERT INTO accounts(category_id, seller_id, uid, password, email, email_password, two_fa, cookies, cost_bdt)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [category_id, req.user!.id, r.uid, r.password, r.email || null, r.email_password || null, r.two_fa || null, (r as any).cookies || null, r.cost_bdt || null]
       );
       inserted++;
     } catch { /* unique conflict — skip silently */ }

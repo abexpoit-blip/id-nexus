@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { q } from "../db";
 import { authRequired, requireRole, AuthedReq, setAuthCookies } from "../auth";
+import * as XLSX from "xlsx";
 
 const router = Router();
 
@@ -1480,7 +1481,7 @@ router.get("/seller-uploads/:id/download", async (req: AuthedReq, res) => {
     if (!a) return res.status(404).json({ error: "not_found" });
 
     const rows = await q<any>(
-      `SELECT uid, password, email, email_password, two_fa
+      `SELECT uid, password, cookies, email, email_password, two_fa
          FROM accounts
         WHERE seller_id = $1 AND category_id = $2
           AND created_at BETWEEN $3::timestamptz - interval '2 minutes'
@@ -1489,14 +1490,32 @@ router.get("/seller-uploads/:id/download", async (req: AuthedReq, res) => {
       [a.seller_id, a.category_id, a.created_at]
     );
 
-    const lines = rows.map((r) => {
-      const parts = [r.uid ?? "", r.password ?? ""];
-      if (r.email || r.email_password || r.two_fa) {
-        parts.push(r.email ?? "", r.email_password ?? "", r.two_fa ?? "");
-      }
-      return parts.join(":");
-    });
-    const body = lines.join("\n") + (lines.length ? "\n" : "");
+    // Build XLSX with the same column layout sellers upload:
+    // UID | PASSWORD | COOKIES | EMAIL | EMAIL_PASSWORD | TWO_FA
+    const sheetRows = [
+      ["UID", "PASSWORD", "COOKIES", "EMAIL", "EMAIL_PASSWORD", "TWO_FA"],
+      ...rows.map((r) => [
+        String(r.uid ?? ""),
+        String(r.password ?? ""),
+        String(r.cookies ?? ""),
+        String(r.email ?? ""),
+        String(r.email_password ?? ""),
+        String(r.two_fa ?? ""),
+      ]),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+    // Force UID column to text so Excel won't mangle it into 1.00093E+14
+    const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+    for (let R = 1; R <= range.e.r; R++) {
+      const cell = ws[XLSX.utils.encode_cell({ c: 0, r: R })];
+      if (cell) { cell.t = "s"; cell.z = "@"; }
+    }
+    ws["!cols"] = [
+      { wch: 22 }, { wch: 18 }, { wch: 80 }, { wch: 28 }, { wch: 18 }, { wch: 12 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Accounts");
+    const buf: Buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 
     // Auto-mark collected on first download (best-effort)
     if (a.review_status === "pending" && !a.collected_at && req.user?.id) {
@@ -1515,11 +1534,15 @@ router.get("/seller-uploads/:id/download", async (req: AuthedReq, res) => {
       ).catch(() => {});
     }
 
-    const safeName = (a.file_name || `upload-${a.id}`).replace(/[^a-zA-Z0-9._-]+/g, "_");
-    const fname = safeName.endsWith(".txt") ? safeName : `${safeName}.txt`;
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    const baseName = (a.file_name || `upload-${a.id}`).replace(/\.(txt|csv|xlsx|xls)$/i, "");
+    const safeName = baseName.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const fname = `${safeName}.xlsx`;
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
     res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
-    res.send(body);
+    res.send(buf);
   } catch (e: any) {
     console.error("[seller-uploads.download]", e?.message || e);
     res.status(500).json({ error: "download_failed", detail: e?.message });

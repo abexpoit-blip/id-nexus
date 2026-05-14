@@ -57,6 +57,7 @@ interface ParsedRow {
   two_fa?: string;
   email?: string;
   email_password?: string;
+  cookies?: string;
 }
 
 type UploadValidationRule = "in_stock" | "in_file" | "already_replaced" | "category_mismatch";
@@ -645,6 +646,7 @@ const SellerDashboard = () => {
         two_fa: r.two_fa,
         email: r.email,
         email_password: r.email_password,
+        cookies: r.cookies,
       }));
       if (result.recoveredFromCookie > 0) {
         toast.message(
