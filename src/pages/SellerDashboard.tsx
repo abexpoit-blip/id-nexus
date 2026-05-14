@@ -484,6 +484,7 @@ const SellerDashboard = () => {
             invalid_category_uids?: string[];
           }>("/api/seller/check-uids", { uids: slice, category_id: categoryId });
           const existing = duplicateCheck.rows ?? [];
+          const self_id = duplicateCheck.self_id;
           for (const uid of duplicateCheck.invalid_category_uids ?? []) invalidCategory.add(String(uid));
           for (const row of existing ?? []) {
             const uid = String(row.uid);
