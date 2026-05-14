@@ -467,6 +467,11 @@ const SellerDashboard = () => {
     }
     const dupInStock = new Set<string>();
     const dupReplaced = new Set<string>();
+    const invalidCategory = new Set<string>();
+    const selectedCategory = categories.find((c) => c.id === categoryId);
+    const categoryBase = selectedCategory?.slug?.match(/^((?:61|1000)\d*)x{2,}$/i)?.[1]
+      ?? selectedCategory?.name?.toLowerCase().match(/((?:61|1000)\d*)x{2,}/i)?.[1]
+      ?? null;
     if (user) {
       const uidList = Array.from(seen);
       const CHUNK = 500;
@@ -476,7 +481,9 @@ const SellerDashboard = () => {
           const { rows: existing, self_id } = await api.post<{
             rows: { uid: string; status: string; seller_id: string }[];
             self_id: string;
-          }>("/api/seller/check-uids", { uids: slice });
+            invalid_category_uids?: string[];
+          }>("/api/seller/check-uids", { uids: slice, category_id: categoryId });
+          for (const uid of existing?.invalid_category_uids ?? []) invalidCategory.add(String(uid));
           for (const row of existing ?? []) {
             const uid = String(row.uid);
             if (row.status === "replaced") {
@@ -501,10 +508,13 @@ const SellerDashboard = () => {
     dupInFile.forEach((u) => { ruleByUid[u] = "in_file"; });
     dupInStock.forEach((u) => { ruleByUid[u] = "in_stock"; });
     dupReplaced.forEach((u) => { ruleByUid[u] = "already_replaced"; });
+    invalidCategory.forEach((u) => { ruleByUid[u] = "category_mismatch"; });
     return {
       duplicatesInFile: Array.from(dupInFile),
       duplicatesInStock: Array.from(dupInStock),
       duplicatesReplaced: Array.from(dupReplaced),
+      invalidCategoryUids: Array.from(invalidCategory),
+      categoryBase,
       ruleByUid,
       checkedAt: Date.now(),
     };
