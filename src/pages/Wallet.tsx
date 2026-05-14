@@ -118,7 +118,7 @@ const Wallet = () => {
     <AppShell
       mode={isSeller ? "seller" : "buyer"}
       title="Wallet"
-      subtitle="Top-up via bKash/Nagad. Sellers can request payouts."
+      subtitle={isSeller ? "Request payouts from your seller balance." : "Top-up via bKash/Nagad."}
       actions={
         <Card className="border-border/60 bg-gradient-card p-3">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Current balance</div>
