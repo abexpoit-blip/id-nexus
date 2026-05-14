@@ -257,12 +257,13 @@ function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
                   }}
                   className="flex w-full flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5" aria-hidden="true" />
                   <span>{item.label}</span>
                 </button>
               ) : (
                 <Link
                   to={item.to}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors",
                     active
@@ -270,7 +271,7 @@ function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_8px_hsl(var(--primary)/0.55)]")} />
+                  <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_8px_hsl(var(--primary)/0.55)]")} aria-hidden="true" />
                   <span>{item.label}</span>
                 </Link>
               )}
