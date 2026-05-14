@@ -897,7 +897,7 @@ const SellerDashboard = () => {
         <SellerWalletCard refreshKey={audits.length} />
 
         {/* Stats */}
-        <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+        <div className="mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:gap-4 lg:grid-cols-6">
           <div className="kpi-tile tile-cyan">
             <div className="flex items-start justify-between"><div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Available stock</div><span className="icon-chip chip-cyan"><FileSpreadsheet className="h-4 w-4"/></span></div>
             <div className="mt-3 font-display text-3xl font-bold tabular-nums">{totals.available}</div>
