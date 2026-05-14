@@ -394,3 +394,58 @@ BEGIN
 
   RETURN jsonb_build_object('order_id', v_order_id, 'total', v_total, 'quantity', v_taken);
 END $$;
+-- ============ Messaging / Notices / Support (added) ============
+CREATE TABLE IF NOT EXISTS admin_message_threads (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  closed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS admin_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  thread_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  sender_is_admin BOOLEAN NOT NULL DEFAULT false,
+  body TEXT NOT NULL,
+  read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_admin_messages_thread ON admin_messages(thread_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS notices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  severity notice_severity NOT NULL DEFAULT 'info',
+  audience notice_audience NOT NULL DEFAULT 'all',
+  pinned BOOLEAN NOT NULL DEFAULT false,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  expires_at TIMESTAMPTZ,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_notices_active ON notices(is_active, audience, pinned, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category support_ticket_category NOT NULL DEFAULT 'general',
+  subject TEXT NOT NULL,
+  status support_ticket_status NOT NULL DEFAULT 'open',
+  last_message_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  closed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user ON support_tickets(user_id, last_message_at DESC);
+
+CREATE TABLE IF NOT EXISTS support_ticket_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_id UUID NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  sender_is_admin BOOLEAN NOT NULL DEFAULT false,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_support_ticket_messages_ticket ON support_ticket_messages(ticket_id, created_at);
