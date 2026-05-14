@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 
 interface LogoProps {
@@ -6,7 +7,7 @@ interface LogoProps {
   size?: "sm" | "md" | "lg";
 }
 
-export const Logo = ({ className, showTagline = true, size = "md" }: LogoProps) => {
+const LogoImpl = ({ className, showTagline = true, size = "md" }: LogoProps) => {
   const sizes = {
     sm: { title: "text-base", tag: "text-[9px]" },
     md: { title: "text-lg", tag: "text-[10px]" },
@@ -30,3 +31,5 @@ export const Logo = ({ className, showTagline = true, size = "md" }: LogoProps) 
     </div>
   );
 };
+
+export const Logo = memo(LogoImpl);

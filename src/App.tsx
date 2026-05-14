@@ -12,11 +12,11 @@ import { BuyerHidden } from "./components/BuyerHidden";
 
 // Eager — landing & auth routes (small, needed immediately)
 import Index from "./pages/Index.tsx";
-import Login from "./pages/Login.tsx";
-import Register from "./pages/Register.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 // Lazy — heavier authenticated routes; split into separate chunks
+const Login = lazy(() => import("./pages/Login.tsx"));
+const Register = lazy(() => import("./pages/Register.tsx"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin.tsx"));
 const SellerLogin = lazy(() => import("./pages/SellerLogin.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));

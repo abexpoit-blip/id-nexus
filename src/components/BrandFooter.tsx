@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Link } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
@@ -16,7 +17,7 @@ import {
  * Premium glass + gold footer used across landing & app shells.
  * Features brand story, trust pillars, quick links, and "Part of Basictrick MarketPlace" hero.
  */
-export const BrandFooter = ({ compact = false }: { compact?: boolean }) => {
+const BrandFooterImpl = ({ compact = false }: { compact?: boolean }) => {
   const { settings } = useBrandSettings();
   const year = new Date().getFullYear();
 
@@ -245,5 +246,7 @@ export const BrandFooter = ({ compact = false }: { compact?: boolean }) => {
     </footer>
   );
 };
+
+export const BrandFooter = memo(BrandFooterImpl);
 
 export default BrandFooter;

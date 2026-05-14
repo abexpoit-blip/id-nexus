@@ -198,4 +198,10 @@ All colors MUST be HSL.
       radial-gradient(ellipse at top, hsl(var(--brand-gold) / 0.12), transparent 55%),
       radial-gradient(ellipse at bottom, hsl(265 84% 62% / 0.10), transparent 55%);
   }
+
+  /* Skip render work for sections far below the fold (LCP / INP win) */
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: 800px;
+  }
 }
