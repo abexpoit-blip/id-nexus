@@ -122,8 +122,16 @@ export const parseSellerUpload = (matrix: any[][]): ParseResult => {
   const hasHeaders = first.some((c) => HEADER_MAP[c] === "uid") &&
                      first.some((c) => HEADER_MAP[c] === "password");
 
-  if (hasHeaders) {
+  if (hasHeaders || first.some((c) => HEADER_MAP[c] === "uid")) {
     const colTargets = first.map((c) => HEADER_MAP[c] || null);
+    const hasPass = first.some((c) => HEADER_MAP[c] === "password");
+    const hasUid = first.some((c) => HEADER_MAP[c] === "uid");
+    if (!hasUid) {
+      return { ok: false, reason: "bad_format", detail: "Missing required column: UID. Add a header named UID (or ID/Account)." };
+    }
+    if (!hasPass) {
+      return { ok: false, reason: "bad_format", detail: "Missing required column: PASS. Add a header named PASS (or Password/Pwd)." };
+    }
     const rows: SellerRow[] = [];
     const seen = new Set<string>();
     const dupes: string[] = [];
@@ -146,7 +154,7 @@ export const parseSellerUpload = (matrix: any[][]): ParseResult => {
       rows.push({ ...out, uid });
     }
     if (rows.length === 0) {
-      return { ok: false, reason: "bad_format", detail: "Headers detected but no valid UID/Password rows." };
+      return { ok: false, reason: "bad_format", detail: "Headers detected but no valid UID/PASS rows. Check that UID is digits and PASS is non-empty." };
     }
     return { ok: true, format: "headers", rows, duplicateUidsInFile: dupes, recoveredFromCookie: recovered };
   }
