@@ -1844,7 +1844,9 @@ const SellerDashboard = () => {
             </DialogHeader>
             {duplicates && (() => {
               const list =
-                dupModalTab === "stock"
+                dupModalTab === "category"
+                  ? duplicates.invalidCategoryUids
+                  : dupModalTab === "stock"
                   ? duplicates.duplicatesInStock
                   : dupModalTab === "file"
                     ? duplicates.duplicatesInFile
@@ -1866,10 +1868,18 @@ const SellerDashboard = () => {
                 in_stock: { label: "In stock", cls: "bg-warning/20 text-warning" },
                 in_file: { label: "Repeated in file", cls: "bg-muted text-muted-foreground" },
                 already_replaced: { label: "Already replaced", cls: "bg-destructive/20 text-destructive" },
+                category_mismatch: { label: "Wrong category", cls: "bg-destructive/20 text-destructive" },
               };
               return (
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={dupModalTab === "category" ? "default" : "outline"}
+                      onClick={() => { setDupModalTab("category"); setDupModalPage(1); }}
+                    >
+                      Wrong category ({duplicates.invalidCategoryUids.length})
+                    </Button>
                     <Button
                       size="sm"
                       variant={dupModalTab === "stock" ? "default" : "outline"}
