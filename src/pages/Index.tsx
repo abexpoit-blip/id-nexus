@@ -142,7 +142,7 @@ const Index = () => {
       </section>
 
       {/* Why sell */}
-      <section id="why" className="container py-20">
+      <section id="why" className="cv-auto container py-20">
         <div className="mb-12 max-w-2xl">
           <div className="text-xs uppercase tracking-widest text-primary">Why Nexus X</div>
           <h2 className="mt-3 font-display text-3xl font-bold md:text-4xl">
@@ -192,7 +192,7 @@ const Index = () => {
       </section>
 
       {/* How it works for sellers */}
-      <section id="how" className="border-y border-border/60 bg-muted/20 py-20">
+      <section id="how" className="cv-auto border-y border-border/60 bg-muted/20 py-20">
         <div className="container">
           <div className="mb-12 max-w-2xl">
             <div className="text-xs uppercase tracking-widest text-primary">How it works</div>
@@ -221,7 +221,7 @@ const Index = () => {
       </section>
 
       {/* Earnings / dashboard preview */}
-      <section id="earn" className="container py-20">
+      <section id="earn" className="cv-auto container py-20">
         <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
           <div>
             <div className="text-xs uppercase tracking-widest text-secondary">Seller dashboard</div>
@@ -277,7 +277,7 @@ const Index = () => {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="border-t border-border/60 bg-muted/20 py-20">
+      <section id="faq" className="cv-auto border-t border-border/60 bg-muted/20 py-20">
         <div className="container max-w-3xl">
           <div className="mb-10 text-center">
             <div className="text-xs uppercase tracking-widest text-primary">FAQ</div>
@@ -320,7 +320,7 @@ const Index = () => {
       </section>
 
       {/* CTA */}
-      <section className="container py-20">
+      <section className="cv-auto container py-20">
         <Card className="relative overflow-hidden border-border/60 bg-gradient-card p-10 text-center shadow-card md:p-16">
           <div className="absolute inset-0 bg-gradient-brand opacity-10" />
           <div className="relative">
