@@ -657,12 +657,21 @@ const SellerDashboard = () => {
         );
       }
       if (normalized.length === 0) {
-        const msg = "No valid rows. Need columns: UID, Password (2FA, Email optional).";
+        const msg =
+          "No valid rows found. Required columns: UID · PASS · COOKIES. Download the template above to see the exact format.";
         setParseError(msg);
         setUploadStep("error");
         toast.error(msg);
         setParsed(null);
         return;
+      }
+      // Soft warning — most accounts should have cookies
+      const missingCookies = normalized.filter((r) => !r.cookies || r.cookies.length < 20).length;
+      if (missingCookies > 0 && missingCookies / normalized.length > 0.5) {
+        toast.warning(
+          `${missingCookies}/${normalized.length} rows have no COOKIES. Cookies are required for buyers — please re-upload with the COOKIES column filled.`,
+          { duration: 8000 },
+        );
       }
       if (normalized.length > 5000) {
         const msg = "Max 5000 rows per upload";
