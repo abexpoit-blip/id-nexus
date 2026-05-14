@@ -204,4 +204,58 @@ All colors MUST be HSL.
     content-visibility: auto;
     contain-intrinsic-size: 800px;
   }
+
+  /* === Colorful KPI tile system (admin + seller dashboards) === */
+  .kpi-tile {
+    @apply relative overflow-hidden rounded-2xl border p-5 transition-all
+           hover:-translate-y-0.5 hover:shadow-glow;
+    border-color: hsl(var(--border) / 0.6);
+    background: linear-gradient(160deg, hsl(224 40% 11%), hsl(224 40% 8%));
+  }
+  .kpi-tile::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at top right, var(--tile-glow, transparent), transparent 60%);
+    opacity: 0.9;
+  }
+  .kpi-tile::after {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--tile-bar, hsl(var(--primary)));
+    border-radius: 2px;
+  }
+  .kpi-tile > * { position: relative; z-index: 1; }
+
+  .tile-cyan    { --tile-glow: hsl(190 95% 55% / 0.28); --tile-bar: linear-gradient(180deg, hsl(190 95% 55%), hsl(174 84% 50%)); }
+  .tile-violet  { --tile-glow: hsl(265 90% 65% / 0.28); --tile-bar: linear-gradient(180deg, hsl(280 90% 65%), hsl(260 84% 60%)); }
+  .tile-amber   { --tile-glow: hsl(38 95% 55% / 0.30);  --tile-bar: linear-gradient(180deg, hsl(45 95% 60%),  hsl(28 90% 55%));  }
+  .tile-emerald { --tile-glow: hsl(152 76% 44% / 0.28); --tile-bar: linear-gradient(180deg, hsl(160 80% 50%), hsl(145 70% 40%)); }
+  .tile-rose    { --tile-glow: hsl(345 90% 60% / 0.28); --tile-bar: linear-gradient(180deg, hsl(345 90% 62%), hsl(0 84% 60%));   }
+  .tile-sky     { --tile-glow: hsl(210 95% 60% / 0.28); --tile-bar: linear-gradient(180deg, hsl(210 95% 60%), hsl(225 85% 55%)); }
+
+  /* Colorful icon chip */
+  .icon-chip {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-md;
+    background: var(--chip-bg, linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary))));
+  }
+  .chip-cyan    { --chip-bg: linear-gradient(135deg, hsl(190 95% 55%), hsl(174 84% 45%)); }
+  .chip-violet  { --chip-bg: linear-gradient(135deg, hsl(280 90% 65%), hsl(255 80% 55%)); }
+  .chip-amber   { --chip-bg: linear-gradient(135deg, hsl(45 95% 60%),  hsl(25 90% 55%)); }
+  .chip-emerald { --chip-bg: linear-gradient(135deg, hsl(160 80% 50%), hsl(145 70% 40%)); }
+  .chip-rose    { --chip-bg: linear-gradient(135deg, hsl(345 90% 62%), hsl(0 84% 55%)); }
+  .chip-sky     { --chip-bg: linear-gradient(135deg, hsl(210 95% 60%), hsl(225 85% 55%)); }
+
+  /* Header rainbow strip */
+  .rainbow-strip {
+    background: linear-gradient(90deg,
+      hsl(174 84% 50%) 0%,
+      hsl(190 95% 55%) 25%,
+      hsl(265 84% 62%) 50%,
+      hsl(330 90% 60%) 75%,
+      hsl(45 95% 60%) 100%);
+  }
 }
