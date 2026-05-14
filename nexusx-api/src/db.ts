@@ -54,7 +54,7 @@ export const q = async <T extends QueryResultRow = any>(text: string, params?: a
   let client: PoolClient | undefined;
   try {
     client = await acquireClient();
-    const r = await client.query<T>({ text, values: params, query_timeout: queryTimeoutMs });
+    const r = await client.query<T>(text, params);
     return r.rows;
   } catch (err: any) {
     console.error("[db.query]", {
