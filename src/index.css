@@ -134,4 +134,68 @@ All colors MUST be HSL.
   .heading-gradient {
     @apply bg-gradient-brand bg-clip-text text-transparent;
   }
+
+  /* === Premium Glass + Gold System (seller surfaces) === */
+
+  /* Glass card — frosted bg, gold-tinted border, soft inner highlight */
+  .glass-panel {
+    @apply relative rounded-2xl border bg-card/40 backdrop-blur-xl;
+    border-color: hsl(var(--brand-gold) / 0.18);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--brand-gold-soft) / 0.12),
+      0 20px 60px -30px hsl(var(--brand-gold) / 0.25),
+      0 10px 40px -15px hsl(224 80% 2% / 0.6);
+  }
+  .glass-panel-strong {
+    @apply relative rounded-2xl border bg-card/60 backdrop-blur-xl;
+    border-color: hsl(var(--brand-gold) / 0.32);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--brand-gold-soft) / 0.22),
+      0 30px 80px -30px hsl(var(--brand-gold) / 0.35),
+      0 10px 40px -15px hsl(224 80% 2% / 0.6);
+  }
+
+  /* Gold gradient text */
+  .text-gold {
+    background-image: var(--gradient-gold);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Gold gradient button (premium CTA) */
+  .btn-gold {
+    background-image: var(--gradient-gold);
+    color: hsl(224 47% 6%);
+    @apply font-semibold transition-all hover:-translate-y-0.5 active:translate-y-0;
+    box-shadow:
+      0 0 0 1px hsl(var(--brand-gold) / 0.45) inset,
+      0 12px 30px -10px hsl(var(--brand-gold) / 0.55);
+  }
+  .btn-gold:hover {
+    box-shadow:
+      0 0 0 1px hsl(var(--brand-gold-soft) / 0.7) inset,
+      0 18px 40px -10px hsl(var(--brand-gold) / 0.75);
+  }
+
+  /* Gold pill / badge */
+  .pill-gold {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em];
+    color: hsl(var(--brand-gold-soft));
+    background: hsl(var(--brand-gold) / 0.08);
+    border: 1px solid hsl(var(--brand-gold) / 0.4);
+  }
+
+  /* Gold thin divider line */
+  .divider-gold {
+    background-image: var(--gradient-gold);
+    @apply h-px w-full opacity-40;
+  }
+
+  /* Auth/onboarding background ambience */
+  .bg-premium-ambient {
+    background-image:
+      radial-gradient(ellipse at top, hsl(var(--brand-gold) / 0.12), transparent 55%),
+      radial-gradient(ellipse at bottom, hsl(265 84% 62% / 0.10), transparent 55%);
+  }
 }
