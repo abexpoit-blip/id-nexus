@@ -10,7 +10,6 @@ import {
   Shield,
   ScrollText,
   LogOut,
-  Menu,
   ArrowLeftRight,
   Globe,
 } from "lucide-react";
@@ -28,7 +27,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Logo } from "@/components/Logo";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { BrandFooter } from "@/components/BrandFooter";
@@ -115,16 +113,17 @@ function SideNav({ mode }: { mode: AppShellMode }) {
                 const Icon = item.icon;
                 return (
                   <SidebarMenuItem key={`${item.label}-${item.to}`}>
-                    <SidebarMenuButton asChild tooltip={item.label}>
+                    <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
                       <Link
                         to={item.to}
+                        aria-current={active ? "page" : undefined}
                         className={cn(
                           "flex items-center gap-3",
                           active &&
                             "bg-sidebar-accent text-sidebar-accent-foreground font-semibold",
                         )}
                       >
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-4 w-4" aria-hidden="true" />
                         {!collapsed && <span>{item.label}</span>}
                       </Link>
                     </SidebarMenuButton>
@@ -145,16 +144,17 @@ function SideNav({ mode }: { mode: AppShellMode }) {
                   const Icon = item.icon;
                   return (
                     <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild tooltip={item.label}>
+                      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
                         <Link
                           to={item.to}
+                          aria-current={active ? "page" : undefined}
                           className={cn(
                             "flex items-center gap-3",
                             active &&
                               "bg-sidebar-accent text-sidebar-accent-foreground font-semibold",
                           )}
                         >
-                          <Icon className="h-4 w-4" />
+                          <Icon className="h-4 w-4" aria-hidden="true" />
                           {!collapsed && <span>{item.label}</span>}
                         </Link>
                       </SidebarMenuButton>
@@ -257,12 +257,13 @@ function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
                   }}
                   className="flex w-full flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5" aria-hidden="true" />
                   <span>{item.label}</span>
                 </button>
               ) : (
                 <Link
                   to={item.to}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors",
                     active
@@ -270,7 +271,7 @@ function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_8px_hsl(var(--primary)/0.55)]")} />
+                  <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_8px_hsl(var(--primary)/0.55)]")} aria-hidden="true" />
                   <span>{item.label}</span>
                 </Link>
               )}
@@ -317,10 +318,16 @@ export const AppShell = ({ mode, title, subtitle, actions, children }: AppShellP
                   {profile?.display_name || user?.email}
                 </span>
                 <Button variant="ghost" size="sm" onClick={signOut} className="hidden sm:inline-flex">
-                  <LogOut className="mr-2 h-4 w-4" /> Sign out
+                  <LogOut className="mr-2 h-4 w-4" aria-hidden="true" /> Sign out
                 </Button>
-                <Button variant="ghost" size="icon" onClick={signOut} className="sm:hidden">
-                  <LogOut className="h-4 w-4" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={signOut}
+                  className="min-h-11 min-w-11 sm:hidden"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </div>
             </div>
@@ -339,7 +346,7 @@ export const AppShell = ({ mode, title, subtitle, actions, children }: AppShellP
                 </div>
                 {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
               </div>
-              <div className="rainbow-strip h-0.5 w-full opacity-80" />
+              <div className="rainbow-strip h-0.5 w-full opacity-80" aria-hidden="true" />
             </>
             )}
           </header>
