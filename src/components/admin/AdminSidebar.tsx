@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, ShoppingCart, Trophy, RefreshCcw, Boxes,
-  Tag, Globe2, UserCog, FileCheck2, CreditCard, Banknote, Award, CalendarClock, ShieldAlert, MessageCircle, LifeBuoy, Megaphone,
+  Tag, Globe2, UserCog, FileCheck2, CreditCard, Banknote, Award, CalendarClock, ShieldAlert, MessageCircle, LifeBuoy, Megaphone, ClipboardCheck,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 export type AdminSection =
   | "overview" | "users" | "orders" | "leaderboard" | "replacements"
   | "stock" | "categories" | "vpn_brands" | "sellers" | "applications"
-  | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages" | "support" | "notices";
+  | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages" | "support" | "notices"
+  | "seller_uploads";
 
 export const AdminSidebar = ({
   active, onSelect, pendingCounts,
@@ -46,6 +47,7 @@ export const AdminSidebar = ({
         { id: "leaderboard", title: "Leaderboard", icon: Trophy },
         { id: "applications", title: "Seller apps", icon: FileCheck2, badge: c.applications },
         { id: "sellers", title: "Seller limits", icon: UserCog },
+        { id: "seller_uploads", title: "Seller uploads", icon: ClipboardCheck },
       ],
     },
     {
