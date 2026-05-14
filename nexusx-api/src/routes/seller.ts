@@ -5,6 +5,18 @@ import { authRequired, requireRole, AuthedReq } from "../auth";
 
 const router = Router();
 
+const normalizeUid = (value: unknown) => String(value ?? "").trim();
+const categoryBaseFrom = (cat: { slug?: string; name?: string }) => {
+  const source = `${cat.slug || ""} ${cat.name || ""}`.toLowerCase();
+  const match = source.match(/(?:^|[^\d])((?:61|1000)\d*)x{2,}/i);
+  return match ? match[1] : null;
+};
+
+const uidMatchesCategory = (uid: string, categoryBase: string | null) => {
+  if (!categoryBase) return true;
+  return new RegExp(`^${categoryBase}\\d+$`).test(uid);
+};
+
 async function applicationsEnabled(): Promise<boolean> {
   const [r] = await q<{ value: any }>(
     `SELECT value FROM app_settings WHERE key='seller_applications_enabled'`
@@ -121,14 +133,25 @@ router.get("/overview", authRequired, requireRole("seller"), async (req: AuthedR
 // Check a batch of UIDs against the global accounts table
 // Returns { in_stock_other_or_self: string[], in_file_dups: handled client side, replaced: string[], owned_in_stock: string[] }
 router.post("/check-uids", authRequired, requireRole("seller"), async (req: AuthedReq, res) => {
-  const { uids } = req.body || {};
+  const { uids, category_id } = req.body || {};
   if (!Array.isArray(uids) || uids.length === 0) return res.json({ rows: [] });
   if (uids.length > 5000) return res.status(400).json({ error: "too_many" });
+  const normalized = uids.map(normalizeUid).filter(Boolean);
+  let invalid_category_uids: string[] = [];
+  if (category_id) {
+    const [cat] = await q<{ id: string; name: string; slug: string; is_active: boolean; kind: string }>(
+      `SELECT id, name, slug, is_active, kind FROM categories WHERE id=$1`,
+      [category_id]
+    );
+    if (!cat || !cat.is_active || cat.kind !== "fb_account") return res.status(404).json({ error: "category_not_found" });
+    const base = categoryBaseFrom(cat);
+    invalid_category_uids = normalized.filter((uid) => !uidMatchesCategory(uid, base));
+  }
   const rows = await q<{ uid: string; status: string; seller_id: string }>(
     `SELECT uid, status, seller_id FROM accounts WHERE uid = ANY($1)`,
-    [uids]
+    [normalized]
   );
-  res.json({ rows, self_id: req.user!.id });
+  res.json({ rows, self_id: req.user!.id, invalid_category_uids });
 });
 
 router.get("/application", authRequired, async (req: AuthedReq, res) => {
@@ -172,9 +195,26 @@ router.post("/accounts", authRequired, requireRole("seller"), async (req: Authed
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid_input", detail: parsed.error.flatten() });
   const { category_id, rows, file_name, skip_duplicates } = parsed.data;
+  const normalizedRows = rows.map((r) => ({ ...r, uid: normalizeUid(r.uid) }));
 
-  const [cat] = await q(`SELECT id, name FROM categories WHERE id=$1`, [category_id]);
-  if (!cat) return res.status(404).json({ error: "category_not_found" });
+  const [cat] = await q<{ id: string; name: string; slug: string; is_active: boolean; kind: string }>(
+    `SELECT id, name, slug, is_active, kind FROM categories WHERE id=$1`,
+    [category_id]
+  );
+  if (!cat || !cat.is_active || cat.kind !== "fb_account") return res.status(404).json({ error: "category_not_found" });
+
+  const categoryBase = categoryBaseFrom(cat);
+  const invalidCategoryUids = normalizedRows
+    .filter((r) => !uidMatchesCategory(r.uid, categoryBase))
+    .map((r) => r.uid);
+  if (invalidCategoryUids.length > 0) {
+    return res.status(400).json({
+      error: "category_uid_mismatch",
+      expected_base: categoryBase,
+      invalid_category_uids: invalidCategoryUids.slice(0, 100),
+      invalid_rows: invalidCategoryUids.length,
+    });
+  }
 
   // Daily limit
   const [limit] = await q(`SELECT daily_limit FROM seller_daily_limits WHERE seller_id=$1`, [req.user!.id]);
@@ -190,7 +230,7 @@ router.post("/accounts", authRequired, requireRole("seller"), async (req: Authed
   // Dedup within file
   const seen = new Set<string>();
   const fileDupes: string[] = [];
-  const unique = rows.filter((r) => {
+  const unique = normalizedRows.filter((r) => {
     if (seen.has(r.uid)) { fileDupes.push(r.uid); return false; }
     seen.add(r.uid); return true;
   });
@@ -220,7 +260,7 @@ router.post("/accounts", authRequired, requireRole("seller"), async (req: Authed
   }
 
   const summary = {
-    rows_in_file: rows.length,
+    rows_in_file: normalizedRows.length,
     rows_sent: unique.length,
     rows_inserted: inserted,
     duplicates_in_file: fileDupes.length,

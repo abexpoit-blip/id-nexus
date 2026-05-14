@@ -764,26 +764,33 @@ router.delete("/seller-limits/:seller_id", async (req, res) => {
 
 // CATEGORIES upsert helper (single endpoint front-end can call with or without id)
 router.post("/categories/upsert", async (req, res) => {
-  const { id, slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days } = req.body || {};
-  if (!name || price_bdt == null) return res.status(400).json({ error: "invalid_input" });
-  if (id) {
+  try {
+    const { id, slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days } = req.body || {};
+    const cleanSlug = String(slug || "").trim().toLowerCase().replace(/\s+/g, "-");
+    if (!name || price_bdt == null) return res.status(400).json({ error: "invalid_input" });
+    if (id) {
+      const [r] = await q(
+        `UPDATE categories SET name=$2, slug=COALESCE($3,slug), kind=COALESCE($4,kind),
+           description=$5, price_bdt=$6, is_active=$7, sort_order=$8,
+           brand_id=$9, duration_days=$10, updated_at=now()
+         WHERE id=$1 RETURNING *`,
+        [id, name, cleanSlug || null, kind || null, description || null, price_bdt,
+         is_active ?? true, sort_order ?? 0, brand_id || null, duration_days || null]
+      );
+      if (!r) return res.status(404).json({ error: "category_not_found" });
+      return res.json({ category: r });
+    }
+    if (!cleanSlug) return res.status(400).json({ error: "slug_required" });
     const [r] = await q(
-      `UPDATE categories SET name=$2, slug=COALESCE($3,slug), kind=COALESCE($4,kind),
-         description=$5, price_bdt=$6, is_active=$7, sort_order=$8,
-         brand_id=$9, duration_days=$10, updated_at=now()
-       WHERE id=$1 RETURNING *`,
-      [id, name, slug || null, kind || null, description || null, price_bdt,
-       is_active ?? true, sort_order ?? 0, brand_id || null, duration_days || null]
+      `INSERT INTO categories(slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days)
+         VALUES($1,$2,COALESCE($3,'fb_account'),$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
+      [cleanSlug, name, kind, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
     );
-    return res.json({ category: r });
+    res.json({ category: r });
+  } catch (e: any) {
+    if (e?.code === "23505") return res.status(409).json({ error: "category_slug_exists" });
+    throw e;
   }
-  if (!slug) return res.status(400).json({ error: "slug_required" });
-  const [r] = await q(
-    `INSERT INTO categories(slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days)
-       VALUES($1,$2,COALESCE($3,'fb_account'),$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
-    [slug, name, kind, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
-  );
-  res.json({ category: r });
 });
 
 // VPN BRANDS upsert

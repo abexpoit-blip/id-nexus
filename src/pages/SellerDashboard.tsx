@@ -58,11 +58,15 @@ interface ParsedRow {
   email_password?: string;
 }
 
+type UploadValidationRule = "in_stock" | "in_file" | "already_replaced" | "category_mismatch";
+
 interface DuplicateInfo {
   duplicatesInFile: string[]; // duplicate within uploaded file
   duplicatesInStock: string[]; // already in seller's existing accounts
   duplicatesReplaced: string[]; // uid already exists in any account marked 'replaced' (own or other sellers)
-  ruleByUid: Record<string, "in_stock" | "in_file" | "already_replaced">;
+  invalidCategoryUids: string[]; // UID does not match selected category base (61xxx / 1000xxx)
+  categoryBase: string | null;
+  ruleByUid: Record<string, UploadValidationRule>;
   checkedAt: number;
 }
 
@@ -172,7 +176,7 @@ const SellerDashboard = () => {
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [dupModalOpen, setDupModalOpen] = useState(false);
   const [dupModalPage, setDupModalPage] = useState(1);
-  const [dupModalTab, setDupModalTab] = useState<"stock" | "file" | "replaced">("stock");
+  const [dupModalTab, setDupModalTab] = useState<"stock" | "file" | "replaced" | "category">("stock");
   const [recheckLoading, setRecheckLoading] = useState(false);
   const [audits, setAudits] = useState<any[]>([]);
   const [auditsLoading, setAuditsLoading] = useState(false);
@@ -463,16 +467,25 @@ const SellerDashboard = () => {
     }
     const dupInStock = new Set<string>();
     const dupReplaced = new Set<string>();
+    const invalidCategory = new Set<string>();
+    const selectedCategory = categories.find((c) => c.id === categoryId);
+    const categoryBase = selectedCategory?.slug?.match(/^((?:61|1000)\d*)x{2,}$/i)?.[1]
+      ?? selectedCategory?.name?.toLowerCase().match(/((?:61|1000)\d*)x{2,}/i)?.[1]
+      ?? null;
     if (user) {
       const uidList = Array.from(seen);
       const CHUNK = 500;
       for (let i = 0; i < uidList.length; i += CHUNK) {
         const slice = uidList.slice(i, i + CHUNK);
         try {
-          const { rows: existing, self_id } = await api.post<{
+          const duplicateCheck = await api.post<{
             rows: { uid: string; status: string; seller_id: string }[];
             self_id: string;
-          }>("/api/seller/check-uids", { uids: slice });
+            invalid_category_uids?: string[];
+          }>("/api/seller/check-uids", { uids: slice, category_id: categoryId });
+          const existing = duplicateCheck.rows ?? [];
+          const self_id = duplicateCheck.self_id;
+          for (const uid of duplicateCheck.invalid_category_uids ?? []) invalidCategory.add(String(uid));
           for (const row of existing ?? []) {
             const uid = String(row.uid);
             if (row.status === "replaced") {
@@ -493,14 +506,17 @@ const SellerDashboard = () => {
       }
     }
     // Build rule map. Priority: already_replaced > in_stock > in_file
-    const ruleByUid: Record<string, "in_stock" | "in_file" | "already_replaced"> = {};
+    const ruleByUid: Record<string, UploadValidationRule> = {};
     dupInFile.forEach((u) => { ruleByUid[u] = "in_file"; });
     dupInStock.forEach((u) => { ruleByUid[u] = "in_stock"; });
     dupReplaced.forEach((u) => { ruleByUid[u] = "already_replaced"; });
+    invalidCategory.forEach((u) => { ruleByUid[u] = "category_mismatch"; });
     return {
       duplicatesInFile: Array.from(dupInFile),
       duplicatesInStock: Array.from(dupInStock),
       duplicatesReplaced: Array.from(dupReplaced),
+      invalidCategoryUids: Array.from(invalidCategory),
+      categoryBase,
       ruleByUid,
       checkedAt: Date.now(),
     };
@@ -516,11 +532,12 @@ const SellerDashboard = () => {
     const total =
       info.duplicatesInFile.length +
       info.duplicatesInStock.length +
-      info.duplicatesReplaced.length;
+      info.duplicatesReplaced.length +
+      info.invalidCategoryUids.length;
     toast.success(
       total === 0
-        ? "Recheck complete — no duplicates left."
-        : `Recheck complete — ${total} duplicate UID${total > 1 ? "s" : ""} flagged with latest stock state.`,
+        ? "Recheck complete — no duplicate or category issues left."
+        : `Recheck complete — ${total} UID issue${total > 1 ? "s" : ""} flagged with latest stock state.`,
     );
   };
 
@@ -646,10 +663,11 @@ const SellerDashboard = () => {
       const dupTotal =
         dupInfo.duplicatesInFile.length +
         dupInfo.duplicatesInStock.length +
-        dupInfo.duplicatesReplaced.length;
+        dupInfo.duplicatesReplaced.length +
+        dupInfo.invalidCategoryUids.length;
       if (dupTotal > 0) {
         toast.warning(
-          `Parsed ${normalized.length} rows. ${dupTotal} duplicate UID${dupTotal > 1 ? "s" : ""} detected — review before confirm.`,
+          `Parsed ${normalized.length} rows. ${dupTotal} UID issue${dupTotal > 1 ? "s" : ""} detected — review before confirm.`,
         );
       } else {
         toast.success(`Parsed ${normalized.length} rows. Review then confirm.`);
@@ -694,6 +712,7 @@ const SellerDashboard = () => {
       ...(duplicates?.duplicatesInStock ?? []),
       ...(duplicates?.duplicatesInFile ?? []),
       ...(duplicates?.duplicatesReplaced ?? []),
+      ...(duplicates?.invalidCategoryUids ?? []),
     ]);
     const fresh = await detectDuplicates(parsed);
     if (!fresh) {
@@ -701,10 +720,23 @@ const SellerDashboard = () => {
       return;
     }
     setDuplicates(fresh);
+    if (fresh.invalidCategoryUids.length > 0) {
+      const sample = fresh.invalidCategoryUids.slice(0, 5).join(", ");
+      const more = fresh.invalidCategoryUids.length > 5 ? ` (+${fresh.invalidCategoryUids.length - 5} more)` : "";
+      const msg = `Category mismatch: ${fresh.invalidCategoryUids.length} UID${fresh.invalidCategoryUids.length > 1 ? "s" : ""} do not match ${fresh.categoryBase ?? "the selected category"}. Fix the file or choose the correct category. ${sample}${more}`;
+      setUploadError(msg);
+      setUploadStep("error");
+      toast.error(msg, { duration: 8000 });
+      setDupModalTab("category");
+      setDupModalPage(1);
+      setDupModalOpen(true);
+      return;
+    }
     const freshDupSet = new Set<string>([
       ...fresh.duplicatesInStock,
       ...fresh.duplicatesInFile,
       ...fresh.duplicatesReplaced,
+      ...fresh.invalidCategoryUids,
     ]);
     const newCollisions: string[] = [];
     freshDupSet.forEach((u) => { if (!prevDupSet.has(u)) newCollisions.push(u); });
@@ -718,7 +750,9 @@ const SellerDashboard = () => {
       setUploadStep("error");
       toast.error(msg, { duration: 8000 });
       setDupModalTab(
-        fresh.duplicatesInStock.length > 0
+        fresh.invalidCategoryUids.length > 0
+          ? "category"
+          : fresh.duplicatesInStock.length > 0
           ? "stock"
           : fresh.duplicatesReplaced.length > 0
             ? "replaced"
@@ -734,6 +768,7 @@ const SellerDashboard = () => {
       ...fresh.duplicatesInStock,
       ...fresh.duplicatesInFile,
       ...fresh.duplicatesReplaced,
+      ...fresh.invalidCategoryUids,
     ]);
     let rowsToSend = parsed;
     if (skipDuplicates && dupSet.size > 0) {
@@ -770,7 +805,9 @@ const SellerDashboard = () => {
     } catch (e: any) {
       window.clearInterval(tick);
       setUploading(false);
-      const m = e?.message || "Upload failed";
+      const m = e?.message === "category_uid_mismatch"
+        ? `Category mismatch: ${Number(e?.data?.invalid_rows ?? 0)} UID${Number(e?.data?.invalid_rows ?? 0) === 1 ? "" : "s"} do not match ${e?.data?.expected_base ?? "the selected category"}.`
+        : e?.message || "Upload failed";
       setUploadError(m);
       setUploadStep("error");
       toast.error(m);
@@ -1102,11 +1139,13 @@ const SellerDashboard = () => {
                 const dupStockCount = duplicates.duplicatesInStock.length;
                 const dupFileCount = duplicates.duplicatesInFile.length;
                 const dupReplacedCount = duplicates.duplicatesReplaced.length;
-                const totalDup = dupStockCount + dupFileCount + dupReplacedCount;
+                const categoryMismatchCount = duplicates.invalidCategoryUids.length;
+                const totalDup = dupStockCount + dupFileCount + dupReplacedCount + categoryMismatchCount;
                 const uniqueDupSet = new Set<string>([
                   ...duplicates.duplicatesInStock,
                   ...duplicates.duplicatesInFile,
                   ...duplicates.duplicatesReplaced,
+                  ...duplicates.invalidCategoryUids,
                 ]);
                 // rows that survive client-side skip (also dedup intra-file)
                 const seenLocal = new Set<string>();
@@ -1146,7 +1185,7 @@ const SellerDashboard = () => {
                           className="h-7 gap-1 px-2 text-xs"
                           onClick={() => {
                             setDupModalTab(
-                              dupStockCount > 0 ? "stock" : dupFileCount > 0 ? "file" : "replaced",
+                              categoryMismatchCount > 0 ? "category" : dupStockCount > 0 ? "stock" : dupFileCount > 0 ? "file" : "replaced",
                             );
                             setDupModalPage(1);
                             setDupModalOpen(true);
@@ -1156,7 +1195,11 @@ const SellerDashboard = () => {
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                    <div className="grid gap-2 text-[11px] sm:grid-cols-4">
+                      <div className="rounded border border-border/60 bg-background/40 p-2">
+                        <div className="text-muted-foreground">Wrong category</div>
+                        <div className="font-display text-base font-semibold">{categoryMismatchCount}</div>
+                      </div>
                       <div className="rounded border border-border/60 bg-background/40 p-2">
                         <div className="text-muted-foreground">Already in your stock</div>
                         <div className="font-display text-base font-semibold">{dupStockCount}</div>
@@ -1815,7 +1858,9 @@ const SellerDashboard = () => {
             </DialogHeader>
             {duplicates && (() => {
               const list =
-                dupModalTab === "stock"
+                dupModalTab === "category"
+                  ? duplicates.invalidCategoryUids
+                  : dupModalTab === "stock"
                   ? duplicates.duplicatesInStock
                   : dupModalTab === "file"
                     ? duplicates.duplicatesInFile
@@ -1837,10 +1882,18 @@ const SellerDashboard = () => {
                 in_stock: { label: "In stock", cls: "bg-warning/20 text-warning" },
                 in_file: { label: "Repeated in file", cls: "bg-muted text-muted-foreground" },
                 already_replaced: { label: "Already replaced", cls: "bg-destructive/20 text-destructive" },
+                category_mismatch: { label: "Wrong category", cls: "bg-destructive/20 text-destructive" },
               };
               return (
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={dupModalTab === "category" ? "default" : "outline"}
+                      onClick={() => { setDupModalTab("category"); setDupModalPage(1); }}
+                    >
+                      Wrong category ({duplicates.invalidCategoryUids.length})
+                    </Button>
                     <Button
                       size="sm"
                       variant={dupModalTab === "stock" ? "default" : "outline"}
