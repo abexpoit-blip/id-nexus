@@ -56,53 +56,64 @@ export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
 
   return (
     <div className="mb-6 grid gap-4 lg:grid-cols-3">
-      {/* Premium balance hero */}
-      <Card className="relative overflow-hidden border-0 p-6 lg:col-span-1
-        bg-[linear-gradient(135deg,hsl(var(--primary))_0%,hsl(var(--primary)/0.85)_45%,hsl(var(--secondary))_100%)]
-        text-primary-foreground shadow-[0_20px_60px_-20px_hsl(var(--primary)/0.55)]">
-        <div aria-hidden className="pointer-events-none absolute -top-16 -right-12 h-48 w-48 rounded-full bg-white/15 blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+      {/* Premium balance hero — obsidian + gold aurora */}
+      <Card className="group relative overflow-hidden border border-amber-300/20 p-6 lg:col-span-1
+        bg-[radial-gradient(120%_120%_at_0%_0%,#1a1530_0%,#0b0a1f_55%,#050410_100%)]
+        text-white shadow-[0_30px_80px_-30px_rgba(201,168,76,0.45),0_10px_40px_-15px_rgba(99,102,241,0.4)]">
+        {/* Aurora blobs */}
+        <div aria-hidden className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.55),transparent_70%)] blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.5),transparent_70%)] blur-3xl" />
+        {/* Subtle grid texture */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.07]
+          [background-image:linear-gradient(rgba(255,255,255,1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,1)_1px,transparent_1px)]
+          [background-size:22px_22px]" />
+        {/* Animated shine sweep */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-[1400ms] ease-out group-hover:translate-x-full" />
+        {/* Gold top hairline */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent" />
+
         <div className="relative z-10 flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] opacity-80">
-              <Wallet className="h-3.5 w-3.5" /> Seller wallet
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.22em] text-amber-200/90">
+              <Wallet className="h-3 w-3" /> Seller wallet
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="font-display text-4xl font-bold tabular-nums">
-                ৳ {loading ? "—" : fmt(Number(data?.balance_bdt ?? 0))}
+            <div className="mt-4 flex items-baseline gap-2">
+              <span className="bg-gradient-to-br from-amber-100 via-amber-300 to-amber-500 bg-clip-text font-display text-5xl font-bold leading-none tabular-nums text-transparent drop-shadow-[0_2px_18px_rgba(201,168,76,0.35)]">
+                ৳{loading ? "—" : fmt(Number(data?.balance_bdt ?? 0))}
               </span>
             </div>
-            <div className="mt-1 text-xs opacity-80">Available balance (BDT)</div>
+            <div className="mt-2 text-[11px] uppercase tracking-wider text-white/55">
+              Available balance · BDT
+            </div>
           </div>
-          <div className="rounded-full bg-white/15 p-2 backdrop-blur">
-            <Sparkles className="h-5 w-5" />
+          <div className="relative rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-300/30 to-amber-500/10 p-2.5 backdrop-blur">
+            <Sparkles className="h-5 w-5 text-amber-200" />
+            <span className="absolute -inset-1 -z-10 rounded-2xl bg-amber-400/20 blur-md" />
           </div>
         </div>
 
         <div className="relative z-10 mt-6 grid grid-cols-3 gap-2 text-xs">
-          <div className="rounded-xl bg-white/10 p-3 backdrop-blur">
-            <div className="opacity-75">7d</div>
-            <div className="mt-0.5 font-display text-base font-semibold tabular-nums">
-              ৳{fmt(Number(data?.last7_earned_bdt ?? 0))}
+          {[
+            { label: "7d", value: data?.last7_earned_bdt },
+            { label: "30d", value: data?.last30_earned_bdt },
+            { label: "Lifetime", value: data?.lifetime_earned_bdt },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="group/stat relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur transition hover:border-amber-300/40 hover:bg-white/[0.08]"
+            >
+              <div className="text-[10px] uppercase tracking-wider text-white/55">{s.label}</div>
+              <div className="mt-1 font-display text-base font-semibold tabular-nums text-white">
+                ৳{fmt(Number(s.value ?? 0))}
+              </div>
+              <span className="pointer-events-none absolute -bottom-6 -right-6 h-12 w-12 rounded-full bg-amber-400/20 blur-2xl opacity-0 transition group-hover/stat:opacity-100" />
             </div>
-          </div>
-          <div className="rounded-xl bg-white/10 p-3 backdrop-blur">
-            <div className="opacity-75">30d</div>
-            <div className="mt-0.5 font-display text-base font-semibold tabular-nums">
-              ৳{fmt(Number(data?.last30_earned_bdt ?? 0))}
-            </div>
-          </div>
-          <div className="rounded-xl bg-white/10 p-3 backdrop-blur">
-            <div className="opacity-75">Lifetime</div>
-            <div className="mt-0.5 font-display text-base font-semibold tabular-nums">
-              ৳{fmt(Number(data?.lifetime_earned_bdt ?? 0))}
-            </div>
-          </div>
+          ))}
         </div>
 
         <Link
           to="/wallet"
-          className="relative z-10 mt-5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium backdrop-blur transition hover:bg-white/25"
+          className="relative z-10 mt-5 inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-gradient-to-r from-amber-400/20 to-amber-300/5 px-3.5 py-1.5 text-xs font-medium text-amber-100 backdrop-blur transition hover:from-amber-400/40 hover:to-amber-300/15 hover:text-white"
         >
           Open wallet <ArrowUpRight className="h-3 w-3" />
         </Link>
