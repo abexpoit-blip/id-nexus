@@ -818,14 +818,14 @@ const SellerDashboard = () => {
   if (!isSeller) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <Card className="max-w-md border-border/60 bg-gradient-card p-8 text-center">
+        <Card className="max-w-md glass-panel border-0 p-8 text-center">
           <AlertTriangle className="mx-auto h-10 w-10 text-warning" />
           <h2 className="mt-4 font-display text-xl font-semibold">Seller access required</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Your account doesn't have seller permissions yet. Submit an application — admin approval takes a few hours.
           </p>
           <div className="mt-6 flex flex-col gap-2">
-            <Button asChild className="bg-gradient-brand text-primary-foreground shadow-glow" size="lg">
+            <Button asChild className="btn-gold" size="lg">
               <Link to="/apply-seller">Apply to become a seller</Link>
             </Button>
             <Button asChild variant="ghost" size="sm">
@@ -857,11 +857,11 @@ const SellerDashboard = () => {
 
         {/* Stats */}
         <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <Card className="border-border/60 bg-gradient-card p-5">
+          <Card className="glass-panel border-0 p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Available stock</div>
             <div className="mt-2 font-display text-3xl font-bold text-primary">{totals.available}</div>
           </Card>
-          <Card className="border-border/60 bg-gradient-card p-5">
+          <Card className="glass-panel border-0 p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Today's quota</div>
             <div className="mt-2 font-display text-2xl font-bold">
               <span className={usedToday >= dailyLimit ? "text-destructive" : "text-foreground"}>{usedToday}</span>
@@ -871,11 +871,11 @@ const SellerDashboard = () => {
               {Math.max(dailyLimit - usedToday, 0)} uploads left today (UTC)
             </div>
           </Card>
-          <Card className="border-border/60 bg-gradient-card p-5">
+          <Card className="glass-panel border-0 p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold (all-time)</div>
             <div className="mt-2 font-display text-3xl font-bold">{totals.sold}</div>
           </Card>
-          <Card className="border-border/60 bg-gradient-card p-5">
+          <Card className="glass-panel border-0 p-5">
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs uppercase tracking-widest text-muted-foreground">
                 Sold {soldPeriod === "today" ? "today" : "this week"}
@@ -894,18 +894,18 @@ const SellerDashboard = () => {
               {soldPeriod === "today" ? soldToday : soldWeek}
             </div>
           </Card>
-          <Card className="border-border/60 bg-gradient-card p-5">
+          <Card className="glass-panel border-0 p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Pending replacements</div>
             <div className="mt-2 font-display text-3xl font-bold text-warning">{pendingReplacements}</div>
           </Card>
-          <Card className="border-border/60 bg-gradient-card p-5">
+          <Card className="glass-panel border-0 p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Categories</div>
             <div className="mt-2 font-display text-3xl font-bold">{categories.length}</div>
           </Card>
         </div>
 
         {/* Upload */}
-        <Card className="mb-6 border-border/60 bg-gradient-card p-6">
+        <Card className="mb-6 glass-panel border-0 p-6">
           <div className="font-display text-lg font-semibold">Upload stock</div>
           <p className="text-xs text-muted-foreground">
             Excel or CSV columns expected: <code>UID</code>, <code>Password</code>,{" "}
@@ -1254,7 +1254,7 @@ const SellerDashboard = () => {
                     uploadStep === "uploading" ||
                     uploadStep === "confirming"
                   }
-                  className="bg-gradient-brand text-primary-foreground hover:opacity-90"
+                  className="btn-gold"
                 >
                   {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Upload className="mr-2 h-4 w-4" /> Confirm upload
@@ -1265,7 +1265,7 @@ const SellerDashboard = () => {
         </Card>
 
         {/* Per-category stock */}
-        <Card className="mb-6 border-border/60 bg-gradient-card p-6">
+        <Card className="mb-6 glass-panel border-0 p-6">
           <div className="mb-4 font-display text-lg font-semibold">Live stock by category</div>
           <div className="overflow-x-auto">
             <Table>
@@ -1292,7 +1292,7 @@ const SellerDashboard = () => {
         </Card>
 
         {/* Recent uploads */}
-        <Card className="border-border/60 bg-gradient-card p-6">
+        <Card className="glass-panel border-0 p-6">
           <div className="mb-4 font-display text-lg font-semibold">Recent IDs</div>
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">No accounts yet — upload your first batch above.</p>
@@ -1346,7 +1346,7 @@ const SellerDashboard = () => {
         </Card>
 
         {/* Upload audit history */}
-        <Card className="mt-6 border-border/60 bg-gradient-card p-6">
+        <Card className="mt-6 glass-panel border-0 p-6">
           <div className="mb-4 flex items-center justify-between gap-2">
             <div>
               <div className="font-display text-lg font-semibold">Upload history</div>
@@ -1542,7 +1542,7 @@ const SellerDashboard = () => {
         </Card>
 
         {/* Replacement issues */}
-        <Card ref={replacementsRef} className="mt-6 border-border/60 bg-gradient-card p-6 scroll-mt-24">
+        <Card ref={replacementsRef} className="mt-6 glass-panel border-0 p-6 scroll-mt-24">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="font-display text-lg font-semibold">Replacement issues <span className="ml-2 rounded-md bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">View only</span></div>
@@ -1789,7 +1789,7 @@ const SellerDashboard = () => {
                 <Button
                   onClick={exportReplacementsCsv}
                   disabled={getExportRows().length === 0}
-                  className="bg-gradient-brand text-primary-foreground hover:opacity-90"
+                  className="btn-gold"
                 >
                   <Download className="mr-2 h-4 w-4" /> Download CSV
                 </Button>
