@@ -44,7 +44,7 @@ const Index = () => {
               <Link to="/seller-login">Seller login</Link>
             </Button>
             <Button asChild size="sm" className="bg-gradient-brand text-primary-foreground shadow-glow hover:opacity-90">
-              <Link to="/register">Apply as seller</Link>
+              <Link to="/apply-seller">Apply as seller</Link>
             </Button>
           </div>
         </div>
@@ -78,7 +78,7 @@ const Index = () => {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg" className="bg-gradient-brand text-primary-foreground shadow-glow hover:opacity-90">
-                <Link to="/register">
+                <Link to="/apply-seller">
                   Apply as seller <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
@@ -134,7 +134,7 @@ const Index = () => {
                 ))}
               </div>
               <Button asChild className="mt-5 w-full bg-gradient-brand text-primary-foreground hover:opacity-90">
-                <Link to="/register">Start your application</Link>
+                <Link to="/apply-seller">Start your application</Link>
               </Button>
             </Card>
           </div>
@@ -247,7 +247,7 @@ const Index = () => {
               ))}
             </ul>
             <Button asChild size="lg" className="mt-8 bg-gradient-brand text-primary-foreground shadow-glow hover:opacity-90">
-              <Link to="/register">Apply as seller <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              <Link to="/apply-seller">Apply as seller <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
           </div>
           <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
@@ -334,7 +334,7 @@ const Index = () => {
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Button asChild size="lg" className="bg-gradient-brand text-primary-foreground shadow-glow hover:opacity-90">
-                <Link to="/register">Apply as seller <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                <Link to="/apply-seller">Apply as seller <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="border-border/80">
                 <Link to="/seller-login">Already approved? Login</Link>
