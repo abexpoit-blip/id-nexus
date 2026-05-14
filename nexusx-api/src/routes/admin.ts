@@ -268,14 +268,20 @@ router.get("/categories", async (_req, res) => {
 });
 
 router.post("/categories", async (req, res) => {
-  const { slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days } = req.body || {};
-  if (!slug || !name || price_bdt == null) return res.status(400).json({ error: "invalid_input" });
-  const [r] = await q(
-    `INSERT INTO categories(slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days)
-     VALUES($1,$2,COALESCE($3,'fb_account'),$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
-    [slug, name, kind, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
-  );
-  res.json({ category: r });
+  try {
+    const { slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days } = req.body || {};
+    if (!slug || !name || price_bdt == null) return res.status(400).json({ error: "invalid_input" });
+    const [r] = await q(
+      `INSERT INTO categories(slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days)
+       VALUES($1,$2,COALESCE($3::category_kind,'fb_account'::category_kind),$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
+      [slug, name, kind || null, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
+    );
+    res.json({ category: r });
+  } catch (e: any) {
+    console.error("[categories.create]", e?.message || e);
+    if (e?.code === "23505") return res.status(409).json({ error: "category_slug_exists" });
+    return res.status(500).json({ error: "category_create_failed", detail: e?.message });
+  }
 });
 
 router.patch("/categories/:id", async (req, res) => {
@@ -770,7 +776,7 @@ router.post("/categories/upsert", async (req, res) => {
     if (!name || price_bdt == null) return res.status(400).json({ error: "invalid_input" });
     if (id) {
       const [r] = await q(
-        `UPDATE categories SET name=$2, slug=COALESCE($3,slug), kind=COALESCE($4,kind),
+        `UPDATE categories SET name=$2, slug=COALESCE($3,slug), kind=COALESCE($4::category_kind,kind),
            description=$5, price_bdt=$6, is_active=$7, sort_order=$8,
            brand_id=$9, duration_days=$10, updated_at=now()
          WHERE id=$1 RETURNING *`,
@@ -783,13 +789,14 @@ router.post("/categories/upsert", async (req, res) => {
     if (!cleanSlug) return res.status(400).json({ error: "slug_required" });
     const [r] = await q(
       `INSERT INTO categories(slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days)
-         VALUES($1,$2,COALESCE($3,'fb_account'),$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
-      [cleanSlug, name, kind, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
+         VALUES($1,$2,COALESCE($3::category_kind,'fb_account'::category_kind),$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
+      [cleanSlug, name, kind || null, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
     );
     res.json({ category: r });
   } catch (e: any) {
+    console.error("[categories.upsert]", e?.message || e);
     if (e?.code === "23505") return res.status(409).json({ error: "category_slug_exists" });
-    throw e;
+    return res.status(500).json({ error: "category_upsert_failed", detail: e?.message });
   }
 });
 
