@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, TrendingUp, Clock, Inbox, CheckCircle2, XCircle, ArrowUpRight, Wifi } from "lucide-react";
+import { Wallet, TrendingUp, Clock, Inbox, CheckCircle2, XCircle, ArrowUpRight, Wifi, RotateCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -75,6 +75,7 @@ export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
           balance={Number(data?.balance_bdt ?? 0)}
           cardholder={cardholder}
           last4={last4}
+          recent={data?.recent_ledger ?? []}
         />
 
         {/* Stats row below the card */}
@@ -179,12 +180,15 @@ function CreditCardWallet({
   balance,
   cardholder,
   last4,
+  recent,
 }: {
   loading: boolean;
   balance: number;
   cardholder: string;
   last4: string;
+  recent: Array<{ id: string; kind: string; amount_bdt: string | number; note: string | null; created_at: string }>;
 }) {
+  const [flipped, setFlipped] = useState(false);
   const validThru = (() => {
     const d = new Date();
     d.setFullYear(d.getFullYear() + 4);
@@ -195,11 +199,23 @@ function CreditCardWallet({
 
   return (
     <div
-      className="group relative aspect-[1.586/1] w-full overflow-hidden rounded-2xl border border-amber-300/25
-        bg-[radial-gradient(120%_120%_at_0%_0%,#231a3a_0%,#0d0a1f_55%,#040310_100%)]
-        text-white shadow-[0_30px_70px_-25px_rgba(201,168,76,0.55),0_15px_40px_-15px_rgba(0,0,0,0.7)]
-        transition-transform duration-500 ease-out hover:-translate-y-0.5 hover:rotate-[-0.6deg] hover:scale-[1.01]"
+      className="group relative aspect-[1.586/1] w-full cursor-pointer select-none"
+      style={{ perspective: "1200px" }}
+      onClick={() => setFlipped((f) => !f)}
+      role="button"
+      aria-label="Flip wallet card"
     >
+      <div
+        className="relative h-full w-full transition-transform duration-700 ease-out"
+        style={{ transformStyle: "preserve-3d", transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)" }}
+      >
+        {/* FRONT */}
+        <div
+          className="absolute inset-0 overflow-hidden rounded-2xl border border-amber-300/25
+            bg-[radial-gradient(120%_120%_at_0%_0%,#231a3a_0%,#0d0a1f_55%,#040310_100%)]
+            text-white shadow-[0_30px_70px_-25px_rgba(201,168,76,0.55),0_15px_40px_-15px_rgba(0,0,0,0.7)]"
+          style={{ backfaceVisibility: "hidden" }}
+        >
       {/* Brushed-metal sheen */}
       <div
         aria-hidden
@@ -217,13 +233,6 @@ function CreditCardWallet({
         className="pointer-events-none absolute -bottom-20 -left-12 h-56 w-56 rounded-full
           bg-[radial-gradient(circle,rgba(124,58,237,0.4),transparent_70%)] blur-3xl"
       />
-      {/* Animated shine sweep on hover */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r
-          from-transparent via-white/15 to-transparent
-          transition-transform duration-[1400ms] ease-out group-hover:translate-x-full"
-      />
       {/* Gold hairlines */}
       <div aria-hidden className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent" />
       <div aria-hidden className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent" />
@@ -239,7 +248,10 @@ function CreditCardWallet({
               Seller · Black Edition
             </div>
           </div>
-          <Wifi className="h-5 w-5 rotate-90 text-white/55" aria-label="contactless" />
+          <div className="flex items-center gap-2">
+            <RotateCw className="h-3 w-3 text-amber-200/70" aria-label="flip hint" />
+            <Wifi className="h-5 w-5 rotate-90 text-white/55" aria-label="contactless" />
+          </div>
         </div>
 
         {/* Middle — EMV chip + balance number */}
@@ -281,15 +293,67 @@ function CreditCardWallet({
         </div>
       </div>
 
-      {/* Bottom action ribbon */}
-      <Link
-        to="/wallet"
-        className="absolute bottom-2 right-2 z-20 inline-flex items-center gap-1 rounded-full
-          border border-amber-300/40 bg-black/40 px-2 py-0.5 text-[9px] font-medium uppercase
-          tracking-wider text-amber-200 backdrop-blur transition hover:bg-amber-300/20 hover:text-white"
-      >
-        Open <ArrowUpRight className="h-2.5 w-2.5" />
-      </Link>
+        </div>
+
+        {/* BACK — recent transactions */}
+        <div
+          className="absolute inset-0 overflow-hidden rounded-2xl border border-amber-300/25
+            bg-[radial-gradient(120%_120%_at_100%_0%,#1a1530_0%,#0a081a_55%,#030210_100%)]
+            text-white shadow-[0_30px_70px_-25px_rgba(201,168,76,0.55),0_15px_40px_-15px_rgba(0,0,0,0.7)]"
+          style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+        >
+          {/* Magnetic stripe */}
+          <div aria-hidden className="absolute inset-x-0 top-5 h-7 bg-black/80" />
+          <div aria-hidden className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent" />
+
+          <div className="relative z-10 flex h-full flex-col p-4 pt-16 sm:p-5 sm:pt-16">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-amber-200/90">
+                Recent activity
+              </div>
+              <RotateCw className="h-3 w-3 text-amber-200/70" />
+            </div>
+            <div className="flex-1 space-y-1.5 overflow-hidden">
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-5 w-full bg-white/5" />
+                ))
+              ) : recent.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-wider text-white/40">
+                  No transactions yet
+                </div>
+              ) : (
+                recent.slice(0, 5).map((r) => {
+                  const amt = Number(r.amount_bdt);
+                  const positive = amt >= 0;
+                  return (
+                    <div key={r.id} className="flex items-center justify-between gap-2 border-b border-white/5 pb-1 last:border-0">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-mono text-[10px] uppercase tracking-wider text-white/70">
+                          {r.kind.replace(/_/g, " ")}
+                        </div>
+                        <div className="text-[9px] text-white/40">
+                          {new Date(r.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className={`font-mono text-xs font-semibold tabular-nums ${positive ? "text-emerald-400" : "text-rose-400"}`}>
+                        {positive ? "+" : ""}৳{Math.abs(amt).toFixed(0)}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <Link
+              to="/wallet"
+              onClick={(e) => e.stopPropagation()}
+              className="mt-2 inline-flex items-center justify-center gap-1 rounded-full border border-amber-300/40 bg-black/40 px-2 py-1 text-[9px] font-medium uppercase tracking-wider text-amber-200 backdrop-blur transition hover:bg-amber-300/20 hover:text-white"
+            >
+              Open wallet <ArrowUpRight className="h-2.5 w-2.5" />
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
