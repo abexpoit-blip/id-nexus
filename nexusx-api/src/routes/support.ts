@@ -88,12 +88,16 @@ router.get("/admin/tickets", authRequired, requireRole("admin"), async (req, res
   const where = STATUSES.has(status) ? `WHERE t.status=$1` : "";
   const params = STATUSES.has(status) ? [status] : [];
   const rows = await q(
-    `SELECT t.*, u.email, p.display_name,
-            (SELECT COUNT(*)::int FROM support_ticket_messages m
-              WHERE m.ticket_id=t.id AND m.sender_is_admin=false) AS user_msgs
+    `WITH msg_counts AS (
+       SELECT ticket_id, COUNT(*) FILTER (WHERE sender_is_admin=false)::int AS user_msgs
+         FROM support_ticket_messages
+        GROUP BY ticket_id
+     )
+     SELECT t.*, u.email, p.display_name, COALESCE(mc.user_msgs,0) AS user_msgs
        FROM support_tickets t
        JOIN users u ON u.id=t.user_id
        LEFT JOIN profiles p ON p.id=u.id
+       LEFT JOIN msg_counts mc ON mc.ticket_id=t.id
        ${where}
       ORDER BY (CASE WHEN t.status='open' THEN 0 WHEN t.status='pending' THEN 1
                      WHEN t.status='resolved' THEN 2 ELSE 3 END), t.last_message_at DESC
