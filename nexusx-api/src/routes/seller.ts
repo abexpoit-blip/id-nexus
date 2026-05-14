@@ -195,9 +195,26 @@ router.post("/accounts", authRequired, requireRole("seller"), async (req: Authed
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid_input", detail: parsed.error.flatten() });
   const { category_id, rows, file_name, skip_duplicates } = parsed.data;
+  const normalizedRows = rows.map((r) => ({ ...r, uid: normalizeUid(r.uid) }));
 
-  const [cat] = await q(`SELECT id, name FROM categories WHERE id=$1`, [category_id]);
-  if (!cat) return res.status(404).json({ error: "category_not_found" });
+  const [cat] = await q<{ id: string; name: string; slug: string; is_active: boolean; kind: string }>(
+    `SELECT id, name, slug, is_active, kind FROM categories WHERE id=$1`,
+    [category_id]
+  );
+  if (!cat || !cat.is_active || cat.kind !== "fb_account") return res.status(404).json({ error: "category_not_found" });
+
+  const categoryBase = categoryBaseFrom(cat);
+  const invalidCategoryUids = normalizedRows
+    .filter((r) => !uidMatchesCategory(r.uid, categoryBase))
+    .map((r) => r.uid);
+  if (invalidCategoryUids.length > 0) {
+    return res.status(400).json({
+      error: "category_uid_mismatch",
+      expected_base: categoryBase,
+      invalid_category_uids: invalidCategoryUids.slice(0, 100),
+      invalid_rows: invalidCategoryUids.length,
+    });
+  }
 
   // Daily limit
   const [limit] = await q(`SELECT daily_limit FROM seller_daily_limits WHERE seller_id=$1`, [req.user!.id]);
@@ -213,7 +230,7 @@ router.post("/accounts", authRequired, requireRole("seller"), async (req: Authed
   // Dedup within file
   const seen = new Set<string>();
   const fileDupes: string[] = [];
-  const unique = rows.filter((r) => {
+  const unique = normalizedRows.filter((r) => {
     if (seen.has(r.uid)) { fileDupes.push(r.uid); return false; }
     seen.add(r.uid); return true;
   });
@@ -243,7 +260,7 @@ router.post("/accounts", authRequired, requireRole("seller"), async (req: Authed
   }
 
   const summary = {
-    rows_in_file: rows.length,
+    rows_in_file: normalizedRows.length,
     rows_sent: unique.length,
     rows_inserted: inserted,
     duplicates_in_file: fileDupes.length,
