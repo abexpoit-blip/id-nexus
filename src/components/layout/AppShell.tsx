@@ -10,7 +10,6 @@ import {
   Shield,
   ScrollText,
   LogOut,
-  ArrowLeftRight,
   Globe,
 } from "lucide-react";
 import {
