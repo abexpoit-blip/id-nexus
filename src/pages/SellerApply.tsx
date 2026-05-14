@@ -160,11 +160,7 @@ const SellerApply = () => {
 
   return (
     <div
-      className="min-h-screen bg-background text-foreground"
-      style={{
-        backgroundImage:
-          "radial-gradient(ellipse at top, hsl(265 84% 62% / 0.18), transparent 55%), radial-gradient(ellipse at bottom, hsl(174 84% 50% / 0.12), transparent 55%)",
-      }}
+      className="min-h-screen bg-background bg-premium-ambient text-foreground"
     >
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
@@ -173,10 +169,10 @@ const SellerApply = () => {
               <ArrowLeft className="inline h-4 w-4" /> Home
             </Link>
             <Logo size="sm" showTagline={false} />
-            <Badge variant="outline">Seller application</Badge>
+            <span className="pill-gold">Seller application</span>
           </div>
           {isPublic && (
-            <Link to="/seller-login" className="text-sm font-medium text-primary hover:underline">
+            <Link to="/seller-login" className="text-gold text-sm font-semibold hover:underline">
               Already approved? Login
             </Link>
           )}
@@ -185,8 +181,14 @@ const SellerApply = () => {
 
       <main className="container max-w-2xl py-10">
         <div className="mb-6 flex items-center gap-3">
-          <div className="rounded-xl bg-gradient-brand p-3 shadow-glow">
-            <Store className="h-6 w-6 text-primary-foreground" />
+          <div
+            className="rounded-xl p-3"
+            style={{
+              backgroundImage: "var(--gradient-gold)",
+              boxShadow: "0 12px 30px -10px hsl(var(--brand-gold) / 0.55)",
+            }}
+          >
+            <Store className="h-6 w-6" style={{ color: "hsl(224 47% 6%)" }} />
           </div>
           <div>
             <h1 className="font-display text-2xl font-bold md:text-3xl">Become a seller</h1>
@@ -201,7 +203,7 @@ const SellerApply = () => {
         {loading ? (
           <div className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
         ) : !intakeEnabled && !(app && app.status === "approved") ? (
-          <Card className="border-destructive/40 bg-destructive/5 p-6">
+          <Card className="glass-panel border-destructive/40 bg-destructive/5 p-6">
             <div className="flex items-start gap-3">
               <Lock className="mt-1 h-5 w-5 text-destructive" />
               <div>
@@ -213,7 +215,7 @@ const SellerApply = () => {
             </div>
           </Card>
         ) : app && app.status === "pending" ? (
-          <Card className="border-warning/40 bg-warning/5 p-6">
+          <Card className="glass-panel border-warning/40 bg-warning/5 p-6">
             <div className="flex items-start gap-3">
               <Clock className="mt-1 h-5 w-5 text-warning" />
               <div>
@@ -233,7 +235,7 @@ const SellerApply = () => {
             </div>
           </Card>
         ) : app && app.status === "approved" ? (
-          <Card className="border-success/40 bg-success/5 p-6">
+          <Card className="glass-panel border-success/40 bg-success/5 p-6">
             <div className="flex items-start gap-3">
               <Sparkles className="mt-1 h-5 w-5 text-success" />
               <div className="flex-1">
@@ -246,14 +248,14 @@ const SellerApply = () => {
                     <span className="font-semibold">Admin note:</span> {app.admin_note}
                   </p>
                 )}
-                <Button className="mt-4 bg-gradient-brand text-primary-foreground shadow-glow" onClick={() => navigate("/seller")}>
+                <Button className="btn-gold mt-4" onClick={() => navigate("/seller")}>
                   Open Seller Dashboard
                 </Button>
               </div>
             </div>
           </Card>
         ) : (
-          <Card className="border-border/60 bg-gradient-card p-6">
+          <Card className="glass-panel-strong border-0 p-6">
             {app?.status === "rejected" && (
               <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm">
                 <XCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-destructive" />
@@ -312,7 +314,7 @@ const SellerApply = () => {
               <Button
                 onClick={isPublic ? submitPublic : submit}
                 disabled={submitting}
-                className="w-full bg-gradient-brand text-primary-foreground shadow-glow"
+                className="btn-gold w-full"
                 size="lg"
               >
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
