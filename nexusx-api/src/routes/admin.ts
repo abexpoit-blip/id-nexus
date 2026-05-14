@@ -3,6 +3,10 @@ import { q } from "../db";
 import { authRequired, requireRole, AuthedReq, setAuthCookies } from "../auth";
 
 const router = Router();
+
+type CategoryKind = "fb_account" | "vpn";
+const normalizeCategoryKind = (value: unknown): CategoryKind =>
+  value === "vpn" ? "vpn" : "fb_account";
 router.use(authRequired, requireRole("admin"));
 
 router.get("/stock", async (_req, res) => {
@@ -271,10 +275,11 @@ router.post("/categories", async (req, res) => {
   try {
     const { slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days } = req.body || {};
     if (!slug || !name || price_bdt == null) return res.status(400).json({ error: "invalid_input" });
+    const categoryKind = normalizeCategoryKind(kind);
     const [r] = await q(
       `INSERT INTO categories(slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days)
        VALUES($1,$2,COALESCE($3::category_kind,'fb_account'::category_kind),$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
-      [slug, name, kind || null, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
+      [slug, name, categoryKind, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
     );
     res.json({ category: r });
   } catch (e: any) {
@@ -774,13 +779,14 @@ router.post("/categories/upsert", async (req, res) => {
     const { id, slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days } = req.body || {};
     const cleanSlug = String(slug || "").trim().toLowerCase().replace(/\s+/g, "-");
     if (!name || price_bdt == null) return res.status(400).json({ error: "invalid_input" });
+    const categoryKind = normalizeCategoryKind(kind);
     if (id) {
       const [r] = await q(
         `UPDATE categories SET name=$2, slug=COALESCE($3,slug), kind=COALESCE($4::category_kind,kind),
            description=$5, price_bdt=$6, is_active=$7, sort_order=$8,
            brand_id=$9, duration_days=$10, updated_at=now()
          WHERE id=$1 RETURNING *`,
-        [id, name, cleanSlug || null, kind || null, description || null, price_bdt,
+        [id, name, cleanSlug || null, categoryKind, description || null, price_bdt,
          is_active ?? true, sort_order ?? 0, brand_id || null, duration_days || null]
       );
       if (!r) return res.status(404).json({ error: "category_not_found" });
@@ -790,7 +796,7 @@ router.post("/categories/upsert", async (req, res) => {
     const [r] = await q(
       `INSERT INTO categories(slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days)
          VALUES($1,$2,COALESCE($3::category_kind,'fb_account'::category_kind),$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
-      [cleanSlug, name, kind || null, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
+      [cleanSlug, name, categoryKind, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
     );
     res.json({ category: r });
   } catch (e: any) {
