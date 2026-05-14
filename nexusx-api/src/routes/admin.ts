@@ -1418,6 +1418,38 @@ router.get("/seller-uploads/:id", async (req, res) => {
   res.json({ upload: a, uids });
 });
 
+// Mark an upload as "collected" (admin has downloaded / picked it up)
+router.post("/seller-uploads/:id/collect", async (req: AuthedReq, res) => {
+  try {
+    const [a] = await q(
+      `SELECT id, seller_id, collected_at, review_status, file_name
+         FROM seller_upload_audits WHERE id=$1`,
+      [req.params.id]
+    );
+    if (!a) return res.status(404).json({ error: "not_found" });
+    if (a.collected_at) return res.json({ ok: true, already: true, upload: a });
+    if (a.review_status !== "pending")
+      return res.json({ ok: true, already: true, upload: a });
+    const [updated] = await q(
+      `UPDATE seller_upload_audits
+          SET collected_at=now(), collected_by=$2
+        WHERE id=$1 RETURNING *`,
+      [a.id, req.user!.id]
+    );
+    await q(
+      `INSERT INTO notifications(user_id, kind, title, body, reference_id)
+         VALUES($1,'seller_payout',$2,$3,$4)`,
+      [a.seller_id, "Upload collected",
+       `Admin downloaded your batch${a.file_name ? ` (${a.file_name})` : ""}. Report coming soon.`,
+       a.id]
+    );
+    res.json({ ok: true, upload: updated });
+  } catch (e: any) {
+    console.error("[seller-uploads.collect]", e?.message || e);
+    res.status(500).json({ error: "collect_failed", detail: e?.message });
+  }
+});
+
 // Review an upload: mark which UIDs are rejected and credit seller for the rest
 router.post("/seller-uploads/:id/review", async (req: AuthedReq, res) => {
   try {
