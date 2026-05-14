@@ -3,7 +3,6 @@ import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, Clock, Inbox, CheckCircle2, XCircle } from "lucide-react";
-import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { WalletCreditCard } from "@/components/wallet/WalletCreditCard";
 
