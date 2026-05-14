@@ -278,7 +278,7 @@ router.post("/categories", async (req, res) => {
     const categoryKind = normalizeCategoryKind(kind);
     const [r] = await q(
       `INSERT INTO categories(slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days)
-       VALUES($1,$2,COALESCE($3::category_kind,'fb_account'::category_kind),$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
+       VALUES($1,$2,CASE WHEN $3 = 'vpn' THEN 'vpn'::category_kind ELSE 'fb_account'::category_kind END,$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
       [slug, name, categoryKind, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
     );
     res.json({ category: r });
@@ -782,7 +782,7 @@ router.post("/categories/upsert", async (req, res) => {
     const categoryKind = normalizeCategoryKind(kind);
     if (id) {
       const [r] = await q(
-        `UPDATE categories SET name=$2, slug=COALESCE($3,slug), kind=COALESCE($4::category_kind,kind),
+        `UPDATE categories SET name=$2, slug=COALESCE($3,slug), kind=CASE WHEN $4 = 'vpn' THEN 'vpn'::category_kind ELSE 'fb_account'::category_kind END,
            description=$5, price_bdt=$6, is_active=$7, sort_order=$8,
            brand_id=$9, duration_days=$10, updated_at=now()
          WHERE id=$1 RETURNING *`,
@@ -795,7 +795,7 @@ router.post("/categories/upsert", async (req, res) => {
     if (!cleanSlug) return res.status(400).json({ error: "slug_required" });
     const [r] = await q(
       `INSERT INTO categories(slug, name, kind, description, price_bdt, is_active, sort_order, brand_id, duration_days)
-         VALUES($1,$2,COALESCE($3::category_kind,'fb_account'::category_kind),$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
+         VALUES($1,$2,CASE WHEN $3 = 'vpn' THEN 'vpn'::category_kind ELSE 'fb_account'::category_kind END,$4,$5,COALESCE($6,true),COALESCE($7,0),$8,$9) RETURNING *`,
       [cleanSlug, name, categoryKind, description || null, price_bdt, is_active, sort_order, brand_id || null, duration_days || null]
     );
     res.json({ category: r });
