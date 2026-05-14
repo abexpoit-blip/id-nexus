@@ -1363,4 +1363,162 @@ router.get("/exports/orders.csv", async (req, res) => {
   );
 });
 
+// ============================================================================
+// SELLER UPLOADS — admin review + auto payout for accepted UIDs
+// ============================================================================
+
+// List seller uploads with seller info + filter by review_status
+router.get("/seller-uploads", async (req, res) => {
+  const status = String(req.query.status || "").trim();
+  const params: any[] = [];
+  let where = "";
+  if (status && ["pending", "approved", "rejected"].includes(status)) {
+    params.push(status);
+    where = `WHERE sa.review_status = $1`;
+  }
+  const rows = await q(
+    `SELECT sa.*, u.email AS seller_email, p.display_name AS seller_name,
+            COALESCE(p.balance_bdt, 0) AS seller_balance
+       FROM seller_upload_audits sa
+       JOIN users u ON u.id = sa.seller_id
+       LEFT JOIN profiles p ON p.id = sa.seller_id
+       ${where}
+       ORDER BY sa.created_at DESC LIMIT 500`,
+    params
+  );
+  res.json({ uploads: rows });
+});
+
+// Get a single upload with the full UID list seller pushed in this batch
+router.get("/seller-uploads/:id", async (req, res) => {
+  const [a] = await q(
+    `SELECT sa.*, u.email AS seller_email, p.display_name AS seller_name
+       FROM seller_upload_audits sa
+       JOIN users u ON u.id = sa.seller_id
+       LEFT JOIN profiles p ON p.id = sa.seller_id
+       WHERE sa.id = $1`,
+    [req.params.id]
+  );
+  if (!a) return res.status(404).json({ error: "not_found" });
+  // Pull the actual UIDs that were inserted in this upload window (best-effort by created_at)
+  const uids = await q(
+    `SELECT uid, status, created_at FROM accounts
+       WHERE seller_id = $1 AND category_id = $2
+         AND created_at BETWEEN $3::timestamptz - interval '2 minutes'
+                            AND $3::timestamptz + interval '2 minutes'
+       ORDER BY created_at`,
+    [a.seller_id, a.category_id, a.created_at]
+  );
+  res.json({ upload: a, uids });
+});
+
+// Review an upload: mark which UIDs are rejected and credit seller for the rest
+router.post("/seller-uploads/:id/review", async (req: AuthedReq, res) => {
+  try {
+    const { rejected_uids = [], note = null, unit_price_bdt = null } = req.body || {};
+    if (!Array.isArray(rejected_uids))
+      return res.status(400).json({ error: "rejected_uids_must_be_array" });
+
+    const [a] = await q(
+      `SELECT * FROM seller_upload_audits WHERE id=$1 FOR UPDATE`,
+      [req.params.id]
+    );
+    if (!a) return res.status(404).json({ error: "not_found" });
+    if (a.review_status !== "pending")
+      return res.status(400).json({ error: "already_reviewed" });
+
+    // Resolve unit price: explicit override > category price
+    let unitPrice = unit_price_bdt != null ? Number(unit_price_bdt) : null;
+    if (unitPrice == null && a.category_id) {
+      const [c] = await q(`SELECT price_bdt FROM categories WHERE id=$1`, [a.category_id]);
+      unitPrice = c ? Number(c.price_bdt) : 0;
+    }
+    if (unitPrice == null || isNaN(unitPrice)) unitPrice = 0;
+
+    const cleanRejected = (rejected_uids as any[])
+      .map((u) => String(u || "").trim())
+      .filter(Boolean);
+
+    // Mark the rejected accounts as 'bad' so they cannot be sold
+    if (cleanRejected.length && a.category_id) {
+      await q(
+        `UPDATE accounts SET status='bad', updated_at=now()
+           WHERE seller_id=$1 AND category_id=$2 AND uid = ANY($3)
+             AND status IN ('available','withheld')`,
+        [a.seller_id, a.category_id, cleanRejected]
+      );
+    }
+
+    const inserted = Number(a.rows_inserted || 0);
+    const rejectedCount = Math.min(cleanRejected.length, inserted);
+    const acceptedCount = Math.max(inserted - rejectedCount, 0);
+    const payout = Number((acceptedCount * unitPrice).toFixed(2));
+
+    let balanceAfter = 0;
+    if (payout > 0) {
+      await q(
+        `UPDATE profiles SET balance_bdt = balance_bdt + $1, updated_at=now() WHERE id=$2`,
+        [payout, a.seller_id]
+      );
+      const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1`, [a.seller_id]);
+      balanceAfter = Number(p?.balance_bdt ?? 0);
+      await q(
+        `INSERT INTO balance_ledger(user_id, kind, amount_bdt, balance_after, reference_id, note)
+           VALUES($1,'seller_payout',$2,$3,$4,$5)`,
+        [a.seller_id, payout, balanceAfter, a.id,
+         `Upload payout: ${acceptedCount} × ${unitPrice} BDT (${a.category_name || "category"})`]
+      );
+      // Notify seller in-app
+      await q(
+        `INSERT INTO notifications(user_id, kind, title, body, reference_id)
+           VALUES($1,'seller_payout',$2,$3,$4)`,
+        [a.seller_id, "Upload approved",
+         `${acceptedCount} accepted, ${rejectedCount} rejected. +${payout} BDT credited.`, a.id]
+      );
+    } else {
+      const [p] = await q(`SELECT balance_bdt FROM profiles WHERE id=$1`, [a.seller_id]);
+      balanceAfter = Number(p?.balance_bdt ?? 0);
+      await q(
+        `INSERT INTO notifications(user_id, kind, title, body, reference_id)
+           VALUES($1,'seller_payout',$2,$3,$4)`,
+        [a.seller_id, "Upload reviewed",
+         `${acceptedCount} accepted, ${rejectedCount} rejected. No credit.`, a.id]
+      );
+    }
+
+    const newStatus = acceptedCount > 0 ? "approved" : "rejected";
+    const [updated] = await q(
+      `UPDATE seller_upload_audits SET
+          review_status=$2, rejected_uids=$3, rejected_count=$4,
+          accepted_count=$5, unit_price_bdt=$6, payout_bdt=$7,
+          reviewed_by=$8, reviewed_at=now(), review_note=$9
+        WHERE id=$1 RETURNING *`,
+      [a.id, newStatus, cleanRejected, rejectedCount, acceptedCount,
+       unitPrice, payout, req.user!.id, note]
+    );
+
+    await q(
+      `INSERT INTO audit_logs(actor_id, actor_email, event_type, entity_type, entity_id, summary, details)
+         VALUES($1,$2,'seller_upload_reviewed','seller_upload_audit',$3,$4,$5)`,
+      [req.user!.id, req.user!.email,
+       a.id,
+       `Reviewed upload: ${acceptedCount} accepted / ${rejectedCount} rejected, payout ${payout} BDT`,
+       JSON.stringify({ rejected_uids: cleanRejected, unit_price_bdt: unitPrice, payout_bdt: payout })]
+    );
+
+    res.json({
+      ok: true,
+      upload: updated,
+      accepted_count: acceptedCount,
+      rejected_count: rejectedCount,
+      unit_price_bdt: unitPrice,
+      payout_bdt: payout,
+      seller_balance_after: balanceAfter,
+    });
+  } catch (e: any) {
+    console.error("[seller-uploads.review]", e?.message || e);
+    res.status(500).json({ error: "review_failed", detail: e?.message });
+  }
+});
+
 export default router;
