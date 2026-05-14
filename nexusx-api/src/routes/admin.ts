@@ -991,22 +991,40 @@ router.post("/seller-applications/bulk", async (req: AuthedReq, res) => {
 // Optional bonus_eligible flag for current month top performer.
 router.get("/sellers/leaderboard", async (req, res) => {
   const days = Math.min(365, Math.max(1, parseInt(String(req.query.days || "30"), 10) || 30));
+  // Rewritten: aggregate once per table instead of 6 correlated subqueries per seller
   const sellers = await q(
-    `SELECT u.id AS seller_id, u.email, p.display_name, p.is_banned,
-        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id), 0) AS sales_lifetime,
-        COALESCE((SELECT SUM(oi.unit_price_bdt)::float FROM order_items oi WHERE oi.seller_id=u.id), 0) AS revenue_lifetime,
-        COALESCE((SELECT COUNT(*)::int FROM order_items oi WHERE oi.seller_id=u.id
-                  AND oi.created_at >= now() - ($1 || ' days')::interval), 0) AS sales_period,
-        COALESCE((SELECT SUM(oi.unit_price_bdt)::float FROM order_items oi WHERE oi.seller_id=u.id
-                  AND oi.created_at >= now() - ($1 || ' days')::interval), 0) AS revenue_period,
-        COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.seller_id=u.id), 0) AS replacements_total,
-        COALESCE((SELECT COUNT(*)::int FROM replacement_items ri WHERE ri.seller_id=u.id
-                  AND ri.outcome IN ('replaced','refunded')), 0) AS replacements_upheld
-      FROM users u
-      JOIN user_roles r ON r.user_id=u.id AND r.role='seller'
-      LEFT JOIN profiles p ON p.id=u.id
-      ORDER BY sales_period DESC NULLS LAST
-      LIMIT 100`,
+    `WITH oi_agg AS (
+        SELECT seller_id,
+               COUNT(*)::int AS sales_lifetime,
+               COALESCE(SUM(unit_price_bdt),0)::float AS revenue_lifetime,
+               COUNT(*) FILTER (WHERE created_at >= now() - ($1 || ' days')::interval)::int AS sales_period,
+               COALESCE(SUM(unit_price_bdt) FILTER (WHERE created_at >= now() - ($1 || ' days')::interval),0)::float AS revenue_period
+          FROM order_items
+         WHERE seller_id IS NOT NULL
+         GROUP BY seller_id
+      ),
+      ri_agg AS (
+        SELECT seller_id,
+               COUNT(*)::int AS replacements_total,
+               COUNT(*) FILTER (WHERE outcome IN ('replaced','refunded'))::int AS replacements_upheld
+          FROM replacement_items
+         WHERE seller_id IS NOT NULL
+         GROUP BY seller_id
+      )
+      SELECT u.id AS seller_id, u.email, p.display_name, p.is_banned,
+             COALESCE(o.sales_lifetime,0)      AS sales_lifetime,
+             COALESCE(o.revenue_lifetime,0)    AS revenue_lifetime,
+             COALESCE(o.sales_period,0)        AS sales_period,
+             COALESCE(o.revenue_period,0)      AS revenue_period,
+             COALESCE(r2.replacements_total,0) AS replacements_total,
+             COALESCE(r2.replacements_upheld,0) AS replacements_upheld
+        FROM users u
+        JOIN user_roles r ON r.user_id=u.id AND r.role='seller'
+        LEFT JOIN profiles p ON p.id=u.id
+        LEFT JOIN oi_agg o  ON o.seller_id=u.id
+        LEFT JOIN ri_agg r2 ON r2.seller_id=u.id
+       ORDER BY sales_period DESC NULLS LAST
+       LIMIT 100`,
     [String(days)]
   );
   const tierFor = (n: number): "platinum" | "gold" | "silver" | "bronze" | "none" => {
