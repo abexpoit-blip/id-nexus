@@ -14,6 +14,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, CheckCircle2, XCircle, Clock, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { UploadStatusProgress } from "@/components/seller/SellerWalletCard";
 
 type Tab = "pending" | "approved" | "rejected";
 
@@ -151,6 +152,7 @@ export const SellerUploadsManager = () => {
               <TableRow>
                 <TableHead>Seller</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead className="min-w-[230px]">Status</TableHead>
                 <TableHead className="text-right">Inserted</TableHead>
                 <TableHead className="text-right">Rejected</TableHead>
                 <TableHead className="text-right">Payout (৳)</TableHead>
@@ -167,6 +169,9 @@ export const SellerUploadsManager = () => {
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{r.category_name || "—"}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <UploadStatusProgress audit={r} compact />
                   </TableCell>
                   <TableCell className="text-right">{r.rows_inserted}</TableCell>
                   <TableCell className="text-right text-destructive">
@@ -202,6 +207,9 @@ export const SellerUploadsManager = () => {
 
           {active && (
             <div className="space-y-4">
+              <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+                <UploadStatusProgress audit={active} />
+              </div>
               <div className="grid grid-cols-2 gap-3 rounded-lg border border-border/60 p-3 text-sm">
                 <div>
                   <div className="text-xs text-muted-foreground">Seller</div>
