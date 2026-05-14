@@ -1125,11 +1125,13 @@ const SellerDashboard = () => {
                 const dupStockCount = duplicates.duplicatesInStock.length;
                 const dupFileCount = duplicates.duplicatesInFile.length;
                 const dupReplacedCount = duplicates.duplicatesReplaced.length;
-                const totalDup = dupStockCount + dupFileCount + dupReplacedCount;
+                const categoryMismatchCount = duplicates.invalidCategoryUids.length;
+                const totalDup = dupStockCount + dupFileCount + dupReplacedCount + categoryMismatchCount;
                 const uniqueDupSet = new Set<string>([
                   ...duplicates.duplicatesInStock,
                   ...duplicates.duplicatesInFile,
                   ...duplicates.duplicatesReplaced,
+                  ...duplicates.invalidCategoryUids,
                 ]);
                 // rows that survive client-side skip (also dedup intra-file)
                 const seenLocal = new Set<string>();
@@ -1169,7 +1171,7 @@ const SellerDashboard = () => {
                           className="h-7 gap-1 px-2 text-xs"
                           onClick={() => {
                             setDupModalTab(
-                              dupStockCount > 0 ? "stock" : dupFileCount > 0 ? "file" : "replaced",
+                              categoryMismatchCount > 0 ? "category" : dupStockCount > 0 ? "stock" : dupFileCount > 0 ? "file" : "replaced",
                             );
                             setDupModalPage(1);
                             setDupModalOpen(true);
@@ -1179,7 +1181,11 @@ const SellerDashboard = () => {
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                    <div className="grid gap-2 text-[11px] sm:grid-cols-4">
+                      <div className="rounded border border-border/60 bg-background/40 p-2">
+                        <div className="text-muted-foreground">Wrong category</div>
+                        <div className="font-display text-base font-semibold">{categoryMismatchCount}</div>
+                      </div>
                       <div className="rounded border border-border/60 bg-background/40 p-2">
                         <div className="text-muted-foreground">Already in your stock</div>
                         <div className="font-display text-base font-semibold">{dupStockCount}</div>
