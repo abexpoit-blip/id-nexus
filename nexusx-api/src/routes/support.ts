@@ -88,20 +88,26 @@ router.get("/admin/tickets", authRequired, requireRole("admin"), async (req, res
   const where = STATUSES.has(status) ? `WHERE t.status=$1` : "";
   const params = STATUSES.has(status) ? [status] : [];
   const rows = await q(
-    `WITH msg_counts AS (
-       SELECT ticket_id, COUNT(*) FILTER (WHERE sender_is_admin=false)::int AS user_msgs
-         FROM support_ticket_messages
-        GROUP BY ticket_id
+    `WITH selected_tickets AS (
+       SELECT t.*
+         FROM support_tickets t
+         ${where}
+        ORDER BY (CASE WHEN t.status='open' THEN 0 WHEN t.status='pending' THEN 1
+                       WHEN t.status='resolved' THEN 2 ELSE 3 END), t.last_message_at DESC
+        LIMIT 200
+      ), msg_counts AS (
+       SELECT m.ticket_id, COUNT(*) FILTER (WHERE m.sender_is_admin=false)::int AS user_msgs
+         FROM support_ticket_messages m
+         JOIN selected_tickets st ON st.id=m.ticket_id
+        GROUP BY m.ticket_id
      )
-     SELECT t.*, u.email, p.display_name, COALESCE(mc.user_msgs,0) AS user_msgs
-       FROM support_tickets t
-       JOIN users u ON u.id=t.user_id
+      SELECT st.*, u.email, p.display_name, COALESCE(mc.user_msgs,0) AS user_msgs
+        FROM selected_tickets st
+        JOIN users u ON u.id=st.user_id
        LEFT JOIN profiles p ON p.id=u.id
-       LEFT JOIN msg_counts mc ON mc.ticket_id=t.id
-       ${where}
-      ORDER BY (CASE WHEN t.status='open' THEN 0 WHEN t.status='pending' THEN 1
-                     WHEN t.status='resolved' THEN 2 ELSE 3 END), t.last_message_at DESC
-      LIMIT 200`,
+        LEFT JOIN msg_counts mc ON mc.ticket_id=st.id
+       ORDER BY (CASE WHEN st.status='open' THEN 0 WHEN st.status='pending' THEN 1
+                      WHEN st.status='resolved' THEN 2 ELSE 3 END), st.last_message_at DESC`,
     params
   );
   res.json({ tickets: rows });
