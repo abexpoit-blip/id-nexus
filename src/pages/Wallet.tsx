@@ -118,7 +118,7 @@ const Wallet = () => {
     <AppShell
       mode={isSeller ? "seller" : "buyer"}
       title="Wallet"
-      subtitle="Top-up via bKash/Nagad. Sellers can request payouts."
+      subtitle={isSeller ? "Request payouts from your seller balance." : "Top-up via bKash/Nagad."}
       actions={
         <Card className="border-border/60 bg-gradient-card p-3">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Current balance</div>
@@ -128,16 +128,20 @@ const Wallet = () => {
         </Card>
       }
     >
-        <Tabs defaultValue="topup">
+        <Tabs defaultValue={isSeller ? "withdraw" : "topup"}>
           <TabsList>
-            <TabsTrigger value="topup"><ArrowDownToLine className="mr-2 h-4 w-4" />Top-up</TabsTrigger>
+            {!isSeller && (
+              <TabsTrigger value="topup"><ArrowDownToLine className="mr-2 h-4 w-4" />Top-up</TabsTrigger>
+            )}
             {isSeller && <TabsTrigger value="withdraw"><ArrowUpFromLine className="mr-2 h-4 w-4" />Withdraw</TabsTrigger>}
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="topup" className="mt-4">
-            <DepositWizard isSeller={isSeller} onSubmitted={loadAll} />
-          </TabsContent>
+          {!isSeller && (
+            <TabsContent value="topup" className="mt-4">
+              <DepositWizard isSeller={isSeller} onSubmitted={loadAll} />
+            </TabsContent>
+          )}
 
           {isSeller && (
             <TabsContent value="withdraw" className="mt-4">
@@ -182,9 +186,10 @@ const Wallet = () => {
           )}
 
           <TabsContent value="history" className="mt-4 space-y-6">
-            <Card className="border-border/60 bg-gradient-card p-6">
-              <div className="mb-3 font-display text-lg font-semibold">Top-up history</div>
-              {topups.length === 0 ? <p className="text-sm text-muted-foreground">No top-ups yet.</p> : (
+            {!isSeller && (
+              <Card className="border-border/60 bg-gradient-card p-6">
+                <div className="mb-3 font-display text-lg font-semibold">Top-up history</div>
+                {topups.length === 0 ? <p className="text-sm text-muted-foreground">No top-ups yet.</p> : (
                 <div className="overflow-x-auto"><Table>
                   <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>TxnID</TableHead><TableHead>Status</TableHead><TableHead>Note</TableHead></TableRow></TableHeader>
                   <TableBody>
@@ -200,8 +205,9 @@ const Wallet = () => {
                     ))}
                   </TableBody>
                 </Table></div>
-              )}
-            </Card>
+                )}
+              </Card>
+            )}
 
             {isSeller && (
               <Card className="border-border/60 bg-gradient-card p-6">

@@ -10,7 +10,6 @@ import {
   Shield,
   ScrollText,
   LogOut,
-  ArrowLeftRight,
   Globe,
 } from "lucide-react";
 import {
@@ -59,8 +58,6 @@ const sellerNav: NavItem[] = [
   { label: "Dashboard", to: "/seller", icon: LayoutDashboard, match: (p) => p === "/seller" },
   { label: "Upload", to: "/seller", icon: Upload, match: () => false },
   { label: "Wallet", to: "/wallet", icon: Wallet, match: (p) => p.startsWith("/wallet") },
-  { label: "Browse", to: "/browse", icon: ShoppingBag, match: (p) => p.startsWith("/browse") },
-  { label: "VPN", to: "/vpn", icon: Globe, match: (p) => p.startsWith("/vpn") },
 ];
 
 const adminExtras: NavItem[] = [
@@ -190,7 +187,7 @@ function SideNav({ mode }: { mode: AppShellMode }) {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )
-              ) : (
+              ) : isAdmin ? (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Buyer area">
                     <Link to="/dashboard" className="flex items-center gap-3">
@@ -199,7 +196,7 @@ function SideNav({ mode }: { mode: AppShellMode }) {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              )}
+              ) : null}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -219,10 +216,9 @@ function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
       ? [
           { label: "Stock", to: "/seller", icon: LayoutDashboard, match: (p) => p === "/seller" },
           { label: "Wallet", to: "/wallet", icon: Wallet, match: (p) => p.startsWith("/wallet") },
-          { label: "Browse", to: "/browse", icon: ShoppingBag, match: (p) => p.startsWith("/browse") },
-          isAdmin
-            ? { label: "Admin", to: "/admin", icon: Shield, match: (p) => p === "/admin" }
-            : { label: "Buyer", to: "/dashboard", icon: ArrowLeftRight, match: () => false, switchMode: true },
+          ...(isAdmin
+            ? [{ label: "Admin", to: "/admin", icon: Shield, match: (p: string) => p === "/admin" } as NavItem]
+            : []),
         ]
       : [
           { label: "Home", to: "/dashboard", icon: LayoutDashboard, match: (p) => p === "/dashboard" },
@@ -233,7 +229,10 @@ function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 backdrop-blur-xl md:hidden">
-      <ul className="grid grid-cols-4">
+      <ul
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      >
         {items.map((item) => {
           const active = isActive(location.pathname, item);
           const Icon = item.icon;
