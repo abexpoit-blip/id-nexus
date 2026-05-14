@@ -805,7 +805,9 @@ const SellerDashboard = () => {
     } catch (e: any) {
       window.clearInterval(tick);
       setUploading(false);
-      const m = e?.message || "Upload failed";
+      const m = e?.message === "category_uid_mismatch"
+        ? `Category mismatch: ${Number(e?.data?.invalid_rows ?? 0)} UID${Number(e?.data?.invalid_rows ?? 0) === 1 ? "" : "s"} do not match ${e?.data?.expected_base ?? "the selected category"}.`
+        : e?.message || "Upload failed";
       setUploadError(m);
       setUploadStep("error");
       toast.error(m);
