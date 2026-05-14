@@ -345,7 +345,7 @@ export const AppShell = ({ mode, title, subtitle, actions, children }: AppShellP
                 </div>
                 {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
               </div>
-              <div className="rainbow-strip h-0.5 w-full opacity-80" />
+              <div className="rainbow-strip h-0.5 w-full opacity-80" aria-hidden="true" />
             </>
             )}
           </header>
