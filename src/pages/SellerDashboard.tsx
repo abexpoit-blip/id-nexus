@@ -176,7 +176,7 @@ const SellerDashboard = () => {
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [dupModalOpen, setDupModalOpen] = useState(false);
   const [dupModalPage, setDupModalPage] = useState(1);
-  const [dupModalTab, setDupModalTab] = useState<"stock" | "file" | "replaced">("stock");
+  const [dupModalTab, setDupModalTab] = useState<"stock" | "file" | "replaced" | "category">("stock");
   const [recheckLoading, setRecheckLoading] = useState(false);
   const [audits, setAudits] = useState<any[]>([]);
   const [auditsLoading, setAuditsLoading] = useState(false);
@@ -478,12 +478,13 @@ const SellerDashboard = () => {
       for (let i = 0; i < uidList.length; i += CHUNK) {
         const slice = uidList.slice(i, i + CHUNK);
         try {
-          const { rows: existing, self_id } = await api.post<{
+          const duplicateCheck = await api.post<{
             rows: { uid: string; status: string; seller_id: string }[];
             self_id: string;
             invalid_category_uids?: string[];
           }>("/api/seller/check-uids", { uids: slice, category_id: categoryId });
-          for (const uid of existing?.invalid_category_uids ?? []) invalidCategory.add(String(uid));
+          const existing = duplicateCheck.rows ?? [];
+          for (const uid of duplicateCheck.invalid_category_uids ?? []) invalidCategory.add(String(uid));
           for (const row of existing ?? []) {
             const uid = String(row.uid);
             if (row.status === "replaced") {
@@ -504,7 +505,7 @@ const SellerDashboard = () => {
       }
     }
     // Build rule map. Priority: already_replaced > in_stock > in_file
-    const ruleByUid: Record<string, "in_stock" | "in_file" | "already_replaced"> = {};
+    const ruleByUid: Record<string, UploadValidationRule> = {};
     dupInFile.forEach((u) => { ruleByUid[u] = "in_file"; });
     dupInStock.forEach((u) => { ruleByUid[u] = "in_stock"; });
     dupReplaced.forEach((u) => { ruleByUid[u] = "already_replaced"; });
