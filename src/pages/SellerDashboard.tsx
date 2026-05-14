@@ -203,6 +203,7 @@ const SellerDashboard = () => {
   const [usedToday, setUsedToday] = useState<number>(0);
   const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [revealSecrets, setRevealSecrets] = useState(false);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
