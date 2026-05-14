@@ -312,9 +312,7 @@ export const AppShell = ({ mode, title, subtitle, actions, children }: AppShellP
               </Link>
               <div className="ml-auto flex items-center gap-2 md:gap-3">
                 <NotificationsBell />
-                <Badge variant="outline" className="border-primary/40 capitalize text-primary">
-                  {primaryRole}
-                </Badge>
+                <span className="pill-gold capitalize">{primaryRole}</span>
                 <span className="hidden text-sm text-muted-foreground lg:inline">
                   {profile?.display_name || user?.email}
                 </span>
