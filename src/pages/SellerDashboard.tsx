@@ -1335,27 +1335,63 @@ const SellerDashboard = () => {
                   </div>
                 );
               })()}
-              <div className="max-h-64 overflow-auto rounded-md border border-border/60">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>UID</TableHead>
-                      <TableHead>PASS</TableHead>
-                      <TableHead>COOKIES</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {parsed.slice(0, 8).map((r, i) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-mono text-xs">{r.uid}</TableCell>
-                        <TableCell className="font-mono text-xs">••••••</TableCell>
-                        <TableCell className="max-w-[280px] truncate font-mono text-[11px] text-muted-foreground">
-                          {r.cookies ? r.cookies.slice(0, 60) + (r.cookies.length > 60 ? "…" : "") : "—"}
-                        </TableCell>
+              <div className="rounded-md border border-border/60">
+                <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/30 px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Secure preview · {parsed.length} row{parsed.length === 1 ? "" : "s"}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 gap-1.5 px-2 text-[11px]"
+                    onClick={() => setRevealSecrets((v) => !v)}
+                    title={revealSecrets ? "Mask PASS & COOKIES" : "Temporarily reveal PASS & COOKIES"}
+                  >
+                    {revealSecrets ? (
+                      <>
+                        <EyeOff className="h-3.5 w-3.5" /> Hide secrets
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-3.5 w-3.5" /> Reveal secrets
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <div className="max-h-64 overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[160px]">UID</TableHead>
+                        <TableHead className="w-[140px]">PASS</TableHead>
+                        <TableHead>COOKIES</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {parsed.slice(0, 8).map((r, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-mono text-xs">{r.uid}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {revealSecrets ? r.password : "••••••"}
+                          </TableCell>
+                          <TableCell
+                            className={`max-w-[280px] truncate font-mono text-[11px] ${
+                              revealSecrets ? "text-foreground" : "text-muted-foreground"
+                            }`}
+                            title={revealSecrets ? r.cookies || "" : "Hidden"}
+                          >
+                            {r.cookies
+                              ? revealSecrets
+                                ? r.cookies.slice(0, 80) + (r.cookies.length > 80 ? "…" : "")
+                                : "•••••• " + r.cookies.length + " chars"
+                              : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
                 {parsed.length > 8 && (
                   <div className="border-t border-border/60 px-4 py-2 text-xs text-muted-foreground">
                     + {parsed.length - 8} more rows
