@@ -8,6 +8,7 @@ import { AuthProvider } from "./hooks/useAuth";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RouteFallback } from "./components/RouteFallback";
+import { BuyerHidden } from "./components/BuyerHidden";
 
 // Eager — landing & auth routes (small, needed immediately)
 import Index from "./pages/Index.tsx";
@@ -94,7 +95,7 @@ const App = () => (
               path="/dashboard"
               element={
                 <ProtectedRoute>
-                  <Dashboard />
+                  <BuyerHidden><Dashboard /></BuyerHidden>
                 </ProtectedRoute>
               }
             />
@@ -102,7 +103,7 @@ const App = () => (
               path="/browse"
               element={
                 <ProtectedRoute>
-                  <Browse />
+                  <BuyerHidden><Browse /></BuyerHidden>
                 </ProtectedRoute>
               }
             />
@@ -110,7 +111,7 @@ const App = () => (
               path="/vpn"
               element={
                 <ProtectedRoute>
-                  <Vpn />
+                  <BuyerHidden><Vpn /></BuyerHidden>
                 </ProtectedRoute>
               }
             />
@@ -118,7 +119,7 @@ const App = () => (
               path="/vpn-orders/:id"
               element={
                 <ProtectedRoute>
-                  <VpnOrderDetail />
+                  <BuyerHidden><VpnOrderDetail /></BuyerHidden>
                 </ProtectedRoute>
               }
             />
@@ -126,7 +127,7 @@ const App = () => (
               path="/orders/:id"
               element={
                 <ProtectedRoute>
-                  <OrderDetail />
+                  <BuyerHidden><OrderDetail /></BuyerHidden>
                 </ProtectedRoute>
               }
             />
@@ -167,7 +168,7 @@ const App = () => (
               path="/replacements"
               element={
                 <ProtectedRoute>
-                  <Replacements />
+                  <BuyerHidden><Replacements /></BuyerHidden>
                 </ProtectedRoute>
               }
             />
@@ -175,7 +176,7 @@ const App = () => (
               path="/wallet"
               element={
                 <ProtectedRoute>
-                  <Wallet />
+                  <BuyerHidden><Wallet /></BuyerHidden>
                 </ProtectedRoute>
               }
             />
