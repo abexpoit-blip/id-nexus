@@ -20,7 +20,7 @@ import {
   HandCoins,
   Lock,
 } from "lucide-react";
-import heroBg from "@/assets/hero-bg.jpg";
+import heroBg from "@/assets/hero-bg.webp";
 import { Logo } from "@/components/Logo";
 import { BrandFooter } from "@/components/BrandFooter";
 
