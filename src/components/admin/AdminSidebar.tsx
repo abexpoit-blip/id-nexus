@@ -88,15 +88,23 @@ export const AdminSidebar = ({
                         <button
                           type="button"
                           onClick={() => onSelect(item.id)}
+                          aria-current={isActive ? "page" : undefined}
+                          aria-label={item.badge ? `${item.title}, ${item.badge} pending` : undefined}
                           className={cn(
-                            "flex w-full items-center gap-2 hover:bg-muted/50",
+                            "flex w-full items-center gap-2 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar",
                             isActive && "nav-active-rainbow font-semibold",
                           )}
                         >
-                          <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-primary")} />
+                          <Icon
+                            aria-hidden="true"
+                            className={cn("h-4 w-4 shrink-0", isActive && "text-primary")}
+                          />
                           {!collapsed && <span className="flex-1 text-left">{item.title}</span>}
                           {!collapsed && item.badge ? (
-                            <span className="ml-auto rounded-full bg-gradient-to-r from-amber-500 to-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-md">
+                            <span
+                              aria-hidden="true"
+                              className="ml-auto rounded-full bg-gradient-to-r from-amber-500 to-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-md"
+                            >
                               {item.badge}
                             </span>
                           ) : null}
