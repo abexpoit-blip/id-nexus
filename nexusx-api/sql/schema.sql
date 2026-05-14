@@ -30,6 +30,18 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TYPE seller_application_status AS ENUM ('pending','approved','rejected');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE notice_severity AS ENUM ('info','success','warning','danger');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE notice_audience AS ENUM ('all','buyer','seller');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE support_ticket_status AS ENUM ('open','pending','closed');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE support_ticket_category AS ENUM ('general','order','payment','seller','other');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- USERS (replaces auth.users)
 CREATE TABLE IF NOT EXISTS users (
