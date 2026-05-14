@@ -220,9 +220,9 @@ function EmvChip() {
 
 function BrandMark() {
   return (
-    <div className="relative shrink-0 rounded-md border border-amber-300/40 bg-gradient-to-br from-amber-300/30 to-amber-600/10 px-2 py-1 backdrop-blur">
-      <div className="font-display text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-amber-200">NX</div>
-      <div className="text-[7px] font-medium uppercase leading-tight tracking-[0.18em] text-amber-200/70">Black</div>
+    <div className="relative shrink-0 rounded-md border border-sky-200/40 bg-gradient-to-br from-sky-200/25 to-sky-700/15 px-2 py-1 text-right backdrop-blur">
+      <div className="font-display text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-sky-100">NX</div>
+      <div className="text-[7px] font-medium uppercase leading-tight tracking-[0.18em] text-sky-100/70">Wallet</div>
     </div>
   );
 }
