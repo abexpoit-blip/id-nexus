@@ -742,7 +742,8 @@ router.get("/seller-limits/full", async (_req, res) => {
   const sellers = await q(
     `SELECT u.id AS user_id, p.display_name, p.email,
             COALESCE(p.contact_handle, sa.telegram_username) AS telegram_username,
-            l.daily_limit
+            l.daily_limit,
+            COALESCE(today.used_today, 0)::int AS used_today
        FROM user_roles r
        JOIN users u ON u.id=r.user_id
        LEFT JOIN profiles p ON p.id=u.id
@@ -751,16 +752,15 @@ router.get("/seller-limits/full", async (_req, res) => {
           WHERE user_id=u.id ORDER BY created_at DESC LIMIT 1
        ) sa ON true
        LEFT JOIN seller_daily_limits l ON l.seller_id=u.id
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*)::int AS used_today
+            FROM accounts a
+           WHERE a.seller_id=u.id
+             AND a.created_at >= date_trunc('day', now())
+        ) today ON true
        WHERE r.role='seller' ORDER BY p.email NULLS LAST`
   );
-  const used = await q<{ seller_id: string; c: number }>(
-    `SELECT seller_id, COUNT(*)::int AS c FROM accounts
-       WHERE created_at >= date_trunc('day', now() at time zone 'UTC')
-       GROUP BY seller_id`
-  );
-  const usedMap = new Map(used.map((r) => [r.seller_id, r.c]));
-  const rows = sellers.map((s: any) => ({ ...s, used_today: usedMap.get(s.user_id) ?? 0 }));
-  res.json({ default_limit: defaultLimit, sellers: rows });
+  res.json({ default_limit: defaultLimit, sellers });
 });
 
 router.put("/seller-limits/default", async (req: AuthedReq, res) => {
@@ -997,41 +997,38 @@ router.post("/seller-applications/bulk", async (req: AuthedReq, res) => {
 // Optional bonus_eligible flag for current month top performer.
 router.get("/sellers/leaderboard", async (req, res) => {
   const days = Math.min(365, Math.max(1, parseInt(String(req.query.days || "30"), 10) || 30));
-  // Rewritten: aggregate once per table instead of 6 correlated subqueries per seller
   const sellers = await q(
-    `WITH oi_agg AS (
-        SELECT seller_id,
-               COUNT(*)::int AS sales_lifetime,
-               COALESCE(SUM(unit_price_bdt),0)::float AS revenue_lifetime,
-               COUNT(*) FILTER (WHERE created_at >= now() - ($1 || ' days')::interval)::int AS sales_period,
-               COALESCE(SUM(unit_price_bdt) FILTER (WHERE created_at >= now() - ($1 || ' days')::interval),0)::float AS revenue_period
-          FROM order_items
-         WHERE seller_id IS NOT NULL
-         GROUP BY seller_id
-      ),
-      ri_agg AS (
-        SELECT seller_id,
-               COUNT(*)::int AS replacements_total,
-               COUNT(*) FILTER (WHERE outcome IN ('replaced','refunded'))::int AS replacements_upheld
-          FROM replacement_items
-         WHERE seller_id IS NOT NULL
-         GROUP BY seller_id
+    `WITH seller_base AS (
+       SELECT u.id, u.email, p.display_name, p.is_banned
+         FROM users u
+         JOIN user_roles r ON r.user_id=u.id AND r.role='seller'
+         LEFT JOIN profiles p ON p.id=u.id
       )
       SELECT u.id AS seller_id, u.email, p.display_name, p.is_banned,
-             COALESCE(o.sales_lifetime,0)      AS sales_lifetime,
-             COALESCE(o.revenue_lifetime,0)    AS revenue_lifetime,
-             COALESCE(o.sales_period,0)        AS sales_period,
-             COALESCE(o.revenue_period,0)      AS revenue_period,
-             COALESCE(r2.replacements_total,0) AS replacements_total,
-             COALESCE(r2.replacements_upheld,0) AS replacements_upheld
-        FROM users u
-        JOIN user_roles r ON r.user_id=u.id AND r.role='seller'
-        LEFT JOIN profiles p ON p.id=u.id
-        LEFT JOIN oi_agg o  ON o.seller_id=u.id
-        LEFT JOIN ri_agg r2 ON r2.seller_id=u.id
+             COALESCE(o.sales_lifetime,0)::int AS sales_lifetime,
+             COALESCE(o.revenue_lifetime,0)::float AS revenue_lifetime,
+             COALESCE(o.sales_period,0)::int AS sales_period,
+             COALESCE(o.revenue_period,0)::float AS revenue_period,
+             COALESCE(r2.replacements_total,0)::int AS replacements_total,
+             COALESCE(r2.replacements_upheld,0)::int AS replacements_upheld
+        FROM seller_base u
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*)::int AS sales_lifetime,
+                 COALESCE(SUM(unit_price_bdt),0)::float AS revenue_lifetime,
+                 COUNT(*) FILTER (WHERE created_at >= now() - ($1::int * interval '1 day'))::int AS sales_period,
+                 COALESCE(SUM(unit_price_bdt) FILTER (WHERE created_at >= now() - ($1::int * interval '1 day')),0)::float AS revenue_period
+            FROM order_items oi
+           WHERE oi.seller_id=u.id
+        ) o ON true
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*)::int AS replacements_total,
+                 COUNT(*) FILTER (WHERE outcome IN ('replaced','refunded'))::int AS replacements_upheld
+            FROM replacement_items ri
+           WHERE ri.seller_id=u.id
+        ) r2 ON true
        ORDER BY sales_period DESC NULLS LAST
        LIMIT 100`,
-    [String(days)]
+    [days]
   );
   const tierFor = (n: number): "platinum" | "gold" | "silver" | "bronze" | "none" => {
     if (n >= 1000) return "platinum";

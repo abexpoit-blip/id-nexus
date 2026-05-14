@@ -65,6 +65,15 @@ app.use("/api", plisio);
 
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error(err);
+  if (err?.code === "DB_POOL_ACQUIRE_TIMEOUT") {
+    return res.status(503).json({ error: "database_busy", message: "Database is busy, please retry." });
+  }
+  if (err?.code === "57014") {
+    return res.status(504).json({ error: "query_timeout", message: "Request took too long, please retry." });
+  }
+  if (err?.code === "55P03") {
+    return res.status(503).json({ error: "database_locked", message: "Database row is busy, please retry." });
+  }
   res.status(500).json({ error: "server_error", message: err?.message });
 });
 

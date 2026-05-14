@@ -485,6 +485,12 @@ CREATE INDEX IF NOT EXISTS idx_accounts_seller_created
   ON accounts(seller_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_accounts_created
   ON accounts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_roles_role_user
+  ON user_roles(role, user_id);
+CREATE INDEX IF NOT EXISTS idx_seller_applications_user_created
+  ON seller_applications(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_status_last_message
+  ON support_tickets(status, last_message_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_messages_thread_created
   ON admin_messages(thread_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_admin_messages_unread
