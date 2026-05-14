@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, TrendingUp, Sparkles, Clock, Inbox, CheckCircle2, XCircle, ArrowUpRight } from "lucide-react";
+import { Wallet, TrendingUp, Clock, Inbox, CheckCircle2, XCircle, ArrowUpRight, Wifi } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 interface WalletData {
   balance_bdt: number;
@@ -33,6 +34,16 @@ const fmt = (n: number) =>
 export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
   const [data, setData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user, profile } = useAuth();
+  const cardholder = (
+    profile?.display_name ||
+    (user?.email ? user.email.split("@")[0] : "SELLER MEMBER")
+  )
+    .toString()
+    .toUpperCase()
+    .slice(0, 22);
+  // Last 4 of user id as faux "card number" suffix
+  const last4 = (user?.id || "0000").replace(/[^0-9a-z]/gi, "").slice(-4).toUpperCase().padStart(4, "0");
 
   const load = async () => {
     try {
@@ -57,47 +68,17 @@ export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
 
   return (
     <div className="mb-6 grid gap-3 sm:gap-4 lg:grid-cols-3">
-      {/* Premium balance hero — obsidian + gold aurora */}
-      <Card className="group relative overflow-hidden border border-amber-300/20 p-5 sm:p-6 lg:col-span-1
-        bg-[radial-gradient(120%_120%_at_0%_0%,#1a1530_0%,#0b0a1f_55%,#050410_100%)]
-        text-white shadow-[0_30px_80px_-30px_rgba(201,168,76,0.45),0_10px_40px_-15px_rgba(99,102,241,0.4)]">
-        {/* Aurora blobs */}
-        <div aria-hidden className="pointer-events-none absolute -top-20 -right-12 h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.55),transparent_70%)] blur-3xl sm:-top-24 sm:-right-16 sm:h-64 sm:w-64" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-20 -left-12 h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.5),transparent_70%)] blur-3xl sm:-bottom-24 sm:-left-16 sm:h-64 sm:w-64" />
-        {/* Subtle grid texture */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.07]
-          [background-image:linear-gradient(rgba(255,255,255,1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,1)_1px,transparent_1px)]
-          [background-size:22px_22px]" />
-        {/* Animated shine sweep */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-[1400ms] ease-out group-hover:translate-x-full" />
-        {/* Gold top hairline */}
-        <div aria-hidden className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent sm:inset-x-6" />
+      {/* Premium credit-card style wallet */}
+      <div className="lg:col-span-1">
+        <CreditCardWallet
+          loading={loading}
+          balance={Number(data?.balance_bdt ?? 0)}
+          cardholder={cardholder}
+          last4={last4}
+        />
 
-        <div className="relative z-10 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.22em] text-amber-200/90">
-              <Wallet className="h-3 w-3" /> Seller wallet
-            </div>
-            {loading ? (
-              <Skeleton className="mt-4 h-12 w-40 bg-white/10" />
-            ) : (
-              <div className="mt-4 flex items-baseline gap-2">
-                <span className="break-all bg-gradient-to-br from-amber-100 via-amber-300 to-amber-500 bg-clip-text font-display text-4xl font-bold leading-none tabular-nums text-transparent drop-shadow-[0_2px_18px_rgba(201,168,76,0.35)] sm:text-5xl">
-                  ৳{fmt(Number(data?.balance_bdt ?? 0))}
-                </span>
-              </div>
-            )}
-            <div className="mt-2 text-[11px] uppercase tracking-wider text-white/55">
-              Available balance · BDT
-            </div>
-          </div>
-          <div className="relative shrink-0 rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-300/30 to-amber-500/10 p-2.5 backdrop-blur">
-            <Sparkles className="h-5 w-5 text-amber-200" />
-            <span className="absolute -inset-1 -z-10 rounded-2xl bg-amber-400/20 blur-md" />
-          </div>
-        </div>
-
-        <div className="relative z-10 mt-6 grid grid-cols-3 gap-2 text-xs">
+        {/* Stats row below the card */}
+        <div className="mt-3 grid grid-cols-3 gap-2 text-xs sm:gap-3">
           {[
             { label: "7d", value: data?.last7_earned_bdt },
             { label: "30d", value: data?.last30_earned_bdt },
@@ -105,28 +86,20 @@ export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
           ].map((s) => (
             <div
               key={s.label}
-              className="group/stat relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-2.5 backdrop-blur transition hover:border-amber-300/40 hover:bg-white/[0.08] sm:p-3"
+              className="rounded-xl border border-amber-300/15 bg-gradient-to-br from-[#0e0a1f] to-[#050410] p-2.5 transition hover:border-amber-300/40 sm:p-3"
             >
               <div className="text-[10px] uppercase tracking-wider text-white/55">{s.label}</div>
               {loading ? (
                 <Skeleton className="mt-1 h-5 w-16 bg-white/10" />
               ) : (
-                <div className="mt-1 truncate font-display text-sm font-semibold tabular-nums text-white sm:text-base">
+                <div className="mt-1 truncate font-display text-sm font-semibold tabular-nums text-amber-200 sm:text-base">
                   ৳{fmt(Number(s.value ?? 0))}
                 </div>
               )}
-              <span className="pointer-events-none absolute -bottom-6 -right-6 h-12 w-12 rounded-full bg-amber-400/20 blur-2xl opacity-0 transition group-hover/stat:opacity-100" />
             </div>
           ))}
         </div>
-
-        <Link
-          to="/wallet"
-          className="relative z-10 mt-5 inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-gradient-to-r from-amber-400/20 to-amber-300/5 px-3.5 py-1.5 text-xs font-medium text-amber-100 backdrop-blur transition hover:from-amber-400/40 hover:to-amber-300/15 hover:text-white"
-        >
-          Open wallet <ArrowUpRight className="h-3 w-3" />
-        </Link>
-      </Card>
+      </div>
 
       {/* Status pipeline */}
       <Card className="glass-panel border-0 p-5 sm:p-6 lg:col-span-2">
