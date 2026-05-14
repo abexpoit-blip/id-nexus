@@ -9,25 +9,22 @@ import { Card } from "@/components/ui/card";
 import { Logo } from "@/components/Logo";
 import { BrandTagline } from "@/components/BrandTagline";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, ShoppingBag, Store, Info } from "lucide-react";
+import { Loader2, ArrowLeft, Store, Info } from "lucide-react";
 
 const emailSchema = z.string().trim().email("Enter a valid email").max(255);
 const passwordSchema = z.string().min(8, "At least 8 characters").max(72);
 const nameSchema = z.string().trim().min(2, "Name too short").max(60);
 
-type RoleChoice = "buyer" | "seller";
-
 const Register = () => {
   const { user, loading: authLoading, signUp } = useAuth();
   const navigate = useNavigate();
-  const [roleChoice, setRoleChoice] = useState<RoleChoice>("buyer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && user) navigate("/dashboard", { replace: true });
+    if (!authLoading && user) navigate("/apply-seller", { replace: true });
   }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,14 +36,8 @@ const Register = () => {
       const cleanName = nameSchema.parse(displayName);
 
       await signUp(cleanEmail, cleanPassword, cleanName);
-
-      if (roleChoice === "seller") {
-        toast.success("Account created! Redirecting to seller application…");
-        navigate("/apply-seller", { replace: true });
-      } else {
-        toast.success("Buyer account created — welcome to Nexus X!");
-        navigate("/dashboard", { replace: true });
-      }
+      toast.success("Account created! Complete your seller application.");
+      navigate("/apply-seller", { replace: true });
     } catch (err: any) {
       if (err?.issues?.[0]?.message) toast.error(err.issues[0].message);
       else if (err?.message === "email_taken") toast.error("Email already registered. Sign in instead.");
@@ -74,49 +65,19 @@ const Register = () => {
         <BrandTagline />
         <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
           <div className="mb-5 text-center">
-            <h1 className="font-display text-2xl font-bold">Create account</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Join Nexus X marketplace</p>
+            <div className="mx-auto mb-3 inline-flex items-center justify-center rounded-xl bg-gradient-brand p-3 shadow-glow">
+              <Store className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <h1 className="font-display text-2xl font-bold">Become a seller</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Create your account, then apply for admin approval.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Register as
-              </Label>
-              <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/60 bg-background/40 p-1.5">
-                <button
-                  type="button"
-                  onClick={() => setRoleChoice("buyer")}
-                  className={`flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-all ${
-                    roleChoice === "buyer"
-                      ? "bg-gradient-brand text-primary-foreground shadow-glow"
-                      : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                  }`}
-                >
-                  <ShoppingBag className="h-4 w-4" />
-                  Buyer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRoleChoice("seller")}
-                  className={`flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-all ${
-                    roleChoice === "seller"
-                      ? "bg-gradient-brand text-primary-foreground shadow-glow"
-                      : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                  }`}
-                >
-                  <Store className="h-4 w-4" />
-                  Seller
-                </button>
-              </div>
-              {roleChoice === "seller" && (
-                <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-warning-foreground">
-                  <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-warning" />
-                  <span>
-                    Seller accounts require <strong>admin approval</strong>. After signup, you'll fill out a short application. You can browse as buyer in the meantime.
-                  </span>
-                </div>
-              )}
+            <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
+              <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-warning" />
+              <span className="text-muted-foreground">
+                All accounts require <strong className="text-foreground">admin approval</strong>. After signup you'll fill a short application — review usually takes a few hours.
+              </span>
             </div>
 
             <div>
@@ -134,13 +95,13 @@ const Register = () => {
 
             <Button type="submit" disabled={submitting} className="w-full bg-gradient-brand text-primary-foreground shadow-glow hover:opacity-90" size="lg">
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {roleChoice === "seller" ? "Create account & apply" : "Create buyer account"}
+              Create account & apply
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link to="/login" className="font-semibold text-primary underline-offset-2 hover:underline">
-                Sign in
+              Already approved?{" "}
+              <Link to="/seller-login" className="font-semibold text-primary underline-offset-2 hover:underline">
+                Seller login
               </Link>
             </p>
           </form>
