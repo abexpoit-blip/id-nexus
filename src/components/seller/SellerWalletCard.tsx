@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, TrendingUp, Sparkles, Clock, Inbox, CheckCircle2, XCircle, Loader2, ArrowUpRight } from "lucide-react";
+import { Wallet, TrendingUp, Sparkles, Clock, Inbox, CheckCircle2, XCircle, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface WalletData {
