@@ -10,7 +10,6 @@ import {
   Shield,
   ScrollText,
   LogOut,
-  Menu,
   ArrowLeftRight,
   Globe,
 } from "lucide-react";
@@ -28,7 +27,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Logo } from "@/components/Logo";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { BrandFooter } from "@/components/BrandFooter";
@@ -115,16 +113,17 @@ function SideNav({ mode }: { mode: AppShellMode }) {
                 const Icon = item.icon;
                 return (
                   <SidebarMenuItem key={`${item.label}-${item.to}`}>
-                    <SidebarMenuButton asChild tooltip={item.label}>
+                    <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
                       <Link
                         to={item.to}
+                        aria-current={active ? "page" : undefined}
                         className={cn(
                           "flex items-center gap-3",
                           active &&
                             "bg-sidebar-accent text-sidebar-accent-foreground font-semibold",
                         )}
                       >
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-4 w-4" aria-hidden="true" />
                         {!collapsed && <span>{item.label}</span>}
                       </Link>
                     </SidebarMenuButton>
@@ -145,16 +144,17 @@ function SideNav({ mode }: { mode: AppShellMode }) {
                   const Icon = item.icon;
                   return (
                     <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild tooltip={item.label}>
+                      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
                         <Link
                           to={item.to}
+                          aria-current={active ? "page" : undefined}
                           className={cn(
                             "flex items-center gap-3",
                             active &&
                               "bg-sidebar-accent text-sidebar-accent-foreground font-semibold",
                           )}
                         >
-                          <Icon className="h-4 w-4" />
+                          <Icon className="h-4 w-4" aria-hidden="true" />
                           {!collapsed && <span>{item.label}</span>}
                         </Link>
                       </SidebarMenuButton>
@@ -317,10 +317,16 @@ export const AppShell = ({ mode, title, subtitle, actions, children }: AppShellP
                   {profile?.display_name || user?.email}
                 </span>
                 <Button variant="ghost" size="sm" onClick={signOut} className="hidden sm:inline-flex">
-                  <LogOut className="mr-2 h-4 w-4" /> Sign out
+                  <LogOut className="mr-2 h-4 w-4" aria-hidden="true" /> Sign out
                 </Button>
-                <Button variant="ghost" size="icon" onClick={signOut} className="sm:hidden">
-                  <LogOut className="h-4 w-4" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={signOut}
+                  className="min-h-11 min-w-11 sm:hidden"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </div>
             </div>
