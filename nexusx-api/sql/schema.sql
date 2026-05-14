@@ -15,6 +15,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TYPE order_status AS ENUM ('pending','completed','failed','refunded');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'cancelled';
 DO $$ BEGIN
   CREATE TYPE payment_method AS ENUM ('bkash','nagad','binance');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -39,9 +40,12 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TYPE support_ticket_status AS ENUM ('open','pending','closed');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER TYPE support_ticket_status ADD VALUE IF NOT EXISTS 'resolved';
 DO $$ BEGIN
   CREATE TYPE support_ticket_category AS ENUM ('general','order','payment','seller','other');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER TYPE support_ticket_category ADD VALUE IF NOT EXISTS 'account';
+ALTER TYPE support_ticket_category ADD VALUE IF NOT EXISTS 'technical';
 
 -- USERS (replaces auth.users)
 CREATE TABLE IF NOT EXISTS users (
@@ -221,6 +225,7 @@ CREATE TABLE IF NOT EXISTS seller_applications (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE seller_applications ADD COLUMN IF NOT EXISTS telegram_username TEXT;
 
 CREATE TABLE IF NOT EXISTS seller_daily_limits (
   seller_id UUID PRIMARY KEY REFERENCES users(id),
@@ -254,6 +259,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TYPE replacement_item_outcome AS ENUM ('pending','replaced','rejected','out_of_window');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER TYPE replacement_item_outcome ADD VALUE IF NOT EXISTS 'refunded';
 
 CREATE TABLE IF NOT EXISTS replacement_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
