@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wifi, RotateCw, ArrowUpRight } from "lucide-react";
+import { RotateCw, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const fmt = (n: number) =>
@@ -44,7 +44,8 @@ export function WalletCreditCard({
     const yy = String(d.getFullYear()).slice(-2);
     return `${mm}/${yy}`;
   })();
-  const edition = variant === "seller" ? "Seller · Black Edition" : "Member · Black Edition";
+  const edition = variant === "seller" ? "SELLER / SÉLECTE" : "PREFERRED / SÉLECTE";
+  const memberSince = useMemo(() => new Date().getFullYear() % 100, []);
 
   return (
     <div
@@ -60,61 +61,71 @@ export function WalletCreditCard({
       >
         {/* FRONT */}
         <div
-          className="absolute inset-0 overflow-hidden rounded-2xl border border-amber-300/25
-            bg-[radial-gradient(120%_120%_at_0%_0%,#231a3a_0%,#0d0a1f_55%,#040310_100%)]
-            text-white shadow-[0_30px_70px_-25px_rgba(201,168,76,0.55),0_15px_40px_-15px_rgba(0,0,0,0.7)]"
+          className="absolute inset-0 overflow-hidden rounded-2xl border border-sky-300/20
+            bg-[radial-gradient(140%_120%_at_15%_10%,#1f4a8a_0%,#143467_35%,#0a1f44_70%,#050f24_100%)]
+            text-white shadow-[0_30px_70px_-25px_rgba(30,80,170,0.55),0_15px_40px_-15px_rgba(0,0,0,0.7)]"
           style={{ backfaceVisibility: "hidden" }}
         >
-          <div aria-hidden className="pointer-events-none absolute inset-0 opacity-30 mix-blend-overlay [background:repeating-linear-gradient(115deg,rgba(255,255,255,0.04)_0_2px,transparent_2px_5px)]" />
-          <div aria-hidden className="pointer-events-none absolute -top-16 -right-10 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.55),transparent_70%)] blur-3xl" />
-          <div aria-hidden className="pointer-events-none absolute -bottom-20 -left-12 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(124,58,237,0.4),transparent_70%)] blur-3xl" />
-          <div aria-hidden className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent" />
-          <div aria-hidden className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent" />
+          {/* engraved diagonal pattern */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.18] mix-blend-overlay [background:repeating-linear-gradient(125deg,rgba(255,255,255,0.08)_0_1px,transparent_1px_4px)]" />
+          {/* light bloom top-left */}
+          <div aria-hidden className="pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(120,170,255,0.35),transparent_70%)] blur-3xl" />
+          {/* dark vignette bottom-right */}
+          <div aria-hidden className="pointer-events-none absolute -bottom-24 -right-16 h-60 w-60 rounded-full bg-[radial-gradient(circle,rgba(0,10,30,0.7),transparent_70%)] blur-3xl" />
+          {/* centurion silhouette */}
+          <CenturionSilhouette className="pointer-events-none absolute right-[-8%] top-1/2 h-[120%] w-auto -translate-y-1/2 opacity-[0.55] mix-blend-screen" />
+          {/* hairlines */}
+          <div aria-hidden className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-sky-200/40 to-transparent" />
+          <div aria-hidden className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-gradient-to-r from-transparent via-sky-200/30 to-transparent" />
 
           <div className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="font-display text-[10px] font-semibold uppercase tracking-[0.32em] text-amber-200/90">NEXUS-X</div>
-                <div className="mt-0.5 text-[9px] uppercase tracking-[0.22em] text-white/45">{edition}</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <RotateCw className="h-3 w-3 text-amber-200/70" />
-                <Wifi className="h-5 w-5 rotate-90 text-white/55" aria-label="contactless" />
+            <div className="flex items-start justify-between gap-3">
+              <RotateCw className="mt-1 h-3 w-3 text-sky-200/60" aria-label="flip hint" />
+              <div className="text-right">
+                <div className="font-display text-[14px] font-extrabold uppercase leading-none tracking-[0.06em] text-white sm:text-[16px]">
+                  NEXUS-X
+                </div>
+                <div className="mt-0.5 font-display text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/95 sm:text-[12px]">
+                  WALLET
+                </div>
+                <div className="mt-1 text-[8px] uppercase tracking-[0.24em] text-white/55">
+                  {edition}
+                </div>
               </div>
             </div>
 
-            <div className="-mt-1 flex flex-col gap-2">
+            <div className="-mt-1 flex flex-col gap-1.5">
               <EmvChip />
+              {/* contactless + last4 */}
+              <div className="flex items-center gap-2 font-mono text-[11px] tracking-[0.18em] text-white/85">
+                <ContactlessIcon className="h-3.5 w-3.5 text-white/70" />
+                <span className="font-semibold">{last4}</span>
+              </div>
               <div className="font-mono text-[15px] font-semibold tracking-[0.18em] text-white/85 sm:text-[17px]">
                 {loading ? (
                   <Skeleton className="inline-block h-5 w-44 bg-white/10 align-middle" />
                 ) : (
                   <>
                     <span className="text-white/55">৳</span>{" "}
-                    <span className="bg-gradient-to-br from-amber-100 via-amber-300 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_2px_14px_rgba(201,168,76,0.45)]">
+                    <span className="bg-gradient-to-br from-sky-100 via-white to-sky-300 bg-clip-text text-transparent drop-shadow-[0_2px_14px_rgba(140,190,255,0.4)]">
                       {fmt(balance)}
                     </span>
                   </>
                 )}
               </div>
-              <div className="flex items-center gap-3 font-mono text-[10px] tracking-[0.22em] text-white/45">
-                <span>•••• •••• ••••</span>
-                <span className="text-white/70">{last4}</span>
-              </div>
             </div>
 
             <div className="flex items-end justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[8px] uppercase tracking-[0.22em] text-white/45">Cardholder</div>
-                <div className="mt-0.5 truncate font-mono text-[11px] font-semibold tracking-wider text-white sm:text-xs">
+                <div className="truncate font-display text-[12px] font-bold uppercase tracking-[0.12em] text-white sm:text-sm">
                   {cardholder}
                 </div>
+                <div className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.22em] text-white/50">
+                  Cardholder · Titulaire
+                </div>
               </div>
-              <div>
-                <div className="text-[8px] uppercase tracking-[0.22em] text-white/45">Valid thru</div>
-                <div className="mt-0.5 font-mono text-[11px] font-semibold tracking-wider text-white sm:text-xs">{validThru}</div>
-              </div>
-              <BrandMark />
+              <MemberSinceBadge year={memberSince} />
+              <BrandMark validThru={validThru} />
             </div>
           </div>
         </div>
