@@ -241,11 +241,14 @@ const Admin = () => {
               <NotificationsBell />
             </div>
           </header>
+          <div className="rainbow-strip h-0.5 w-full" />
 
           <main className="min-w-0 flex-1 px-4 py-6 md:px-8">
             <div className="mb-6">
-              <h1 className="font-display text-2xl font-bold md:text-3xl">Admin CMS</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="font-display text-2xl font-bold md:text-3xl">
+                <span className="heading-gradient">Admin CMS</span>
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Manage stock, pricing, categories, seller limits, and resolve replacement issues.
               </p>
             </div>
