@@ -106,6 +106,9 @@ CREATE INDEX IF NOT EXISTS idx_accounts_cat_status ON accounts(category_id, stat
 CREATE INDEX IF NOT EXISTS idx_accounts_seller ON accounts(seller_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_uid_active ON accounts(uid) WHERE status IN ('available','sold','replacement_pending');
 
+-- Cookies blob captured from raw seller uploads (61xxx / 1000xxx formats).
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS cookies TEXT;
+
 CREATE TABLE IF NOT EXISTS orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   buyer_id UUID NOT NULL REFERENCES users(id),
