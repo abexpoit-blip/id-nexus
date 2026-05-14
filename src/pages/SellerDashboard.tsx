@@ -200,6 +200,8 @@ const SellerDashboard = () => {
   const [exportWindow, setExportWindow] = useState<"all" | "in" | "out">("all");
   const [dailyLimit, setDailyLimit] = useState<number>(0);
   const [usedToday, setUsedToday] = useState<number>(0);
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
@@ -278,16 +280,30 @@ const SellerDashboard = () => {
     setCategoryId(next);
   };
 
-  const loadAll = async () => {
+  const loadAll = async (opts: { silent?: boolean } = {}) => {
     if (!user) return;
     setCategoriesLoading(true);
     setCategoriesError(null);
     let data: any;
     try {
-      data = await api.get<any>("/api/seller/overview");
+      // 15s timeout — backend sometimes hangs under load
+      const TIMEOUT_MS = 15_000;
+      data = await Promise.race([
+        api.get<any>("/api/seller/overview"),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Request timed out (15s)")), TIMEOUT_MS),
+        ),
+      ]);
     } catch (err: any) {
-      setCategoriesError(err?.message || "Failed to load");
+      const msg = err?.message || "Failed to load dashboard";
+      setCategoriesError(msg);
       setCategoriesLoading(false);
+      if (!opts.silent) {
+        toast.error("Seller dashboard failed to load", {
+          description: msg,
+          action: { label: "Retry", onClick: () => loadAll() },
+        });
+      }
       return;
     }
     const cats = data.categories as any[];
@@ -319,12 +335,14 @@ const SellerDashboard = () => {
     });
     setStock(Array.from(map.values()));
     setRecent(recentRows ?? []);
+    setFirstLoadDone(true);
   };
 
   useEffect(() => {
     loadAll();
     if (!user) return;
-    const t = setInterval(loadAll, 30_000);
+    // Background refresh — silent (no error toast spam)
+    const t = setInterval(() => loadAll({ silent: true }), 30_000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -853,6 +871,38 @@ const SellerDashboard = () => {
     );
   }
   if (!user) return <Navigate to="/login" replace />;
+  // Initial load failed and we have no data yet — show retry screen
+  if (!firstLoadDone && categoriesError && isSeller) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <Card className="max-w-md glass-panel border-0 p-8 text-center">
+          <AlertTriangle className="mx-auto h-10 w-10 text-destructive" />
+          <h2 className="mt-4 font-display text-xl font-semibold">Couldn't load your dashboard</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{categoriesError}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Server may be busy or temporarily down. Retry in a moment.
+          </p>
+          <div className="mt-6 flex flex-col gap-2">
+            <Button
+              size="lg"
+              disabled={retrying}
+              onClick={async () => {
+                setRetrying(true);
+                await loadAll({ silent: true });
+                setRetrying(false);
+              }}
+            >
+              {retrying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              {retrying ? "Retrying…" : "Retry"}
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/dashboard">Back to dashboard</Link>
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
   if (!isSeller) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
