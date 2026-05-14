@@ -11,10 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import {
+  Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine,
+  History, TrendingUp, AlertCircle, CheckCircle2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { DepositWizard } from "@/components/wallet/DepositWizard";
 import { AppShell } from "@/components/layout/AppShell";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Method = "bkash" | "nagad" | "binance";
 
@@ -40,6 +47,26 @@ interface WithdrawRow {
   created_at: string;
 }
 
+interface LedgerRow {
+  id: string;
+  kind: string;
+  amount_bdt: string | number;
+  balance_after: string | number;
+  note: string | null;
+  created_at: string;
+}
+
+type LedgerFilter = "all" | "deposits" | "withdrawals" | "earnings";
+
+const KIND_LABEL: Record<string, string> = {
+  topup: "Deposit",
+  withdraw: "Withdrawal",
+  seller_payout: "Daily Earning",
+  refund: "Refund",
+  admin_adjustment: "Adjustment",
+  purchase: "Purchase",
+};
+
 const statusBadge = (s: string) => {
   const cls =
     s === "approved" || s === "paid"
@@ -55,7 +82,10 @@ const Wallet = () => {
   const balance = Number(profile?.balance_bdt ?? 0);
   const [topups, setTopups] = useState<TopupRow[]>([]);
   const [withdraws, setWithdraws] = useState<WithdrawRow[]>([]);
+  const [ledger, setLedger] = useState<LedgerRow[]>([]);
+  const [ledgerFilter, setLedgerFilter] = useState<LedgerFilter>("all");
   const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Withdraw form
   const [wAmount, setWAmount] = useState("");
@@ -68,12 +98,14 @@ const Wallet = () => {
   const loadAll = async () => {
     if (!user) return;
     try {
-      const [tp, wd] = await Promise.all([
+      const [tp, wd, lg] = await Promise.all([
         api.get<{ topups: TopupRow[] }>("/api/wallet/topups"),
         api.get<{ withdraws: WithdrawRow[] }>("/api/withdraws/mine").catch(() => ({ withdraws: [] as WithdrawRow[] })),
+        api.get<{ ledger: LedgerRow[] }>("/api/wallet/ledger").catch(() => ({ ledger: [] as LedgerRow[] })),
       ]);
       setTopups(tp.topups ?? []);
       setWithdraws(wd.withdraws ?? []);
+      setLedger(lg.ledger ?? []);
       await refresh();
     } catch {
       /* ignore */
@@ -88,28 +120,51 @@ const Wallet = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const submitWithdraw = async () => {
-    const amt = Number(wAmount);
-    if (!amt || amt < 100) return toast.error("Minimum withdraw ৳100");
-    if (!/^01[0-9]{9}$/.test(wReceiver.trim())) return toast.error("Enter a valid 11-digit BD mobile number (01XXXXXXXXX)");
+  // Live validation for the withdraw form
+  const wAmt = Number(wAmount);
+  const validNumber = /^01[0-9]{9}$/.test(wReceiver.trim());
+  const validAmount = Number.isFinite(wAmt) && wAmt >= 100;
+  const sufficientBalance = wAmt <= balance;
+  const canSubmit =
+    validAmount && validNumber && sufficientBalance && ["bkash", "nagad"].includes(wMethod);
+
+  const openConfirm = () => {
+    if (!validAmount) return toast.error("Minimum withdraw ৳100");
+    if (!validNumber) return toast.error("Enter a valid 11-digit BD mobile number (01XXXXXXXXX)");
+    if (!sufficientBalance) return toast.error(`Insufficient balance. Available: ৳${balance.toFixed(2)}`);
     if (!["bkash", "nagad"].includes(wMethod)) return toast.error("Only bKash and Nagad supported");
+    setConfirmOpen(true);
+  };
+
+  const submitWithdraw = async () => {
+    setConfirmOpen(false);
     setBusy(true);
     try {
       await api.post("/api/wallet/withdraw", {
-        amount_bdt: amt,
+        amount_bdt: wAmt,
         method: wMethod,
         receiver_number: wReceiver,
         note: wNote || null,
       });
-      toast.success("Withdraw submitted — admin will process.");
+      toast.success(`✓ Withdraw of ৳${wAmt.toFixed(2)} submitted`, {
+        description: `Admin will process payout to ${wMethod} ${wReceiver}.`,
+      });
       setWAmount(""); setWReceiver(""); setWNote("");
       loadAll();
     } catch (e: any) {
-      toast.error(e?.message || "Could not submit withdraw");
+      toast.error("Withdraw failed", { description: e?.message || "Please try again." });
     } finally {
       setBusy(false);
     }
   };
+
+  const filteredLedger = ledger.filter((r) => {
+    if (ledgerFilter === "all") return true;
+    if (ledgerFilter === "deposits") return r.kind === "topup" || r.kind === "refund";
+    if (ledgerFilter === "withdrawals") return r.kind === "withdraw";
+    if (ledgerFilter === "earnings") return r.kind === "seller_payout";
+    return true;
+  });
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!user) return <Navigate to="/login" replace />;
@@ -134,7 +189,8 @@ const Wallet = () => {
               <TabsTrigger value="topup"><ArrowDownToLine className="mr-2 h-4 w-4" />Top-up</TabsTrigger>
             )}
             {isSeller && <TabsTrigger value="withdraw"><ArrowUpFromLine className="mr-2 h-4 w-4" />Withdraw</TabsTrigger>}
-            <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="transactions"><History className="mr-2 h-4 w-4" />Transactions</TabsTrigger>
+            <TabsTrigger value="history">Requests</TabsTrigger>
           </TabsList>
 
           {!isSeller && (
@@ -166,10 +222,30 @@ const Wallet = () => {
                   <div>
                     <Label>Amount (৳)</Label>
                     <Input type="number" min={100} value={wAmount} onChange={(e) => setWAmount(e.target.value)} placeholder="1000" />
+                    {wAmount && !validAmount && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-destructive">
+                        <AlertCircle className="h-3 w-3" /> Minimum ৳100
+                      </p>
+                    )}
+                    {wAmount && validAmount && !sufficientBalance && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-destructive">
+                        <AlertCircle className="h-3 w-3" /> Exceeds available ৳{balance.toFixed(2)}
+                      </p>
+                    )}
+                    {wAmount && validAmount && sufficientBalance && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-success">
+                        <CheckCircle2 className="h-3 w-3" /> Remaining after: ৳{(balance - wAmt).toFixed(2)}
+                      </p>
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <Label>Receiver number</Label>
                     <Input value={wReceiver} onChange={(e) => setWReceiver(e.target.value)} placeholder="01XXXXXXXXX (your number)" />
+                    {wReceiver && !validNumber && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-destructive">
+                        <AlertCircle className="h-3 w-3" /> Must be 11 digits starting with 01
+                      </p>
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <Label>Note (optional)</Label>
@@ -177,13 +253,94 @@ const Wallet = () => {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <Button onClick={submitWithdraw} disabled={busy} className="bg-gradient-brand text-primary-foreground">
+                  <Button onClick={openConfirm} disabled={busy || !canSubmit} className="bg-gradient-brand text-primary-foreground">
                     {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Request withdraw
                   </Button>
                 </div>
               </Card>
             </TabsContent>
           )}
+
+          <TabsContent value="transactions" className="mt-4">
+            <Card className="border-border/60 bg-gradient-card p-4 sm:p-6">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 font-display text-lg font-semibold">
+                    <TrendingUp className="h-4 w-4 text-primary" /> Transaction history
+                  </div>
+                  <p className="text-xs text-muted-foreground">Filter your wallet activity by type.</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {([
+                    { k: "all", label: "All" },
+                    { k: "deposits", label: "Deposits" },
+                    { k: "withdrawals", label: "Withdrawals" },
+                    { k: "earnings", label: "Daily earnings" },
+                  ] as { k: LedgerFilter; label: string }[]).map((f) => (
+                    <button
+                      key={f.k}
+                      onClick={() => setLedgerFilter(f.k)}
+                      className={`rounded-full border px-3 py-1 text-xs transition ${
+                        ledgerFilter === f.k
+                          ? "border-primary bg-primary/15 text-primary"
+                          : "border-border/60 bg-background/40 text-muted-foreground hover:border-primary/40"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {filteredLedger.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">No transactions in this filter.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="text-right">Balance</TableHead>
+                        <TableHead>Note</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredLedger.map((r) => {
+                        const amt = Number(r.amount_bdt);
+                        const positive = amt >= 0;
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                              {new Date(r.created_at).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                                {KIND_LABEL[r.kind] ?? r.kind}
+                              </Badge>
+                            </TableCell>
+                            <TableCell
+                              className={`text-right font-mono text-sm font-semibold tabular-nums ${
+                                positive ? "text-success" : "text-destructive"
+                              }`}
+                            >
+                              {positive ? "+" : ""}৳{amt.toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs text-muted-foreground tabular-nums">
+                              ৳{Number(r.balance_after).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="max-w-[260px] truncate text-xs text-muted-foreground">
+                              {r.note ?? "—"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </Card>
+          </TabsContent>
 
           <TabsContent value="history" className="mt-4 space-y-6">
             {!isSeller && (
@@ -233,6 +390,41 @@ const Wallet = () => {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Withdraw confirmation modal */}
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm withdraw request</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 pt-2 text-sm">
+                  <div className="flex justify-between border-b border-border/40 pb-2">
+                    <span className="text-muted-foreground">Method</span>
+                    <span className="font-medium uppercase">{wMethod}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-border/40 pb-2">
+                    <span className="text-muted-foreground">Receiver</span>
+                    <span className="font-mono">{wReceiver}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-border/40 pb-2">
+                    <span className="text-muted-foreground">Amount</span>
+                    <span className="font-display text-lg font-bold text-primary">৳{wAmt.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Balance after</span>
+                    <span className="font-mono">৳{(balance - wAmt).toFixed(2)}</span>
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={submitWithdraw} className="bg-gradient-brand text-primary-foreground">
+                Confirm withdraw
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </AppShell>
   );
 };
