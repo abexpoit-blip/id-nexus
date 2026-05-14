@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Wallet, TrendingUp, Sparkles, Clock, Inbox, CheckCircle2, XCircle, Loader2, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -55,14 +56,14 @@ export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
   const pct = (n: number) => (totalActive > 0 ? Math.round((n / totalActive) * 100) : 0);
 
   return (
-    <div className="mb-6 grid gap-4 lg:grid-cols-3">
+    <div className="mb-6 grid gap-3 sm:gap-4 lg:grid-cols-3">
       {/* Premium balance hero — obsidian + gold aurora */}
-      <Card className="group relative overflow-hidden border border-amber-300/20 p-6 lg:col-span-1
+      <Card className="group relative overflow-hidden border border-amber-300/20 p-5 sm:p-6 lg:col-span-1
         bg-[radial-gradient(120%_120%_at_0%_0%,#1a1530_0%,#0b0a1f_55%,#050410_100%)]
         text-white shadow-[0_30px_80px_-30px_rgba(201,168,76,0.45),0_10px_40px_-15px_rgba(99,102,241,0.4)]">
         {/* Aurora blobs */}
-        <div aria-hidden className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.55),transparent_70%)] blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.5),transparent_70%)] blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -top-20 -right-12 h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(201,168,76,0.55),transparent_70%)] blur-3xl sm:-top-24 sm:-right-16 sm:h-64 sm:w-64" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-20 -left-12 h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.5),transparent_70%)] blur-3xl sm:-bottom-24 sm:-left-16 sm:h-64 sm:w-64" />
         {/* Subtle grid texture */}
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.07]
           [background-image:linear-gradient(rgba(255,255,255,1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,1)_1px,transparent_1px)]
@@ -70,23 +71,27 @@ export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
         {/* Animated shine sweep */}
         <div aria-hidden className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-[1400ms] ease-out group-hover:translate-x-full" />
         {/* Gold top hairline */}
-        <div aria-hidden className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent" />
+        <div aria-hidden className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent sm:inset-x-6" />
 
-        <div className="relative z-10 flex items-start justify-between">
-          <div>
+        <div className="relative z-10 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.22em] text-amber-200/90">
               <Wallet className="h-3 w-3" /> Seller wallet
             </div>
-            <div className="mt-4 flex items-baseline gap-2">
-              <span className="bg-gradient-to-br from-amber-100 via-amber-300 to-amber-500 bg-clip-text font-display text-5xl font-bold leading-none tabular-nums text-transparent drop-shadow-[0_2px_18px_rgba(201,168,76,0.35)]">
-                ৳{loading ? "—" : fmt(Number(data?.balance_bdt ?? 0))}
-              </span>
-            </div>
+            {loading ? (
+              <Skeleton className="mt-4 h-12 w-40 bg-white/10" />
+            ) : (
+              <div className="mt-4 flex items-baseline gap-2">
+                <span className="break-all bg-gradient-to-br from-amber-100 via-amber-300 to-amber-500 bg-clip-text font-display text-4xl font-bold leading-none tabular-nums text-transparent drop-shadow-[0_2px_18px_rgba(201,168,76,0.35)] sm:text-5xl">
+                  ৳{fmt(Number(data?.balance_bdt ?? 0))}
+                </span>
+              </div>
+            )}
             <div className="mt-2 text-[11px] uppercase tracking-wider text-white/55">
               Available balance · BDT
             </div>
           </div>
-          <div className="relative rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-300/30 to-amber-500/10 p-2.5 backdrop-blur">
+          <div className="relative shrink-0 rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-300/30 to-amber-500/10 p-2.5 backdrop-blur">
             <Sparkles className="h-5 w-5 text-amber-200" />
             <span className="absolute -inset-1 -z-10 rounded-2xl bg-amber-400/20 blur-md" />
           </div>
@@ -100,12 +105,16 @@ export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
           ].map((s) => (
             <div
               key={s.label}
-              className="group/stat relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur transition hover:border-amber-300/40 hover:bg-white/[0.08]"
+              className="group/stat relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-2.5 backdrop-blur transition hover:border-amber-300/40 hover:bg-white/[0.08] sm:p-3"
             >
               <div className="text-[10px] uppercase tracking-wider text-white/55">{s.label}</div>
-              <div className="mt-1 font-display text-base font-semibold tabular-nums text-white">
-                ৳{fmt(Number(s.value ?? 0))}
-              </div>
+              {loading ? (
+                <Skeleton className="mt-1 h-5 w-16 bg-white/10" />
+              ) : (
+                <div className="mt-1 truncate font-display text-sm font-semibold tabular-nums text-white sm:text-base">
+                  ৳{fmt(Number(s.value ?? 0))}
+                </div>
+              )}
               <span className="pointer-events-none absolute -bottom-6 -right-6 h-12 w-12 rounded-full bg-amber-400/20 blur-2xl opacity-0 transition group-hover/stat:opacity-100" />
             </div>
           ))}
@@ -120,21 +129,27 @@ export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
       </Card>
 
       {/* Status pipeline */}
-      <Card className="glass-panel border-0 p-6 lg:col-span-2">
-        <div className="mb-4 flex items-center justify-between">
+      <Card className="glass-panel border-0 p-5 sm:p-6 lg:col-span-2">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
               <TrendingUp className="h-3.5 w-3.5" /> Upload status pipeline
             </div>
-            <div className="mt-1 font-display text-lg font-semibold">
-              {loading ? <Loader2 className="inline h-4 w-4 animate-spin" /> : `${totalActive} batches tracked`}
-            </div>
+            {loading ? (
+              <Skeleton className="mt-2 h-6 w-32" />
+            ) : (
+              <div className="mt-1 font-display text-lg font-semibold">{totalActive} batches tracked</div>
+            )}
           </div>
           <div className="text-right text-xs text-muted-foreground">
             Pending units<br />
-            <span className="font-display text-base font-semibold text-foreground tabular-nums">
-              {pipe?.pending_units ?? 0}
-            </span>
+            {loading ? (
+              <Skeleton className="ml-auto mt-1 h-5 w-12" />
+            ) : (
+              <span className="font-display text-base font-semibold text-foreground tabular-nums">
+                {pipe?.pending_units ?? 0}
+              </span>
+            )}
           </div>
         </div>
 
@@ -146,12 +161,20 @@ export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
           <div className="bg-destructive transition-all" style={{ width: `${pct(pipe?.rejected ?? 0)}%` }} />
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <PipelineStat icon={<Inbox className="h-4 w-4" />} label="Uploaded" value={pipe?.uploaded ?? 0} dot="bg-amber-500" hint="Awaiting admin" />
-          <PipelineStat icon={<Clock className="h-4 w-4" />} label="Collected" value={pipe?.collected ?? 0} dot="bg-sky-500" hint="Admin downloaded" />
-          <PipelineStat icon={<CheckCircle2 className="h-4 w-4" />} label="Completed" value={pipe?.completed ?? 0} dot="bg-emerald-500" hint="Paid out" />
-          <PipelineStat icon={<XCircle className="h-4 w-4" />} label="Rejected" value={pipe?.rejected ?? 0} dot="bg-destructive" hint="No credit" />
-        </div>
+        {loading ? (
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-[88px] w-full rounded-xl" />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
+            <PipelineStat icon={<Inbox className="h-4 w-4" />} label="Uploaded" value={pipe?.uploaded ?? 0} dot="bg-amber-500" hint="Awaiting admin" />
+            <PipelineStat icon={<Clock className="h-4 w-4" />} label="Collected" value={pipe?.collected ?? 0} dot="bg-sky-500" hint="Admin downloaded" />
+            <PipelineStat icon={<CheckCircle2 className="h-4 w-4" />} label="Completed" value={pipe?.completed ?? 0} dot="bg-emerald-500" hint="Paid out" />
+            <PipelineStat icon={<XCircle className="h-4 w-4" />} label="Rejected" value={pipe?.rejected ?? 0} dot="bg-destructive" hint="No credit" />
+          </div>
+        )}
       </Card>
     </div>
   );
