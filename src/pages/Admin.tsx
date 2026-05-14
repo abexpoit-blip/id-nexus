@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { CategoriesManager } from "@/components/admin/CategoriesManager";
 import { SellerLimitsManager } from "@/components/admin/SellerLimitsManager";
+import { SellerUploadsManager } from "@/components/admin/SellerUploadsManager";
 import { StockOverview } from "@/components/admin/StockOverview";
 import { PaymentsManager } from "@/components/admin/PaymentsManager";
 import { SellerApplicationsManager } from "@/components/admin/SellerApplicationsManager";
@@ -269,6 +270,7 @@ const Admin = () => {
         {section === "categories" && <CategoriesManager />}
         {section === "vpn_brands" && <VpnBrandsManager />}
         {section === "sellers" && <SellerLimitsManager />}
+        {section === "seller_uploads" && <SellerUploadsManager />}
         {section === "applications" && <SellerApplicationsManager />}
         {section === "payments" && <PaymentsManager />}
         {section === "payouts" && <PayoutScheduleManager />}
