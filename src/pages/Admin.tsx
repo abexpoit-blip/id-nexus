@@ -86,7 +86,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "all">("pending");
   const [section, setSection] = useState<
-    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "applications" | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages" | "support" | "notices"
+    "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "seller_uploads" | "applications" | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages" | "support" | "notices"
   >("overview");
   const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
