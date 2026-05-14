@@ -41,7 +41,11 @@ export async function authRequired(req: AuthedReq, res: Response, next: NextFunc
 
 export function requireRole(role: string) {
   return (req: AuthedReq, res: Response, next: NextFunction) => {
-    if (!req.user?.roles.includes(role)) return res.status(403).json({ error: "forbidden" });
+    const roles = req.user?.roles || [];
+    // Admin has implicit access to all role-guarded routes
+    if (!roles.includes(role) && !roles.includes("admin")) {
+      return res.status(403).json({ error: "forbidden" });
+    }
     next();
   };
 }
