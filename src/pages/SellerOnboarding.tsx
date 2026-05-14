@@ -87,14 +87,14 @@ const SellerOnboarding = () => {
   const StepIcon = STEPS[stepIdx].icon;
 
   return (
-    <div className="min-h-screen bg-background text-foreground" style={{ backgroundImage: "radial-gradient(ellipse at top, hsl(265 84% 62% / 0.18), transparent 55%), radial-gradient(ellipse at bottom, hsl(174 84% 50% / 0.12), transparent 55%)" }}>
+    <div className="min-h-screen bg-background bg-premium-ambient text-foreground">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
           <Link to="/seller" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> Skip to dashboard
           </Link>
           <Logo size="sm" showTagline={false} />
-          <Badge variant="outline" className="gap-1"><Sparkles className="h-3 w-3" /> Seller setup</Badge>
+          <span className="pill-gold"><Sparkles className="h-3 w-3" /> Seller setup</span>
         </div>
       </header>
 
@@ -107,7 +107,25 @@ const SellerOnboarding = () => {
               const done = i < stepIdx;
               return (
                 <div key={s.key} className="flex flex-1 items-center gap-2">
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all ${active ? "border-primary bg-primary/15 text-primary shadow-glow" : done ? "border-success bg-success/15 text-success" : "border-border bg-card text-muted-foreground"}`}>
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all ${
+                      active
+                        ? "text-foreground"
+                        : done
+                        ? "border-success bg-success/15 text-success"
+                        : "border-border bg-card text-muted-foreground"
+                    }`}
+                    style={
+                      active
+                        ? {
+                            borderColor: "hsl(var(--brand-gold) / 0.7)",
+                            background: "hsl(var(--brand-gold) / 0.12)",
+                            boxShadow: "0 0 24px -6px hsl(var(--brand-gold) / 0.6)",
+                            color: "hsl(var(--brand-gold-soft))",
+                          }
+                        : undefined
+                    }
+                  >
                     {done ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-4 w-4" />}
                   </div>
                   <span className={`hidden text-xs md:inline ${active ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{s.label}</span>
@@ -117,14 +135,20 @@ const SellerOnboarding = () => {
             })}
           </div>
           <div className="h-1 w-full overflow-hidden rounded-full bg-border/60">
-            <div className="h-full bg-gradient-brand transition-all" style={{ width: `${progress}%` }} />
+            <div className="h-full transition-all" style={{ width: `${progress}%`, backgroundImage: "var(--gradient-gold)" }} />
           </div>
         </div>
 
-        <Card className="border-primary/30 bg-gradient-card p-6 md:p-8" style={{ boxShadow: "0 0 40px -16px hsl(var(--primary) / 0.5)" }}>
+        <Card className="glass-panel-strong border-0 p-6 md:p-8">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-brand shadow-glow">
-              <StepIcon className="h-6 w-6 text-primary-foreground" />
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-xl"
+              style={{
+                backgroundImage: "var(--gradient-gold)",
+                boxShadow: "0 12px 30px -10px hsl(var(--brand-gold) / 0.55)",
+              }}
+            >
+              <StepIcon className="h-6 w-6" style={{ color: "hsl(224 47% 6%)" }} />
             </div>
             <div>
               <div className="text-xs uppercase tracking-widest text-muted-foreground">Step {stepIdx + 1} / {STEPS.length}</div>
@@ -140,7 +164,7 @@ const SellerOnboarding = () => {
                 <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g. Shovon Store" className="mt-1.5" />
               </div>
               <div className="flex justify-end">
-                <Button onClick={saveProfile} disabled={saving} className="bg-gradient-brand text-primary-foreground shadow-glow">
+                <Button onClick={saveProfile} disabled={saving} className="btn-gold">
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Save & continue <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -158,13 +182,27 @@ const SellerOnboarding = () => {
                   {categories.map((c) => {
                     const active = pickedCategory === c.id;
                     return (
-                      <button key={c.id} type="button" onClick={() => setPickedCategory(c.id)} className={`group rounded-xl border-2 p-4 text-left transition-all ${active ? "border-primary bg-primary/10 shadow-glow" : "border-border bg-card/40 hover:border-primary/50"}`}>
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setPickedCategory(c.id)}
+                        className="group rounded-xl border-2 p-4 text-left transition-all"
+                        style={
+                          active
+                            ? {
+                                borderColor: "hsl(var(--brand-gold) / 0.7)",
+                                background: "hsl(var(--brand-gold) / 0.08)",
+                                boxShadow: "0 18px 40px -16px hsl(var(--brand-gold) / 0.45)",
+                              }
+                            : { borderColor: "hsl(var(--border))", background: "hsl(var(--card) / 0.4)" }
+                        }
+                      >
                         <div className="flex items-start justify-between">
                           <div>
                             <div className="font-display text-base font-bold">{c.name}</div>
                             <div className="mt-1 text-xs text-muted-foreground">{c.slug}</div>
                           </div>
-                          <Badge variant="outline" className="border-primary/40 text-primary">৳{c.price_bdt}</Badge>
+                          <span className="pill-gold">৳{c.price_bdt}</span>
                         </div>
                         {active && <div className="mt-3 flex items-center gap-1 text-xs text-success"><CheckCircle2 className="h-3 w-3" /> Selected</div>}
                       </button>
@@ -174,7 +212,7 @@ const SellerOnboarding = () => {
               )}
               <div className="flex justify-between">
                 <Button variant="outline" onClick={() => setStepIdx(0)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-                <Button onClick={() => setStepIdx(2)} disabled={!pickedCategory} className="bg-gradient-brand text-primary-foreground shadow-glow">
+                <Button onClick={() => setStepIdx(2)} disabled={!pickedCategory} className="btn-gold">
                   Continue <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -200,7 +238,7 @@ const SellerOnboarding = () => {
               </div>
               <div className="flex justify-between">
                 <Button variant="outline" onClick={() => setStepIdx(1)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-                <Button onClick={finish} disabled={finishing} size="lg" className="bg-gradient-brand text-primary-foreground shadow-glow">
+                <Button onClick={finish} disabled={finishing} size="lg" className="btn-gold">
                   {finishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                   Finish & start uploading
                 </Button>

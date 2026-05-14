@@ -64,11 +64,7 @@ const SellerLogin = () => {
 
   return (
     <div
-      className="flex min-h-screen items-center justify-center bg-background px-4 py-10"
-      style={{
-        backgroundImage:
-          "radial-gradient(ellipse at top, hsl(174 84% 50% / 0.18), transparent 55%), radial-gradient(ellipse at bottom, hsl(265 84% 62% / 0.12), transparent 55%)",
-      }}
+      className="flex min-h-screen items-center justify-center bg-background bg-premium-ambient px-4 py-10"
     >
       <div className="w-full max-w-md">
         <Link
@@ -79,11 +75,11 @@ const SellerLogin = () => {
         </Link>
         <div className="mb-6 text-center">
           <Logo size="lg" />
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-primary">
+          <div className="pill-gold mt-3">
             <Store className="h-3.5 w-3.5" /> Seller portal
           </div>
         </div>
-        <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
+        <Card className="glass-panel-strong border-0 p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="seller-email">Seller email</Label>
@@ -116,7 +112,7 @@ const SellerLogin = () => {
             <Button
               type="submit"
               disabled={submitting}
-              className="w-full bg-gradient-brand text-primary-foreground shadow-glow hover:opacity-90"
+              className="btn-gold w-full"
               size="lg"
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -127,7 +123,7 @@ const SellerLogin = () => {
             </p>
             <div className="border-t border-border/40 pt-4 text-center text-sm text-muted-foreground">
               Not a seller yet?{" "}
-              <Link to="/apply-seller" className="font-semibold text-primary underline-offset-2 hover:underline">
+              <Link to="/apply-seller" className="text-gold font-semibold underline-offset-2 hover:underline">
                 Apply to become one
               </Link>
             </div>

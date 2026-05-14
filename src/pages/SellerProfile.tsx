@@ -59,7 +59,7 @@ const SellerProfile = () => {
         <Card className="p-8 text-center text-muted-foreground">{error ?? "Seller not found."}</Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-3">
-          <Card className="lg:col-span-2 border-border/60 bg-gradient-card p-6">
+          <Card className="glass-panel-strong border-0 lg:col-span-2 p-6">
             <div className="flex items-start gap-4">
               <div className={`rounded-lg p-3 ${tierMeta[s.tier].bg}`}>
                 {(() => { const Icon = tierMeta[s.tier].icon; return <Icon className={`h-7 w-7 ${tierMeta[s.tier].cls}`} />; })()}
@@ -80,34 +80,34 @@ const SellerProfile = () => {
               </div>
             </div>
           </Card>
-          <Card className="border-border/60 bg-gradient-card p-6">
+          <Card className="glass-panel border-0 p-6">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Reliability</div>
-            <div className="mt-2 font-display text-4xl font-bold text-success">{s.reliability_pct}%</div>
+            <div className="text-gold mt-2 font-display text-4xl font-bold">{s.reliability_pct}%</div>
             <p className="mt-2 text-xs text-muted-foreground">
               Share of accounts with no upheld replacement claim.
             </p>
           </Card>
 
-          <Card className="border-border/60 bg-gradient-card p-5">
+          <Card className="glass-panel border-0 p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Lifetime sales</div>
-            <div className="mt-1 font-display text-2xl font-bold text-primary">{s.sales_lifetime}</div>
+            <div className="text-gold mt-1 font-display text-2xl font-bold">{s.sales_lifetime}</div>
           </Card>
-          <Card className="border-border/60 bg-gradient-card p-5">
+          <Card className="glass-panel border-0 p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Sales (30d)</div>
             <div className="mt-1 font-display text-2xl font-bold">{s.sales_30d}</div>
           </Card>
-          <Card className="border-border/60 bg-gradient-card p-5">
+          <Card className="glass-panel border-0 p-5">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Available stock</div>
             <div className="mt-1 flex items-center gap-2 font-display text-2xl font-bold">
               <Boxes className="h-5 w-5 text-muted-foreground" /> {s.available_stock}
             </div>
           </Card>
 
-          <Card className="lg:col-span-3 border-border/60 bg-gradient-card p-5">
+          <Card className="glass-panel border-0 lg:col-span-3 p-5">
             <div className="grid gap-4 md:grid-cols-3">
               <div>
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">Lifetime revenue</div>
-                <div className="mt-1 font-display text-xl font-semibold text-primary">৳ {Number(s.revenue_lifetime).toFixed(0)}</div>
+                <div className="text-gold mt-1 font-display text-xl font-semibold">৳ {Number(s.revenue_lifetime).toFixed(0)}</div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">Replacements filed</div>
