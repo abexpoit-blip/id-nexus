@@ -466,3 +466,17 @@ CREATE INDEX IF NOT EXISTS idx_seller_upload_audits_review_status
 -- Collected/downloaded tracking (admin downloaded the batch)
 ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ;
 ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS collected_by UUID REFERENCES users(id);
+
+-- ===== Performance indexes (hot paths) =====
+CREATE INDEX IF NOT EXISTS idx_order_items_seller_created
+  ON order_items(seller_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_replacement_items_seller_outcome
+  ON replacement_items(seller_id, outcome);
+CREATE INDEX IF NOT EXISTS idx_accounts_seller_created
+  ON accounts(seller_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_accounts_created
+  ON accounts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_messages_thread_created
+  ON admin_messages(thread_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_admin_messages_unread
+  ON admin_messages(thread_user_id) WHERE sender_is_admin = true AND read_at IS NULL;
