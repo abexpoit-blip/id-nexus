@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, TrendingUp, Clock, Inbox, CheckCircle2, XCircle, ArrowUpRight, Wifi, RotateCw } from "lucide-react";
+import { TrendingUp, Clock, Inbox, CheckCircle2, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { WalletCreditCard } from "@/components/wallet/WalletCreditCard";
 
 interface WalletData {
   balance_bdt: number;
@@ -70,12 +71,14 @@ export function SellerWalletCard({ refreshKey = 0 }: { refreshKey?: number }) {
     <div className="mb-6 grid gap-3 sm:gap-4 lg:grid-cols-3">
       {/* Premium credit-card style wallet */}
       <div className="lg:col-span-1">
-        <CreditCardWallet
+        <WalletCreditCard
           loading={loading}
           balance={Number(data?.balance_bdt ?? 0)}
           cardholder={cardholder}
           last4={last4}
+          variant="seller"
           recent={data?.recent_ledger ?? []}
+          showOpenLink
         />
 
         {/* Stats row below the card */}
