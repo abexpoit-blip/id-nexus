@@ -720,6 +720,18 @@ const SellerDashboard = () => {
       return;
     }
     setDuplicates(fresh);
+    if (fresh.invalidCategoryUids.length > 0) {
+      const sample = fresh.invalidCategoryUids.slice(0, 5).join(", ");
+      const more = fresh.invalidCategoryUids.length > 5 ? ` (+${fresh.invalidCategoryUids.length - 5} more)` : "";
+      const msg = `Category mismatch: ${fresh.invalidCategoryUids.length} UID${fresh.invalidCategoryUids.length > 1 ? "s" : ""} do not match ${fresh.categoryBase ?? "the selected category"}. Fix the file or choose the correct category. ${sample}${more}`;
+      setUploadError(msg);
+      setUploadStep("error");
+      toast.error(msg, { duration: 8000 });
+      setDupModalTab("category");
+      setDupModalPage(1);
+      setDupModalOpen(true);
+      return;
+    }
     const freshDupSet = new Set<string>([
       ...fresh.duplicatesInStock,
       ...fresh.duplicatesInFile,
