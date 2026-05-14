@@ -12,7 +12,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, CheckCircle2, XCircle, Clock, Eye } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, Eye, Download } from "lucide-react";
 import { toast } from "sonner";
 import { UploadStatusProgress } from "@/components/seller/SellerWalletCard";
 
@@ -53,6 +53,7 @@ export const SellerUploadsManager = () => {
   const [unitPrice, setUnitPrice] = useState<string>("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -69,6 +70,21 @@ export const SellerUploadsManager = () => {
   };
 
   useEffect(() => { load(); }, [tab]);
+
+  const downloadBatch = async (row: { id: string; file_name: string | null }) => {
+    setDownloadingId(row.id);
+    try {
+      const safe = (row.file_name || `upload-${row.id}`).replace(/[^a-zA-Z0-9._-]+/g, "_");
+      const fname = safe.endsWith(".txt") ? safe : `${safe}.txt`;
+      await api.download(`/api/admin/seller-uploads/${row.id}/download`, fname);
+      toast.success("Download started");
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || "Download failed");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const openReview = async (row: UploadRow) => {
     try {
@@ -184,10 +200,26 @@ export const SellerUploadsManager = () => {
                     {new Date(r.created_at).toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="outline" onClick={() => openReview(r)}>
-                      <Eye className="mr-1 h-4 w-4" />
-                      {r.review_status === "pending" ? "Review" : "View"}
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => downloadBatch(r)}
+                        disabled={downloadingId === r.id}
+                        title="Download UID list"
+                      >
+                        {downloadingId === r.id ? (
+                          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="mr-1 h-4 w-4" />
+                        )}
+                        Download
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => openReview(r)}>
+                        <Eye className="mr-1 h-4 w-4" />
+                        {r.review_status === "pending" ? "Review" : "View"}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -295,6 +327,20 @@ export const SellerUploadsManager = () => {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setActive(null)}>Close</Button>
+            {active && (
+              <Button
+                variant="outline"
+                onClick={() => downloadBatch(active)}
+                disabled={downloadingId === active.id}
+              >
+                {downloadingId === active.id ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Download .txt
+              </Button>
+            )}
             {active?.review_status === "pending" && (
               <Button onClick={submit} disabled={submitting}>
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
