@@ -1022,14 +1022,29 @@ const SellerDashboard = () => {
             Excel/CSV columns: <code>UID</code> · <code>PASS</code> · <code>COOKIES</code>.
             Headerless 3-column files (61xxx or 1000xxx UIDs) are auto-detected.
           </p>
-          <div className="mt-2">
-            <a
-              href="/seller-stock-template.xlsx"
-              download
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="border-amber-400/40 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20 hover:text-white"
             >
-              <Download className="h-3 w-3" /> Download Excel template
-            </a>
+              <a href="/seller-stock-template.xlsx" download>
+                <FileDown className="mr-1.5 h-3.5 w-3.5" />
+                Excel template (.xlsx)
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="ghost" className="text-xs">
+              <a href="/seller-stock-template.csv" download>
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+                CSV template (.csv)
+              </a>
+            </Button>
+            <span className="text-[11px] text-muted-foreground">
+              Headers: <code className="rounded bg-muted px-1">UID</code>{" "}
+              <code className="rounded bg-muted px-1">PASS</code>{" "}
+              <code className="rounded bg-muted px-1">COOKIES</code>
+            </span>
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,auto]">
