@@ -740,11 +740,16 @@ router.get("/seller-limits/full", async (_req, res) => {
   const [setting] = await q<{ value: any }>(`SELECT value FROM app_settings WHERE key='default_seller_daily_limit'`);
   const defaultLimit = Number(setting?.value ?? 500);
   const sellers = await q(
-    `SELECT u.id AS user_id, p.display_name, p.email, p.telegram_username,
+    `SELECT u.id AS user_id, p.display_name, p.email,
+            COALESCE(p.contact_handle, sa.telegram_username) AS telegram_username,
             l.daily_limit
        FROM user_roles r
        JOIN users u ON u.id=r.user_id
        LEFT JOIN profiles p ON p.id=u.id
+       LEFT JOIN LATERAL (
+         SELECT telegram_username FROM seller_applications
+          WHERE user_id=u.id ORDER BY created_at DESC LIMIT 1
+       ) sa ON true
        LEFT JOIN seller_daily_limits l ON l.seller_id=u.id
        WHERE r.role='seller' ORDER BY p.email NULLS LAST`
   );
