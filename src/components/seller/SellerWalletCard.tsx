@@ -175,3 +175,73 @@ export function UploadStatusBadge({ audit }: { audit: any }) {
     </span>
   );
 }
+
+/**
+ * Visual 3-step pipeline: Submitted → Collected → Completed (or Rejected at step 3).
+ * Works for both seller's own audit row and admin's upload row (review_status + collected_at).
+ */
+export function UploadStatusProgress({
+  audit,
+  compact = false,
+}: { audit: any; compact?: boolean }) {
+  const status = audit?.review_status as string;
+  const collected = !!audit?.collected_at || status === "approved" || status === "rejected";
+  const isRejected = status === "rejected";
+  const isCompleted = status === "approved";
+
+  // step index reached (0..2)
+  const reached = isCompleted || isRejected ? 2 : collected ? 1 : 0;
+
+  const finalLabel = isRejected ? "Rejected" : "Completed";
+  const finalDot = isRejected ? "bg-destructive" : "bg-emerald-500";
+  const finalText = isRejected ? "text-destructive" : "text-emerald-500";
+
+  const steps = [
+    { key: "sub", label: "Submitted", dot: "bg-amber-500", text: "text-amber-500" },
+    { key: "col", label: "Collected", dot: "bg-sky-500", text: "text-sky-500" },
+    { key: "fin", label: finalLabel, dot: finalDot, text: finalText },
+  ];
+
+  const segActive = (i: number) => i < reached;
+  const segColor = (i: number) =>
+    i === 0 ? "bg-gradient-to-r from-amber-500 to-sky-500"
+    : i === 1 ? `bg-gradient-to-r from-sky-500 ${isRejected ? "to-destructive" : "to-emerald-500"}`
+    : "";
+
+  return (
+    <div className={`flex flex-col gap-1 ${compact ? "min-w-[180px]" : "min-w-[220px]"}`}>
+      <div className="flex items-center">
+        {steps.map((s, i) => {
+          const done = i <= reached;
+          return (
+            <div key={s.key} className="flex flex-1 items-center last:flex-none">
+              <span
+                className={`relative h-2.5 w-2.5 shrink-0 rounded-full ring-2 transition-all
+                  ${done ? `${s.dot} ring-${s.dot.replace("bg-", "")}/30` : "bg-muted ring-border/40"}`}
+                style={done ? undefined : undefined}
+                aria-hidden
+              >
+                {i === reached && reached < 2 && (
+                  <span className={`absolute inset-0 animate-ping rounded-full ${s.dot} opacity-50`} />
+                )}
+              </span>
+              {i < steps.length - 1 && (
+                <span
+                  className={`mx-1 h-1 flex-1 rounded-full transition-all
+                    ${segActive(i) ? segColor(i) : "bg-muted/50"}`}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex justify-between text-[9px] font-medium uppercase tracking-wider">
+        {steps.map((s, i) => (
+          <span key={s.key} className={i <= reached ? s.text : "text-muted-foreground/60"}>
+            {s.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
