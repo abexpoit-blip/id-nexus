@@ -139,14 +139,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/apply-seller"
-              element={
-                <ProtectedRoute>
-                  <SellerApply />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/apply-seller" element={<SellerApply />} />
             <Route
               path="/seller/onboarding"
               element={
