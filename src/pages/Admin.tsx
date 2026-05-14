@@ -5,18 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Loader2, AlertTriangle, RefreshCcw, DollarSign, XCircle, CheckCheck, ScrollText } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { CategoriesManager } from "@/components/admin/CategoriesManager";
@@ -67,29 +57,15 @@ interface RpItem {
   account_id: string | null;
 }
 
-const outcomeBadgeClass = (o: string) => {
-  const map: Record<string, string> = {
-    pending: "bg-warning/20 text-warning",
-    replaced: "bg-success/20 text-success",
-    refunded: "bg-success/20 text-success",
-    rejected: "bg-destructive/20 text-destructive",
-    out_of_window: "bg-muted text-muted-foreground",
-    not_yours: "bg-muted text-muted-foreground",
-  };
-  return map[o] ?? "bg-muted text-muted-foreground";
-};
-
 const Admin = () => {
   const { user, roles, loading: authLoading } = useAuth();
   const isAdmin = roles.includes("admin");
 
   const [items, setItems] = useState<RpItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"pending" | "all">("pending");
   const [section, setSection] = useState<
     "overview" | "users" | "orders" | "leaderboard" | "replacements" | "stock" | "categories" | "vpn_brands" | "sellers" | "seller_uploads" | "applications" | "payments" | "payouts" | "accounts" | "brand" | "risk" | "messages" | "support" | "notices"
   >("overview");
-  const [search, setSearch] = useState("");
   const [actingItem, setActingItem] = useState<RpItem | null>(null);
   const [action, setAction] = useState<"replace" | "refund" | "reject" | "replace_category" | null>(null);
   const [targetCategoryId, setTargetCategoryId] = useState<string>("");
@@ -132,21 +108,6 @@ const Admin = () => {
     return () => { clearInterval(t); clearInterval(tm); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
-
-  const filtered = useMemo(() => {
-    let list = items;
-    if (tab === "pending") list = list.filter((i) => i.outcome === "pending");
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter(
-        (i) =>
-          i.reported_uid.toLowerCase().includes(q) ||
-          i.id.toLowerCase().includes(q) ||
-          i.request_id.toLowerCase().includes(q),
-      );
-    }
-    return list;
-  }, [items, tab, search]);
 
   const counts = useMemo(() => {
     return {
@@ -227,23 +188,23 @@ const Admin = () => {
             <div className="flex items-center gap-3">
               <SidebarTrigger />
               <Link to="/dashboard" className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline">
-                <ArrowLeft className="inline h-4 w-4" /> Dashboard
+                <ArrowLeft className="inline h-4 w-4" aria-hidden="true" /> Dashboard
               </Link>
               <Logo size="sm" showTagline={false} />
               <span className="rounded-full bg-gradient-to-r from-fuchsia-500 via-violet-500 to-cyan-500 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white shadow-md">Admin</span>
-              <span className="pill-live hidden sm:inline-flex">Live</span>
+              <span className="pill-live hidden sm:inline-flex" aria-label="Live data">Live</span>
             </div>
             <div className="flex items-center gap-2">
               <GlobalSearch onJump={(s) => setSection(s as typeof section)} />
               <Button variant="outline" size="sm" asChild>
                 <Link to="/admin/audit">
-                  <ScrollText className="mr-2 h-4 w-4" /> Audit log
+                  <ScrollText className="mr-2 h-4 w-4" aria-hidden="true" /> Audit log
                 </Link>
               </Button>
               <NotificationsBell />
             </div>
           </header>
-          <div className="rainbow-strip h-0.5 w-full" />
+          <div className="rainbow-strip h-0.5 w-full" aria-hidden="true" />
 
           <main className="surface-aurora min-w-0 flex-1 px-3 py-4 sm:px-4 md:px-8 md:py-6">
             <div className="mb-4 md:mb-6">
