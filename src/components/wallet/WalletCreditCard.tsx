@@ -125,7 +125,10 @@ export function WalletCreditCard({
                 </div>
               </div>
               <MemberSinceBadge year={memberSince} />
-              <BrandMark validThru={validThru} />
+              <div className="text-right">
+                <div className="font-mono text-[8px] uppercase tracking-[0.22em] text-white/50">Valid thru</div>
+                <div className="font-mono text-[10px] font-semibold tracking-wider text-white sm:text-[11px]">{validThru}</div>
+              </div>
             </div>
           </div>
         </div>
