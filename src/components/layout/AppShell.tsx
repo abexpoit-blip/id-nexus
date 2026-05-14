@@ -230,7 +230,10 @@ function MobileBottomTabs({ mode }: { mode: AppShellMode }) {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 backdrop-blur-xl md:hidden">
-      <ul className="grid grid-cols-4">
+      <ul
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      >
         {items.map((item) => {
           const active = isActive(location.pathname, item);
           const Icon = item.icon;
