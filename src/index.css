@@ -258,4 +258,102 @@ All colors MUST be HSL.
       hsl(330 90% 60%) 75%,
       hsl(45 95% 60%) 100%);
   }
+
+  /* === Premium polish pass: ambient surfaces, animated gradients === */
+
+  /* Ambient aurora background for dashboard surfaces */
+  .surface-aurora {
+    position: relative;
+    isolation: isolate;
+  }
+  .surface-aurora::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 15% 0%,  hsl(265 84% 62% / 0.16), transparent 60%),
+      radial-gradient(ellipse 50% 35% at 85% 5%,  hsl(174 84% 50% / 0.14), transparent 60%),
+      radial-gradient(ellipse 40% 30% at 50% 110%, hsl(330 90% 60% / 0.10), transparent 60%);
+    background-size: 200% 200%;
+    animation: gradient-shift 14s ease-in-out infinite;
+  }
+
+  /* Animated rainbow heading */
+  .heading-rainbow {
+    background-image: linear-gradient(90deg,
+      hsl(174 84% 55%), hsl(190 95% 60%), hsl(265 84% 68%),
+      hsl(330 90% 65%), hsl(45 95% 60%), hsl(174 84% 55%));
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gradient-shift 8s ease-in-out infinite;
+  }
+
+  /* Shimmer overlay for KPI tiles on hover */
+  .kpi-tile { will-change: transform; }
+  .kpi-tile::after { transition: width 0.3s ease; }
+  .kpi-tile:hover::after { width: 5px; }
+  .kpi-tile .icon-chip { transition: transform 0.3s ease; }
+  .kpi-tile:hover .icon-chip { transform: rotate(-6deg) scale(1.08); }
+
+  /* Sidebar active item — colorful pill with rainbow left bar */
+  .nav-active-rainbow {
+    position: relative;
+    background: linear-gradient(90deg,
+      hsl(174 84% 50% / 0.18),
+      hsl(265 84% 62% / 0.14),
+      transparent 80%) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+  .nav-active-rainbow::before {
+    content: "";
+    position: absolute;
+    left: -2px; top: 6px; bottom: 6px;
+    width: 3px;
+    border-radius: 3px;
+    background: linear-gradient(180deg,
+      hsl(174 84% 55%), hsl(265 84% 62%), hsl(330 90% 60%));
+    box-shadow: 0 0 12px hsl(265 84% 62% / 0.6);
+  }
+
+  /* Premium status pill with subtle pulse */
+  .pill-live {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em];
+    color: hsl(152 76% 60%);
+    background: hsl(152 76% 44% / 0.12);
+    border: 1px solid hsl(152 76% 44% / 0.4);
+  }
+  .pill-live::before {
+    content: "";
+    width: 6px; height: 6px; border-radius: 999px;
+    background: hsl(152 76% 50%);
+    box-shadow: 0 0 10px hsl(152 76% 50% / 0.9);
+    animation: glow-pulse 1.8s ease-in-out infinite;
+  }
+
+  /* Hero header band for dashboards */
+  .hero-band {
+    @apply relative overflow-hidden rounded-2xl border p-5 sm:p-6;
+    border-color: hsl(var(--border) / 0.6);
+    background:
+      linear-gradient(135deg,
+        hsl(265 84% 62% / 0.18),
+        hsl(174 84% 50% / 0.14) 50%,
+        hsl(330 90% 60% / 0.12)),
+      linear-gradient(160deg, hsl(224 40% 11%), hsl(224 40% 8%));
+    background-size: 200% 200%, 100% 100%;
+    animation: gradient-shift 12s ease-in-out infinite;
+  }
+  .hero-band::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 50% 60% at 100% 0%, hsl(265 84% 62% / 0.25), transparent 60%),
+      radial-gradient(ellipse 40% 60% at 0% 100%, hsl(174 84% 50% / 0.20), transparent 60%);
+  }
 }

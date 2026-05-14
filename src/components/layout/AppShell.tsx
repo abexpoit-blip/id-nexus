@@ -325,10 +325,13 @@ export const AppShell = ({ mode, title, subtitle, actions, children }: AppShellP
               </div>
             </div>
             {(title || subtitle || actions) && (
+            <>
               <div className="flex flex-wrap items-end justify-between gap-3 border-t border-border/40 px-4 py-4 md:px-6">
                 <div>
                   {title && (
-                    <h1 className="font-display text-xl font-bold md:text-2xl">{title}</h1>
+                    <h1 className="font-display text-xl font-bold md:text-2xl">
+                      <span className="heading-rainbow">{title}</span>
+                    </h1>
                   )}
                   {subtitle && (
                     <p className="text-sm text-muted-foreground">{subtitle}</p>
@@ -336,10 +339,12 @@ export const AppShell = ({ mode, title, subtitle, actions, children }: AppShellP
                 </div>
                 {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
               </div>
+              <div className="rainbow-strip h-0.5 w-full opacity-80" />
+            </>
             )}
           </header>
 
-          <main className="flex-1 px-4 pb-24 pt-6 md:px-6 md:pb-10">{children}</main>
+          <main className="surface-aurora flex-1 px-4 pb-24 pt-6 md:px-6 md:pb-10">{children}</main>
           <BrandFooter compact />
         </div>
 

@@ -230,7 +230,8 @@ const Admin = () => {
                 <ArrowLeft className="inline h-4 w-4" /> Dashboard
               </Link>
               <Logo size="sm" showTagline={false} />
-              <Badge variant="outline" className="border-primary/40 text-primary">Admin</Badge>
+              <span className="rounded-full bg-gradient-to-r from-fuchsia-500 via-violet-500 to-cyan-500 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white shadow-md">Admin</span>
+              <span className="pill-live hidden sm:inline-flex">Live</span>
             </div>
             <div className="flex items-center gap-2">
               <GlobalSearch onJump={(s) => setSection(s as typeof section)} />
@@ -244,10 +245,10 @@ const Admin = () => {
           </header>
           <div className="rainbow-strip h-0.5 w-full" />
 
-          <main className="min-w-0 flex-1 px-3 py-4 sm:px-4 md:px-8 md:py-6">
+          <main className="surface-aurora min-w-0 flex-1 px-3 py-4 sm:px-4 md:px-8 md:py-6">
             <div className="mb-4 md:mb-6">
               <h1 className="font-display text-2xl font-bold md:text-3xl">
-                <span className="heading-gradient">Admin CMS</span>
+                <span className="heading-rainbow">Admin CMS</span>
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Manage stock, pricing, categories, seller limits, and resolve replacement issues.

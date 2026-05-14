@@ -891,6 +891,23 @@ const SellerDashboard = () => {
         </Button>
       }
     >
+        <div className="hero-band mb-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Seller workspace
+              </div>
+              <div className="mt-1 font-display text-2xl font-bold md:text-3xl">
+                <span className="heading-rainbow">Welcome back</span>
+              </div>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                Track stock, uploads, payouts and replacement status — all in one premium console.
+              </p>
+            </div>
+            <span className="pill-live">Live sync</span>
+          </div>
+        </div>
+
         <div className="mb-6"><NoticesBoard title="Seller notices" /></div>
 
         {/* Premium wallet + status pipeline */}
