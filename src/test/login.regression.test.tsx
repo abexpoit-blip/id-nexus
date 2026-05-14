@@ -54,7 +54,9 @@ describe("Login — regression", () => {
     renderLogin();
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "not-an-email" } });
     fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "longenough" } });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    // Bypass HTML5 type=email validation by submitting the form directly
+    const form = screen.getByRole("button", { name: /sign in/i }).closest("form")!;
+    fireEvent.submit(form);
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     expect(signIn).not.toHaveBeenCalled();
   });
