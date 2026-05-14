@@ -12,12 +12,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine,
+  Loader2, ArrowDownToLine, ArrowUpFromLine,
   History, TrendingUp, AlertCircle, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { DepositWizard } from "@/components/wallet/DepositWizard";
 import { AppShell } from "@/components/layout/AppShell";
+import { WalletCreditCard } from "@/components/wallet/WalletCreditCard";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -94,6 +95,13 @@ const Wallet = () => {
   const [wNote, setWNote] = useState("");
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
+  const cardholder = (
+    profile?.display_name || (user?.email ? user.email.split("@")[0] : "MEMBER")
+  )
+    .toString()
+    .toUpperCase()
+    .slice(0, 22);
+  const last4 = (user?.id || "0000").replace(/[^0-9a-z]/gi, "").slice(-4).toUpperCase().padStart(4, "0");
 
   const loadAll = async () => {
     if (!user) return;
@@ -174,15 +182,23 @@ const Wallet = () => {
       mode={isSeller ? "seller" : "buyer"}
       title="Wallet"
       subtitle={isSeller ? "Request payouts from your seller balance." : "Top-up via bKash/Nagad."}
-      actions={
-        <Card className="border-border/60 bg-gradient-card p-3">
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Current balance</div>
-          <div className="mt-1 flex items-center gap-2 font-display text-xl font-bold text-primary">
-            <WalletIcon className="h-5 w-5" /> ৳ {balance.toFixed(2)}
-          </div>
-        </Card>
-      }
     >
+        {/* Premium credit-card style wallet */}
+        <div className="mb-6 flex justify-center sm:justify-start">
+          <WalletCreditCard
+            balance={balance}
+            cardholder={cardholder}
+            last4={last4}
+            variant={isSeller ? "seller" : "buyer"}
+            recent={ledger.slice(0, 5).map((r) => ({
+              id: r.id,
+              kind: r.kind,
+              amount_bdt: r.amount_bdt,
+              created_at: r.created_at,
+            }))}
+          />
+        </div>
+
         <Tabs defaultValue={isSeller ? "withdraw" : "topup"}>
           <TabsList>
             {!isSeller && (
