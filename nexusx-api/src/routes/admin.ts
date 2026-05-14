@@ -1450,6 +1450,64 @@ router.post("/seller-uploads/:id/collect", async (req: AuthedReq, res) => {
   }
 });
 
+// Download the full UID list for a seller upload as a .txt file
+// Format per line: uid:password[:email:email_password:2fa]
+router.get("/seller-uploads/:id/download", async (req: AuthedReq, res) => {
+  try {
+    const [a] = await q<any>(
+      `SELECT id, seller_id, category_id, category_name, file_name, created_at, collected_at, review_status
+         FROM seller_upload_audits WHERE id=$1`,
+      [req.params.id]
+    );
+    if (!a) return res.status(404).json({ error: "not_found" });
+
+    const rows = await q<any>(
+      `SELECT uid, password, email, email_password, two_fa
+         FROM accounts
+        WHERE seller_id = $1 AND category_id = $2
+          AND created_at BETWEEN $3::timestamptz - interval '2 minutes'
+                             AND $3::timestamptz + interval '2 minutes'
+        ORDER BY created_at`,
+      [a.seller_id, a.category_id, a.created_at]
+    );
+
+    const lines = rows.map((r) => {
+      const parts = [r.uid ?? "", r.password ?? ""];
+      if (r.email || r.email_password || r.two_fa) {
+        parts.push(r.email ?? "", r.email_password ?? "", r.two_fa ?? "");
+      }
+      return parts.join(":");
+    });
+    const body = lines.join("\n") + (lines.length ? "\n" : "");
+
+    // Auto-mark collected on first download (best-effort)
+    if (a.review_status === "pending" && !a.collected_at && req.user?.id) {
+      q(
+        `UPDATE seller_upload_audits
+            SET collected_at=now(), collected_by=$2
+          WHERE id=$1 AND collected_at IS NULL`,
+        [a.id, req.user.id]
+      ).catch(() => {});
+      q(
+        `INSERT INTO notifications(user_id, kind, title, body, reference_id)
+           VALUES($1,'seller_payout',$2,$3,$4)`,
+        [a.seller_id, "Upload downloaded",
+         `Admin downloaded your batch${a.file_name ? ` (${a.file_name})` : ""}. Review coming soon.`,
+         a.id]
+      ).catch(() => {});
+    }
+
+    const safeName = (a.file_name || `upload-${a.id}`).replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const fname = safeName.endsWith(".txt") ? safeName : `${safeName}.txt`;
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
+    res.send(body);
+  } catch (e: any) {
+    console.error("[seller-uploads.download]", e?.message || e);
+    res.status(500).json({ error: "download_failed", detail: e?.message });
+  }
+});
+
 // Review an upload: mark which UIDs are rejected and credit seller for the rest
 router.post("/seller-uploads/:id/review", async (req: AuthedReq, res) => {
   try {
