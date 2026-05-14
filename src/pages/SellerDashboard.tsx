@@ -31,7 +31,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { AppShell } from "@/components/layout/AppShell";
 import { parseSellerUpload } from "@/lib/parseSellerUpload";
 import { SampleFormatHelp } from "@/components/seller/SampleFormatHelp";
-import { SellerWalletCard, UploadStatusBadge } from "@/components/seller/SellerWalletCard";
+import { SellerWalletCard, UploadStatusBadge, UploadStatusProgress } from "@/components/seller/SellerWalletCard";
 import { MessagesPanel } from "@/components/MessagesPanel";
 import { NotificationPrefsPanel } from "@/components/NotificationPrefsPanel";
 import { NoticesBoard } from "@/components/NoticesBoard";
@@ -1542,7 +1542,7 @@ const SellerDashboard = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>When</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead className="min-w-[230px]">Status</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>File</TableHead>
                     <TableHead className="text-right">In file</TableHead>
@@ -1565,7 +1565,12 @@ const SellerDashboard = () => {
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                         {new Date(a.created_at).toLocaleString()}
                       </TableCell>
-                      <TableCell><UploadStatusBadge audit={a} /></TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1.5">
+                          <UploadStatusBadge audit={a} />
+                          <UploadStatusProgress audit={a} compact />
+                        </div>
+                      </TableCell>
                       <TableCell className="text-xs">{a.category_name ?? "—"}</TableCell>
                       <TableCell className="max-w-[180px] truncate font-mono text-xs">
                         {a.file_name ?? "—"}
