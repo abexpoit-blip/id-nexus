@@ -712,6 +712,7 @@ const SellerDashboard = () => {
       ...(duplicates?.duplicatesInStock ?? []),
       ...(duplicates?.duplicatesInFile ?? []),
       ...(duplicates?.duplicatesReplaced ?? []),
+      ...(duplicates?.invalidCategoryUids ?? []),
     ]);
     const fresh = await detectDuplicates(parsed);
     if (!fresh) {
@@ -723,6 +724,7 @@ const SellerDashboard = () => {
       ...fresh.duplicatesInStock,
       ...fresh.duplicatesInFile,
       ...fresh.duplicatesReplaced,
+      ...fresh.invalidCategoryUids,
     ]);
     const newCollisions: string[] = [];
     freshDupSet.forEach((u) => { if (!prevDupSet.has(u)) newCollisions.push(u); });
@@ -736,7 +738,9 @@ const SellerDashboard = () => {
       setUploadStep("error");
       toast.error(msg, { duration: 8000 });
       setDupModalTab(
-        fresh.duplicatesInStock.length > 0
+        fresh.invalidCategoryUids.length > 0
+          ? "category"
+          : fresh.duplicatesInStock.length > 0
           ? "stock"
           : fresh.duplicatesReplaced.length > 0
             ? "replaced"
@@ -752,6 +756,7 @@ const SellerDashboard = () => {
       ...fresh.duplicatesInStock,
       ...fresh.duplicatesInFile,
       ...fresh.duplicatesReplaced,
+      ...fresh.invalidCategoryUids,
     ]);
     let rowsToSend = parsed;
     if (skipDuplicates && dupSet.size > 0) {
