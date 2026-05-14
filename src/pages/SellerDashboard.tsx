@@ -1018,9 +1018,8 @@ const SellerDashboard = () => {
         <Card className="mb-6 glass-panel border-0 p-6">
           <div className="font-display text-lg font-semibold">Upload stock</div>
           <p className="text-xs text-muted-foreground">
-            Excel or CSV columns expected: <code>UID</code>, <code>Password</code>,{" "}
-            <code>2FA</code> (optional), <code>Email</code> (optional),{" "}
-            <code>Email Password</code> (optional).
+            Excel/CSV columns: <code>UID</code> · <code>PASS</code> · <code>COOKIES</code>.
+            Headerless 3-column files (61xxx or 1000xxx UIDs) are auto-detected.
           </p>
           <div className="mt-2">
             <a
