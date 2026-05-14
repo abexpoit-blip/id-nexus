@@ -31,6 +31,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { AppShell } from "@/components/layout/AppShell";
 import { parseSellerUpload } from "@/lib/parseSellerUpload";
 import { SampleFormatHelp } from "@/components/seller/SampleFormatHelp";
+import { SellerWalletCard, UploadStatusBadge } from "@/components/seller/SellerWalletCard";
 import { MessagesPanel } from "@/components/MessagesPanel";
 import { NotificationPrefsPanel } from "@/components/NotificationPrefsPanel";
 import { NoticesBoard } from "@/components/NoticesBoard";
@@ -891,6 +892,9 @@ const SellerDashboard = () => {
       }
     >
         <div className="mb-6"><NoticesBoard title="Seller notices" /></div>
+
+        {/* Premium wallet + status pipeline */}
+        <SellerWalletCard refreshKey={audits.length} />
 
         {/* Stats */}
         <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
