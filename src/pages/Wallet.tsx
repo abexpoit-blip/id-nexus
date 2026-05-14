@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Loader2, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine,
+  Loader2, ArrowDownToLine, ArrowUpFromLine,
   History, TrendingUp, AlertCircle, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
