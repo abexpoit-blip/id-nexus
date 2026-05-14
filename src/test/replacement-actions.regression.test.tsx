@@ -42,7 +42,7 @@ describe("AdminReplacementsView — action regression", () => {
 
   it("fires onAction('refund') when Refund is clicked", () => {
     const { onAction } = renderView([mkItem()]);
-    fireEvent.click(screen.getByRole("button", { name: /refund/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^refund$/i }));
     expect(onAction).toHaveBeenCalledTimes(1);
     const [item, act] = onAction.mock.calls[0];
     expect(item.id).toBe("rp-1");
@@ -51,7 +51,7 @@ describe("AdminReplacementsView — action regression", () => {
 
   it("fires onAction('reject') when Reject is clicked", () => {
     const { onAction } = renderView([mkItem()]);
-    fireEvent.click(screen.getByRole("button", { name: /reject/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^reject$/i }));
     expect(onAction.mock.calls[0][1]).toBe("reject");
   });
 
@@ -63,13 +63,13 @@ describe("AdminReplacementsView — action regression", () => {
 
   it("disables Refund + Same-cat when account_id is missing", () => {
     renderView([mkItem({ account_id: null })]);
-    expect(screen.getByRole("button", { name: /refund/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^refund$/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /same cat/i })).toBeDisabled();
   });
 
   it("hides action buttons for non-pending outcomes", () => {
     renderView([mkItem({ outcome: "replaced" })]);
-    expect(screen.queryByRole("button", { name: /refund/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /reject/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^refund$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^reject$/i })).not.toBeInTheDocument();
   });
 });
