@@ -31,6 +31,7 @@ import { Logo } from "@/components/Logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { BrandFooter } from "@/components/BrandFooter";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -341,6 +342,7 @@ export const AppShell = ({ mode, title, subtitle, actions, children }: AppShellP
           </header>
 
           <main className="flex-1 px-4 pb-24 pt-6 md:px-6 md:pb-10">{children}</main>
+          <BrandFooter compact />
         </div>
 
         <MobileBottomTabs mode={mode} />
