@@ -449,3 +449,16 @@ CREATE TABLE IF NOT EXISTS support_ticket_messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_support_ticket_messages_ticket ON support_ticket_messages(ticket_id, created_at);
+
+-- ===== Seller upload review / payout columns =====
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS rejected_uids TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS rejected_count INT NOT NULL DEFAULT 0;
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS accepted_count INT NOT NULL DEFAULT 0;
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS unit_price_bdt NUMERIC;
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS payout_bdt NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS reviewed_by UUID REFERENCES users(id);
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+ALTER TABLE seller_upload_audits ADD COLUMN IF NOT EXISTS review_note TEXT;
+CREATE INDEX IF NOT EXISTS idx_seller_upload_audits_review_status
+  ON seller_upload_audits(review_status, created_at DESC);
