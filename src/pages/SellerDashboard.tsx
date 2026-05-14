@@ -1096,7 +1096,7 @@ const SellerDashboard = () => {
               <span className="flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" /> {categoriesError}
               </span>
-              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={loadAll}>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => loadAll()}>
                 Retry
               </Button>
             </div>
