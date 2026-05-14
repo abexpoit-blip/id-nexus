@@ -898,25 +898,25 @@ const SellerDashboard = () => {
 
         {/* Stats */}
         <div className="mb-6 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <Card className="glass-panel border-0 p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Available stock</div>
-            <div className="mt-2 font-display text-3xl font-bold text-primary">{totals.available}</div>
-          </Card>
-          <Card className="glass-panel border-0 p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Today's quota</div>
-            <div className="mt-2 font-display text-2xl font-bold">
+          <div className="kpi-tile tile-cyan">
+            <div className="flex items-start justify-between"><div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Available stock</div><span className="icon-chip chip-cyan"><FileSpreadsheet className="h-4 w-4"/></span></div>
+            <div className="mt-3 font-display text-3xl font-bold tabular-nums">{totals.available}</div>
+          </div>
+          <div className="kpi-tile tile-amber">
+            <div className="flex items-start justify-between"><div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Today's quota</div><span className="icon-chip chip-amber"><Upload className="h-4 w-4"/></span></div>
+            <div className="mt-3 font-display text-2xl font-bold tabular-nums">
               <span className={usedToday >= dailyLimit ? "text-destructive" : "text-foreground"}>{usedToday}</span>
               <span className="text-muted-foreground"> / {dailyLimit}</span>
             </div>
             <div className="mt-1 text-[11px] text-muted-foreground">
               {Math.max(dailyLimit - usedToday, 0)} uploads left today (UTC)
             </div>
-          </Card>
-          <Card className="glass-panel border-0 p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sold (all-time)</div>
-            <div className="mt-2 font-display text-3xl font-bold">{totals.sold}</div>
-          </Card>
-          <Card className="glass-panel border-0 p-5">
+          </div>
+          <div className="kpi-tile tile-emerald">
+            <div className="flex items-start justify-between"><div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Sold (all-time)</div><span className="icon-chip chip-emerald"><CheckCircle2 className="h-4 w-4"/></span></div>
+            <div className="mt-3 font-display text-3xl font-bold tabular-nums">{totals.sold}</div>
+          </div>
+          <div className="kpi-tile tile-violet">
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs uppercase tracking-widest text-muted-foreground">
                 Sold {soldPeriod === "today" ? "today" : "this week"}
@@ -931,18 +931,18 @@ const SellerDashboard = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="mt-2 font-display text-3xl font-bold text-secondary">
+            <div className="mt-2 font-display text-3xl font-bold tabular-nums">
               {soldPeriod === "today" ? soldToday : soldWeek}
             </div>
-          </Card>
-          <Card className="glass-panel border-0 p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Pending replacements</div>
-            <div className="mt-2 font-display text-3xl font-bold text-warning">{pendingReplacements}</div>
-          </Card>
-          <Card className="glass-panel border-0 p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Categories</div>
-            <div className="mt-2 font-display text-3xl font-bold">{categories.length}</div>
-          </Card>
+          </div>
+          <div className="kpi-tile tile-rose">
+            <div className="flex items-start justify-between"><div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Pending replacements</div><span className="icon-chip chip-rose"><AlertTriangle className="h-4 w-4"/></span></div>
+            <div className="mt-3 font-display text-3xl font-bold tabular-nums">{pendingReplacements}</div>
+          </div>
+          <div className="kpi-tile tile-sky">
+            <div className="flex items-start justify-between"><div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Categories</div><span className="icon-chip chip-sky"><Sparkles className="h-4 w-4"/></span></div>
+            <div className="mt-3 font-display text-3xl font-bold tabular-nums">{categories.length}</div>
+          </div>
         </div>
 
         {/* Upload */}
