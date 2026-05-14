@@ -15,6 +15,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TYPE order_status AS ENUM ('pending','completed','failed','refunded');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'cancelled';
 DO $$ BEGIN
   CREATE TYPE payment_method AS ENUM ('bkash','nagad','binance');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -39,6 +40,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TYPE support_ticket_status AS ENUM ('open','pending','closed');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER TYPE support_ticket_status ADD VALUE IF NOT EXISTS 'resolved';
 DO $$ BEGIN
   CREATE TYPE support_ticket_category AS ENUM ('general','order','payment','seller','other');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
