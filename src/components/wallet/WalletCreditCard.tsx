@@ -229,3 +229,66 @@ function BrandMark() {
     </div>
   );
 }
+
+/** Centurion-style soldier silhouette, embossed look — inspired by Amex Preferred. */
+function CenturionSilhouette({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 220 260"
+      className={className}
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id="centHi" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#cfe2ff" stopOpacity="0.9" />
+          <stop offset="60%" stopColor="#5b8fd1" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#0b1f44" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id="centRing" cx="50%" cy="50%" r="50%">
+          <stop offset="70%" stopColor="rgba(180,210,255,0)" />
+          <stop offset="92%" stopColor="rgba(180,210,255,0.55)" />
+          <stop offset="100%" stopColor="rgba(180,210,255,0)" />
+        </radialGradient>
+      </defs>
+      {/* portrait ring */}
+      <circle cx="110" cy="130" r="105" fill="url(#centRing)" />
+      {/* helmeted profile (stylized) */}
+      <g fill="url(#centHi)" stroke="rgba(220,235,255,0.45)" strokeWidth="0.6">
+        {/* helmet crest */}
+        <path d="M55 70 C 70 30, 130 25, 158 55 C 165 50, 178 55, 178 70 C 178 80, 168 88, 158 86 C 158 95, 152 102, 145 105 L 145 120 C 160 125, 168 138, 168 152 L 60 152 C 58 130, 60 110, 70 95 C 60 90, 52 82, 55 70 Z" />
+        {/* face profile */}
+        <path d="M118 96 C 130 96, 140 104, 142 116 C 142 124, 138 130, 132 134 L 132 148 C 132 155, 126 160, 118 160 L 102 160 C 98 158, 96 152, 100 148 L 108 144 C 104 138, 102 130, 104 122 C 106 108, 112 100, 118 96 Z" fill="rgba(195,220,255,0.55)" />
+        {/* shoulder/armor */}
+        <path d="M40 200 C 70 175, 150 175, 195 200 L 200 260 L 35 260 Z" />
+      </g>
+    </svg>
+  );
+}
+
+/** Stylized contactless waves icon */
+function ContactlessIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+      <path d="M6 8c2.5 2.5 2.5 5.5 0 8" opacity="0.55" />
+      <path d="M10 6c4 4 4 8 0 12" opacity="0.75" />
+      <path d="M14 4c5.5 5.5 5.5 10.5 0 16" opacity="0.95" />
+    </svg>
+  );
+}
+
+/** Oval "MEMBER SINCE 'YY" badge, Amex-style. */
+function MemberSinceBadge({ year }: { year: number }) {
+  return (
+    <div className="relative shrink-0 rounded-full border border-sky-100/50 bg-gradient-to-br from-sky-200/15 to-sky-700/10 px-2.5 py-1 text-center backdrop-blur">
+      <div className="font-display text-[7px] font-bold uppercase leading-none tracking-[0.22em] text-sky-100/90">
+        Member Since
+      </div>
+      <div className="mt-0.5 font-display text-[11px] font-extrabold leading-none text-white tabular-nums sm:text-[13px]">
+        {String(year).padStart(2, "0")}
+      </div>
+      <div className="mt-0.5 text-[6px] font-medium uppercase tracking-[0.2em] text-sky-100/55">
+        Titulaire Depuis
+      </div>
+    </div>
+  );
+}
