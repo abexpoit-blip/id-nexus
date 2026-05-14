@@ -58,11 +58,15 @@ interface ParsedRow {
   email_password?: string;
 }
 
+type UploadValidationRule = "in_stock" | "in_file" | "already_replaced" | "category_mismatch";
+
 interface DuplicateInfo {
   duplicatesInFile: string[]; // duplicate within uploaded file
   duplicatesInStock: string[]; // already in seller's existing accounts
   duplicatesReplaced: string[]; // uid already exists in any account marked 'replaced' (own or other sellers)
-  ruleByUid: Record<string, "in_stock" | "in_file" | "already_replaced">;
+  invalidCategoryUids: string[]; // UID does not match selected category base (61xxx / 1000xxx)
+  categoryBase: string | null;
+  ruleByUid: Record<string, UploadValidationRule>;
   checkedAt: number;
 }
 
