@@ -6,10 +6,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Clock, XCircle, Loader2, Store, Lock, Sparkles, ShieldCheck, Send, CheckCircle2, Copy } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,19 +28,19 @@ const passwordSchema = z.string().min(8, "Password min 8 characters").max(72);
 const nameSchema = z.string().trim().min(2, "Name too short").max(60);
 
 const SellerApply = () => {
-  const { user, profile, roles, loading: authLoading, signUp } = useAuth();
+  const { user, profile, roles, loading: authLoading, signUp, signIn } = useAuth();
   const navigate = useNavigate();
   const [app, setApp] = useState<Application | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [tgUsername, setTgUsername] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [intakeEnabled, setIntakeEnabled] = useState<boolean>(true);
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const prevStatusRef = useRef<Application["status"] | null>(null);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
@@ -50,7 +50,6 @@ const SellerApply = () => {
     if (user) {
       setEmail((prev) => prev || user.email || "");
       setFullName((prev) => prev || profile?.display_name || "");
-      setDisplayName((prev) => prev || profile?.display_name || "");
     }
   }, [user, profile]);
 
@@ -120,6 +119,24 @@ const SellerApply = () => {
     return true;
   };
 
+  const openApprovalNotice = (application?: Application | null) => {
+    if (application) setApp(application);
+    setApprovalDialogOpen(true);
+  };
+
+  const buildApplicationBody = (cleanName: string, cleanEmail: string, handle: string) => {
+    const body: Record<string, string> = {
+      display_name: cleanName,
+      full_name: cleanName,
+      email: cleanEmail.trim().toLowerCase(),
+      phone: phone.trim(),
+      telegram_username: handle,
+    };
+    const trimmedReason = reason.trim();
+    if (trimmedReason) body.reason = trimmedReason;
+    return body;
+  };
+
   // Public: signup + submit application in one step
   const submitPublic = async () => {
     if (!intakeEnabled) return toast.error("Seller applications are currently closed.");
@@ -127,28 +144,26 @@ const SellerApply = () => {
     try {
       const cleanEmail = emailSchema.parse(email);
       const cleanPwd = passwordSchema.parse(password);
-      const cleanName = nameSchema.parse(fullName || displayName);
+      const cleanName = nameSchema.parse(fullName);
       const handle = validateHandle();
       if (!handle) { setSubmitting(false); return; }
       if (!validateCommon()) { setSubmitting(false); return; }
 
-      await signUp(cleanEmail, cleanPwd, cleanName);
-      const pubBody: Record<string, string> = {
-        display_name: cleanName,
-        full_name: cleanName,
-        email: cleanEmail,
-        phone: phone.trim(),
-        telegram_username: handle,
-      };
-      const pubReason = reason.trim();
-      if (pubReason) pubBody.reason = pubReason;
-      await api.post("/api/seller/apply", pubBody);
-      toast.success("Application submitted! Admin will review shortly.");
-      load();
+      try {
+        await signUp(cleanEmail, cleanPwd, cleanName);
+      } catch (e: any) {
+        if (e?.message !== "email_taken") throw e;
+        await signIn(cleanEmail, cleanPwd);
+      }
+
+      const { application } = await api.post<{ application: Application }>("/api/seller/apply", buildApplicationBody(cleanName, cleanEmail, handle));
+      toast.success("Application submitted! Contact admin on Telegram for approval.");
+      openApprovalNotice(application);
     } catch (e: any) {
       if (e?.issues?.[0]?.message) toast.error(e.issues[0].message);
-      else if (e?.message === "email_taken")
-        toast.error("Email already registered. Please sign in first.");
+      else if (e instanceof ApiError && e.message === "application_pending") openApprovalNotice(e.data?.application);
+      else if (e instanceof ApiError && e.message === "server_error") toast.error("Application could not be saved. Please try again after deploy.");
+      else if (e?.message === "invalid_credentials") toast.error("This email already exists. Enter that account password to continue.");
       else toast.error(e instanceof ApiError ? e.message : e?.message || "Submit failed");
     } finally {
       setSubmitting(false);
@@ -165,19 +180,15 @@ const SellerApply = () => {
     if (!validateCommon()) return;
     setSubmitting(true);
     try {
-      const body: Record<string, string> = {
-        full_name: fullName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        telegram_username: handle,
-      };
-      const trimmedReason = reason.trim();
-      if (trimmedReason) body.reason = trimmedReason;
-      await api.post("/api/seller/apply", body);
-      toast.success(app?.status === "rejected" ? "Re-submitted — admin will review again." : "Application submitted!");
-      load();
+      const { application } = await api.post<{ application: Application }>(
+        "/api/seller/apply",
+        buildApplicationBody(fullName.trim(), email.trim(), handle)
+      );
+      toast.success(app?.status === "rejected" ? "Re-submitted — contact admin on Telegram." : "Application submitted! Contact admin on Telegram.");
+      openApprovalNotice(application);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Submit failed");
+      if (e instanceof ApiError && e.message === "application_pending") openApprovalNotice(e.data?.application);
+      else toast.error(e instanceof ApiError ? e.message : "Submit failed");
     } finally {
       setSubmitting(false);
     }
