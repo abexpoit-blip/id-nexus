@@ -175,16 +175,20 @@ const App = () => (
             <Route
               path="/admin"
               element={
-                <ProtectedRoute requiredRole="admin">
-                  <Admin />
+                <ProtectedRoute requiredRole="admin" fallback="/admin-login">
+                  <AdminGuard>
+                    <Admin />
+                  </AdminGuard>
                 </ProtectedRoute>
               }
             />
             <Route
               path="/admin/audit"
               element={
-                <ProtectedRoute requiredRole="admin">
-                  <AuditLog />
+                <ProtectedRoute requiredRole="admin" fallback="/admin-login">
+                  <AdminGuard>
+                    <AuditLog />
+                  </AdminGuard>
                 </ProtectedRoute>
               }
             />
