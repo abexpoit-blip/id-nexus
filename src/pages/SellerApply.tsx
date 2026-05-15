@@ -115,11 +115,13 @@ const SellerApply = () => {
       if (!handle) { setSubmitting(false); return; }
 
       await signUp(cleanEmail, cleanPwd, cleanName);
-      await api.post("/api/seller/apply", {
+      const pubBody: Record<string, string> = {
         display_name: cleanName,
         telegram_username: handle,
-        reason: reason.trim() || null,
-      });
+      };
+      const pubReason = reason.trim();
+      if (pubReason) pubBody.reason = pubReason;
+      await api.post("/api/seller/apply", pubBody);
       toast.success("Application submitted! Admin will review shortly.");
       load();
     } catch (e: any) {
@@ -141,10 +143,10 @@ const SellerApply = () => {
     if (!handle) return;
     setSubmitting(true);
     try {
-      await api.post("/api/seller/apply", {
-        telegram_username: handle,
-        reason: reason.trim() || null,
-      });
+      const body: Record<string, string> = { telegram_username: handle };
+      const trimmedReason = reason.trim();
+      if (trimmedReason) body.reason = trimmedReason;
+      await api.post("/api/seller/apply", body);
       toast.success(app?.status === "rejected" ? "Re-submitted — admin will review again." : "Application submitted!");
       load();
     } catch (e) {
