@@ -53,7 +53,10 @@ router.post("/apply", authRequired, async (req: AuthedReq, res) => {
     return res.status(403).json({ error: "applications_disabled" });
   const schema = z.object({
     display_name: z.string().min(1).max(120).nullish(),
-    telegram_username: z.string().max(120).nullish(),
+    full_name: z.string().min(2).max(120),
+    email: z.string().email().max(255),
+    phone: z.string().min(5).max(40),
+    telegram_username: z.string().min(3).max(120),
     reason: z.string().max(2000).nullish(),
   });
   const parsed = schema.safeParse(req.body);
@@ -68,16 +71,27 @@ router.post("/apply", authRequired, async (req: AuthedReq, res) => {
 
   // Upsert: re-applies after rejection update existing row (unique on user_id)
   const [app] = await q(
-    `INSERT INTO seller_applications(user_id, email, display_name, telegram_username, reason, status)
-     VALUES($1,$2,$3,$4,$5,'pending')
+    `INSERT INTO seller_applications(user_id, email, display_name, telegram_username, full_name, phone, reason, status)
+     VALUES($1,$2,$3,$4,$5,$6,$7,'pending')
      ON CONFLICT(user_id) DO UPDATE SET
         telegram_username = EXCLUDED.telegram_username,
+        full_name = EXCLUDED.full_name,
+        phone = EXCLUDED.phone,
+        email = EXCLUDED.email,
         reason = EXCLUDED.reason,
         display_name = COALESCE(EXCLUDED.display_name, seller_applications.display_name),
         status = 'pending', admin_note = NULL, reviewed_at = NULL, reviewed_by = NULL,
         updated_at = now()
      RETURNING *`,
-    [req.user!.id, req.user!.email, parsed.data.display_name || null, parsed.data.telegram_username || null, parsed.data.reason || null]
+    [
+      req.user!.id,
+      parsed.data.email,
+      parsed.data.display_name || parsed.data.full_name,
+      parsed.data.telegram_username,
+      parsed.data.full_name,
+      parsed.data.phone,
+      parsed.data.reason || null,
+    ]
   );
   res.json({ application: app });
 });

@@ -28,13 +28,15 @@ const passwordSchema = z.string().min(8, "Password min 8 characters").max(72);
 const nameSchema = z.string().trim().min(2, "Name too short").max(60);
 
 const SellerApply = () => {
-  const { user, roles, loading: authLoading, signUp } = useAuth();
+  const { user, profile, roles, loading: authLoading, signUp } = useAuth();
   const navigate = useNavigate();
   const [app, setApp] = useState<Application | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [tgUsername, setTgUsername] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -43,6 +45,14 @@ const SellerApply = () => {
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
   const isPublic = !user;
+
+  useEffect(() => {
+    if (user) {
+      setEmail((prev) => prev || user.email || "");
+      setFullName((prev) => prev || profile?.display_name || "");
+      setDisplayName((prev) => prev || profile?.display_name || "");
+    }
+  }, [user, profile]);
 
   const load = async () => {
     if (!user) {
@@ -103,6 +113,13 @@ const SellerApply = () => {
     return handle;
   };
 
+  const validateCommon = () => {
+    if (fullName.trim().length < 2) { toast.error("Full name is required"); return false; }
+    try { emailSchema.parse(email); } catch { toast.error("Enter a valid email"); return false; }
+    if (!/^[+0-9 ()-]{5,40}$/.test(phone.trim())) { toast.error("Enter a valid phone number"); return false; }
+    return true;
+  };
+
   // Public: signup + submit application in one step
   const submitPublic = async () => {
     if (!intakeEnabled) return toast.error("Seller applications are currently closed.");
@@ -110,13 +127,17 @@ const SellerApply = () => {
     try {
       const cleanEmail = emailSchema.parse(email);
       const cleanPwd = passwordSchema.parse(password);
-      const cleanName = nameSchema.parse(displayName);
+      const cleanName = nameSchema.parse(fullName || displayName);
       const handle = validateHandle();
       if (!handle) { setSubmitting(false); return; }
+      if (!validateCommon()) { setSubmitting(false); return; }
 
       await signUp(cleanEmail, cleanPwd, cleanName);
       const pubBody: Record<string, string> = {
         display_name: cleanName,
+        full_name: cleanName,
+        email: cleanEmail,
+        phone: phone.trim(),
         telegram_username: handle,
       };
       const pubReason = reason.trim();
@@ -141,9 +162,15 @@ const SellerApply = () => {
     }
     const handle = validateHandle();
     if (!handle) return;
+    if (!validateCommon()) return;
     setSubmitting(true);
     try {
-      const body: Record<string, string> = { telegram_username: handle };
+      const body: Record<string, string> = {
+        full_name: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        telegram_username: handle,
+      };
       const trimmedReason = reason.trim();
       if (trimmedReason) body.reason = trimmedReason;
       await api.post("/api/seller/apply", body);
@@ -376,27 +403,29 @@ const SellerApply = () => {
             )}
 
             <div className="space-y-4">
+              <div>
+                <Label htmlFor="fullname">Full name <span className="text-destructive">*</span></Label>
+                <Input id="fullname" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="As on your ID" maxLength={120} className="mt-1.5" />
+              </div>
+              <div>
+                <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" className="mt-1.5" disabled={!isPublic} />
+              </div>
               {isPublic && (
-                <>
-                  <div>
-                    <Label htmlFor="name">Display name <span className="text-destructive">*</span></Label>
-                    <Input id="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" maxLength={60} className="mt-1.5" />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
-                    <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" className="mt-1.5" />
-                  </div>
-                  <div>
-                    <Label htmlFor="password">Password <span className="text-destructive">*</span></Label>
-                    <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 characters" autoComplete="new-password" minLength={8} maxLength={72} className="mt-1.5" />
-                    <p className="mt-1 text-xs text-muted-foreground">You'll log in with this email + password once approved.</p>
-                  </div>
-                  <div className="my-2 border-t border-border/60" />
-                </>
+                <div>
+                  <Label htmlFor="password">Password <span className="text-destructive">*</span></Label>
+                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 characters" autoComplete="new-password" minLength={8} maxLength={72} className="mt-1.5" />
+                  <p className="mt-1 text-xs text-muted-foreground">You'll log in with this email + password once approved.</p>
+                </div>
               )}
+              <div>
+                <Label htmlFor="phone">Phone number <span className="text-destructive">*</span></Label>
+                <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+8801XXXXXXXXX" maxLength={40} className="mt-1.5" autoComplete="tel" />
+                <p className="mt-1 text-xs text-muted-foreground">Include country code. Used only by admin for verification.</p>
+              </div>
 
               <div>
-                <Label htmlFor="tg">Contact handle <span className="text-destructive">*</span></Label>
+                <Label htmlFor="tg">Telegram ID <span className="text-destructive">*</span></Label>
                 <Input
                   id="tg"
                   value={tgUsername}
@@ -405,7 +434,7 @@ const SellerApply = () => {
                   maxLength={33}
                   className="mt-1.5"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">Username admin can reach you on (e.g. Telegram, WhatsApp).</p>
+                <p className="mt-1 text-xs text-muted-foreground">Your Telegram username — admin will reach you here for verification.</p>
               </div>
               <div>
                 <Label htmlFor="reason">Why do you want to sell? (optional)</Label>

@@ -226,6 +226,8 @@ CREATE TABLE IF NOT EXISTS seller_applications (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE seller_applications ADD COLUMN IF NOT EXISTS telegram_username TEXT;
+ALTER TABLE seller_applications ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE seller_applications ADD COLUMN IF NOT EXISTS full_name TEXT;
 
 CREATE TABLE IF NOT EXISTS seller_daily_limits (
   seller_id UUID PRIMARY KEY REFERENCES users(id),
