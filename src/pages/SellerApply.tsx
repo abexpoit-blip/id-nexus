@@ -479,6 +479,68 @@ const SellerApply = () => {
           </Card>
         )}
       </main>
+
+        <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+          <DialogContent className="overflow-hidden border-border/60 bg-background p-0 shadow-card sm:max-w-xl">
+            <div className="relative p-6 md:p-8">
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(120% 80% at 0% 0%, hsl(var(--brand-gold) / 0.16), transparent 58%), radial-gradient(100% 70% at 100% 0%, hsl(var(--primary) / 0.14), transparent 55%)",
+                }}
+              />
+              <div className="relative">
+                <DialogHeader className="text-left">
+                  <div className="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-brand shadow-glow">
+                    <ShieldCheck className="h-6 w-6 text-primary-foreground" />
+                  </div>
+                  <DialogTitle className="font-display text-2xl leading-tight">
+                    Application submitted — admin approval required
+                  </DialogTitle>
+                  <DialogDescription className="text-sm leading-6">
+                    Your account is not active yet. Contact admin on Telegram to verify and activate your seller access.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="mt-5 rounded-xl border border-border/60 bg-card/50 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Telegram admin contact
+                  </div>
+                  <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="font-display text-xl font-bold text-foreground">@NexusXPro</div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText("https://t.me/NexusXPro");
+                          toast.success("Telegram link copied");
+                        }}
+                      >
+                        <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy
+                      </Button>
+                      <Button asChild className="btn-gold" size="sm">
+                        <a href="https://t.me/NexusXPro" target="_blank" rel="noopener noreferrer">
+                          <Send className="mr-1.5 h-4 w-4" /> Open Telegram
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-success" /> Application received
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-warning" /> Pending until admin manually approves
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
     </div>
   );
 };
