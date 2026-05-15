@@ -48,7 +48,7 @@ export const BrandTagline = () => {
           }}
         />
         <span
-          className="relative pl-[0.28em] pr-[0.05em] font-display text-[11px] font-semibold uppercase tracking-[0.28em]"
+          className="relative -mr-[0.28em] font-display text-[11px] font-semibold uppercase tracking-[0.28em]"
           style={{
             background: "var(--gradient-gold)",
             WebkitBackgroundClip: "text",
