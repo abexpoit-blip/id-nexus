@@ -28,13 +28,15 @@ const passwordSchema = z.string().min(8, "Password min 8 characters").max(72);
 const nameSchema = z.string().trim().min(2, "Name too short").max(60);
 
 const SellerApply = () => {
-  const { user, roles, loading: authLoading, signUp } = useAuth();
+  const { user, profile, roles, loading: authLoading, signUp } = useAuth();
   const navigate = useNavigate();
   const [app, setApp] = useState<Application | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [tgUsername, setTgUsername] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -43,6 +45,14 @@ const SellerApply = () => {
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
   const isPublic = !user;
+
+  useEffect(() => {
+    if (user) {
+      setEmail((prev) => prev || user.email || "");
+      setFullName((prev) => prev || profile?.display_name || "");
+      setDisplayName((prev) => prev || profile?.display_name || "");
+    }
+  }, [user, profile]);
 
   const load = async () => {
     if (!user) {
@@ -103,6 +113,13 @@ const SellerApply = () => {
     return handle;
   };
 
+  const validateCommon = () => {
+    if (fullName.trim().length < 2) { toast.error("Full name is required"); return false; }
+    try { emailSchema.parse(email); } catch { toast.error("Enter a valid email"); return false; }
+    if (!/^[+0-9 ()-]{5,40}$/.test(phone.trim())) { toast.error("Enter a valid phone number"); return false; }
+    return true;
+  };
+
   // Public: signup + submit application in one step
   const submitPublic = async () => {
     if (!intakeEnabled) return toast.error("Seller applications are currently closed.");
@@ -110,13 +127,17 @@ const SellerApply = () => {
     try {
       const cleanEmail = emailSchema.parse(email);
       const cleanPwd = passwordSchema.parse(password);
-      const cleanName = nameSchema.parse(displayName);
+      const cleanName = nameSchema.parse(fullName || displayName);
       const handle = validateHandle();
       if (!handle) { setSubmitting(false); return; }
+      if (!validateCommon()) { setSubmitting(false); return; }
 
       await signUp(cleanEmail, cleanPwd, cleanName);
       const pubBody: Record<string, string> = {
         display_name: cleanName,
+        full_name: cleanName,
+        email: cleanEmail,
+        phone: phone.trim(),
         telegram_username: handle,
       };
       const pubReason = reason.trim();
@@ -141,9 +162,15 @@ const SellerApply = () => {
     }
     const handle = validateHandle();
     if (!handle) return;
+    if (!validateCommon()) return;
     setSubmitting(true);
     try {
-      const body: Record<string, string> = { telegram_username: handle };
+      const body: Record<string, string> = {
+        full_name: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        telegram_username: handle,
+      };
       const trimmedReason = reason.trim();
       if (trimmedReason) body.reason = trimmedReason;
       await api.post("/api/seller/apply", body);
