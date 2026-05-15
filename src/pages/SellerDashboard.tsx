@@ -32,6 +32,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { parseSellerUpload } from "@/lib/parseSellerUpload";
 import { SampleFormatHelp } from "@/components/seller/SampleFormatHelp";
 import { SellerWalletCard, UploadStatusBadge, UploadStatusProgress } from "@/components/seller/SellerWalletCard";
+import { SellerTierBadge, type SellerTier } from "@/components/seller/SellerTierBadge";
 import { MessagesPanel } from "@/components/MessagesPanel";
 import { NotificationPrefsPanel } from "@/components/NotificationPrefsPanel";
 import { NoticesBoard } from "@/components/NoticesBoard";
@@ -204,6 +205,10 @@ const SellerDashboard = () => {
   const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [revealSecrets, setRevealSecrets] = useState(false);
+  const [tier, setTier] = useState<SellerTier>("none");
+  const [salesLifetime, setSalesLifetime] = useState<number>(0);
+  const [tierNext, setTierNext] = useState<string | null>(null);
+  const [tierNextThreshold, setTierNextThreshold] = useState<number | null>(null);
 
   const isSeller = roles.includes("seller") || roles.includes("admin");
 
@@ -318,6 +323,10 @@ const SellerDashboard = () => {
     setReplacements((data.replacements ?? []) as ReplacementRow[]);
     setDailyLimit(Number(data.daily_limit ?? 0));
     setUsedToday(Number(data.used_today ?? 0));
+    setTier((data.tier ?? "none") as SellerTier);
+    setSalesLifetime(Number(data.sales_lifetime ?? 0));
+    setTierNext(data.tier_next ?? null);
+    setTierNextThreshold(data.tier_next_threshold ?? null);
 
     // Map account_id -> category_id for filter
     const acctMap: Record<string, string> = {};
@@ -974,6 +983,16 @@ const SellerDashboard = () => {
 
         {/* Premium wallet + status pipeline */}
         <SellerWalletCard refreshKey={audits.length} />
+
+        {/* Auto-earned tier badge */}
+        <div className="mt-4 mb-6">
+          <SellerTierBadge
+            tier={tier}
+            salesLifetime={salesLifetime}
+            nextTier={tierNext}
+            nextThreshold={tierNextThreshold}
+          />
+        </div>
 
         {/* Stats */}
         <div className="mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:gap-4 lg:grid-cols-6">

@@ -1,22 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
-import { Crown, Trophy, Medal, Award } from "lucide-react";
+import { Gem, Crown, Medal, Award } from "lucide-react";
 
 interface CatSeller {
   seller_id: string;
   name: string;
   available: number;
   sales_lifetime: number;
-  tier: "platinum" | "gold" | "silver" | "bronze" | "none";
+  tier: "vip" | "gold" | "silver" | "bronze" | "none";
 }
 
 const tierIcon: Record<string, { icon: any; cls: string }> = {
-  platinum: { icon: Crown,  cls: "text-primary" },
-  gold:     { icon: Trophy, cls: "text-warning" },
-  silver:   { icon: Medal,  cls: "text-muted-foreground" },
-  bronze:   { icon: Award,  cls: "text-accent" },
-  none:     { icon: Award,  cls: "text-muted-foreground" },
+  vip:    { icon: Gem,    cls: "text-primary" },
+  gold:   { icon: Crown,  cls: "text-warning" },
+  silver: { icon: Medal,  cls: "text-muted-foreground" },
+  bronze: { icon: Award,  cls: "text-accent" },
+  none:   { icon: Award,  cls: "text-muted-foreground" },
 };
 
 export const CategorySellersStrip = ({ categoryId }: { categoryId: string }) => {

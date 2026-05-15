@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Clock, XCircle, Loader2, Store, Lock, Sparkles } from "lucide-react";
+import { ArrowLeft, Clock, XCircle, Loader2, Store, Lock, Sparkles, ShieldCheck, Send, CheckCircle2, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 interface Application {
@@ -215,22 +215,128 @@ const SellerApply = () => {
             </div>
           </Card>
         ) : app && app.status === "pending" ? (
-          <Card className="glass-panel border-warning/40 bg-warning/5 p-6">
-            <div className="flex items-start gap-3">
-              <Clock className="mt-1 h-5 w-5 text-warning" />
-              <div>
-                <div className="font-display text-lg font-semibold text-warning">Application pending review</div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Submitted {new Date(app.created_at).toLocaleString()}. This page checks status automatically every 30 seconds — you'll be redirected the moment admin approves.
-                </p>
-                <div className="mt-4 grid gap-2 text-sm">
-                  <div><span className="text-muted-foreground">Contact:</span> <strong>@{app.telegram_username}</strong></div>
-                  {app.reason && <div><span className="text-muted-foreground">Reason:</span> {app.reason}</div>}
+          <Card className="relative overflow-hidden border-0 p-0">
+            {/* Premium gold-noir backdrop */}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage:
+                  "radial-gradient(120% 80% at 0% 0%, hsl(var(--brand-gold) / 0.18), transparent 60%), radial-gradient(120% 80% at 100% 100%, hsl(var(--primary) / 0.18), transparent 60%), linear-gradient(180deg, hsl(224 47% 7%), hsl(224 47% 4%))",
+              }}
+            />
+            <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5 rounded-[inherit]" />
+
+            <div className="relative p-6 md:p-8">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.22em]"
+                  style={{
+                    backgroundImage: "var(--gradient-gold)",
+                    color: "hsl(224 47% 6%)",
+                  }}
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Manual verification required
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-[11px] font-semibold text-warning">
+                  <Clock className="h-3 w-3" /> Pending review
+                </span>
+              </div>
+
+              <h2 className="font-display mt-4 text-2xl font-bold text-foreground md:text-3xl">
+                Welcome to Nexus X — one final step.
+              </h2>
+              <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+                Your seller account was created successfully. To unlock the seller console,
+                upload stock and receive payouts, you must <strong className="text-foreground">contact our admin on Telegram</strong> for
+                identity &amp; trust verification. This protects buyers and keeps the marketplace clean.
+              </p>
+
+              {/* Telegram CTA */}
+              <div
+                className="mt-6 flex flex-col gap-3 rounded-2xl border border-border/60 bg-background/50 p-4 backdrop-blur md:flex-row md:items-center md:justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-xl"
+                    style={{
+                      backgroundImage: "linear-gradient(135deg, #229ED9, #1b6fa8)",
+                      boxShadow: "0 10px 24px -10px rgba(34,158,217,0.55)",
+                    }}
+                  >
+                    <Send className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                      Contact admin on Telegram
+                    </div>
+                    <div className="font-display text-lg font-bold leading-tight">@NexusXPro</div>
+                  </div>
                 </div>
-                <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Listening for admin decision…
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText("https://t.me/NexusXPro");
+                      toast.success("Telegram link copied");
+                    }}
+                  >
+                    <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy link
+                  </Button>
+                  <Button
+                    asChild
+                    className="btn-gold"
+                    size="sm"
+                  >
+                    <a href="https://t.me/NexusXPro" target="_blank" rel="noopener noreferrer">
+                      <Send className="mr-1.5 h-4 w-4" />
+                      Open Telegram
+                    </a>
+                  </Button>
                 </div>
+              </div>
+
+              {/* Steps */}
+              <ol className="mt-6 grid gap-3 md:grid-cols-3">
+                {[
+                  { t: "Message admin", d: "Send hello on Telegram with your registered email." },
+                  { t: "Quick verification", d: "Admin checks identity & seller intent (a few minutes to hours)." },
+                  { t: "Get instant access", d: "This page auto-redirects to your seller dashboard the moment you're approved." },
+                ].map((s, i) => (
+                  <li
+                    key={s.t}
+                    className="rounded-xl border border-border/60 bg-background/40 p-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold"
+                        style={{
+                          backgroundImage: "var(--gradient-gold)",
+                          color: "hsl(224 47% 6%)",
+                        }}
+                      >
+                        {i + 1}
+                      </span>
+                      <div className="text-sm font-semibold">{s.t}</div>
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">{s.d}</p>
+                  </li>
+                ))}
+              </ol>
+
+              <div className="mt-6 grid gap-2 rounded-xl border border-border/40 bg-background/30 p-4 text-sm">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  Submitted {new Date(app.created_at).toLocaleString()}
+                </div>
+                <div><span className="text-muted-foreground">Your contact:</span> <strong>@{app.telegram_username}</strong></div>
+                {app.reason && <div><span className="text-muted-foreground">Reason:</span> {app.reason}</div>}
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Listening for admin decision — auto-redirect on approval…
               </div>
             </div>
           </Card>

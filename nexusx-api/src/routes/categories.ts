@@ -43,7 +43,7 @@ router.get("/:id/sellers", async (req, res) => {
       LIMIT 8`,
     [req.params.id]
   );
-  const tierFor = (n: number) => n>=1000?"platinum":n>=250?"gold":n>=50?"silver":n>=1?"bronze":"none";
+  const tierFor = (n: number) => n>=1000?"vip":n>=250?"gold":n>=50?"silver":n>=1?"bronze":"none";
   res.json({ sellers: rows.map((s: any) => ({ ...s, tier: tierFor(Number(s.sales_lifetime||0)) })) });
 });
 

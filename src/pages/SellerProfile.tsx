@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Crown, Trophy, Medal, Award, ShieldCheck, Loader2, ArrowLeft, Boxes } from "lucide-react";
+import { Gem, Crown, Medal, Award, ShieldCheck, Loader2, ArrowLeft, Boxes } from "lucide-react";
 
 interface SellerInfo {
   seller_id: string;
@@ -18,16 +18,16 @@ interface SellerInfo {
   replacements_total: number;
   replacements_upheld: number;
   available_stock: number;
-  tier: "platinum" | "gold" | "silver" | "bronze" | "none";
+  tier: "vip" | "gold" | "silver" | "bronze" | "none";
   reliability_pct: number;
 }
 
 const tierMeta: Record<string, { icon: any; label: string; cls: string; bg: string }> = {
-  platinum: { icon: Crown,  label: "Platinum seller", cls: "text-primary",          bg: "bg-primary/15" },
-  gold:     { icon: Trophy, label: "Gold seller",     cls: "text-warning",          bg: "bg-warning/15" },
-  silver:   { icon: Medal,  label: "Silver seller",   cls: "text-muted-foreground", bg: "bg-muted" },
-  bronze:   { icon: Award,  label: "Bronze seller",   cls: "text-accent",           bg: "bg-accent/15" },
-  none:     { icon: ShieldCheck, label: "New seller", cls: "text-muted-foreground", bg: "bg-muted" },
+  vip:    { icon: Gem,    label: "VIP seller",    cls: "text-primary",          bg: "bg-primary/15" },
+  gold:   { icon: Crown,  label: "Gold seller",   cls: "text-warning",          bg: "bg-warning/15" },
+  silver: { icon: Medal,  label: "Silver seller", cls: "text-muted-foreground", bg: "bg-muted" },
+  bronze: { icon: Award,  label: "Bronze seller", cls: "text-accent",           bg: "bg-accent/15" },
+  none:   { icon: ShieldCheck, label: "New seller", cls: "text-muted-foreground", bg: "bg-muted" },
 };
 
 const SellerProfile = () => {
