@@ -52,9 +52,9 @@ router.post("/apply", authRequired, async (req: AuthedReq, res) => {
   if (!(await applicationsEnabled()))
     return res.status(403).json({ error: "applications_disabled" });
   const schema = z.object({
-    display_name: z.string().min(1).max(120).optional(),
-    telegram_username: z.string().max(120).optional(),
-    reason: z.string().max(2000).optional(),
+    display_name: z.string().min(1).max(120).nullish(),
+    telegram_username: z.string().max(120).nullish(),
+    reason: z.string().max(2000).nullish(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
