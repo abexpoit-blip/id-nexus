@@ -26,11 +26,12 @@ const AdminLogin = () => {
     if (roles.includes("admin")) {
       navigate("/admin", { replace: true });
     } else if (roles.length > 0) {
-      // Logged in but not admin — bounce to their normal dashboard
-      toast.error("This account does not have admin access.");
-      navigate(roles.includes("seller") ? "/seller" : "/dashboard", { replace: true });
+      // Logged in but not admin — sign them out so they can enter admin creds
+      signOut().finally(() => {
+        toast.message("Signed out non-admin session. Please sign in with your admin account.");
+      });
     }
-  }, [user, roles, authLoading, navigate]);
+  }, [user, roles, authLoading, navigate, signOut]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
