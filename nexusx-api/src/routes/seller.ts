@@ -99,7 +99,7 @@ router.post("/onboarded", authRequired, requireRole("seller"), async (req: Authe
 // Aggregated seller dashboard overview
 router.get("/overview", authRequired, requireRole("seller"), async (req: AuthedReq, res) => {
   const sellerId = req.user!.id;
-  const [categories, myAccounts, recent, [todayRow], [weekRow], replacements, [limitRow], [usedRow]] = await Promise.all([
+  const [categories, myAccounts, recent, [todayRow], [weekRow], replacements, [limitRow], [usedRow], [lifetimeRow]] = await Promise.all([
     q(`SELECT id, name, slug, price_bdt FROM categories
          WHERE is_active=true AND kind='fb_account' ORDER BY sort_order, name`),
     q(`SELECT id, category_id, status FROM accounts WHERE seller_id=$1`, [sellerId]),
@@ -117,7 +117,18 @@ router.get("/overview", authRequired, requireRole("seller"), async (req: AuthedR
     q<{ c: number }>(
       `SELECT COUNT(*)::int AS c FROM accounts
          WHERE seller_id=$1 AND created_at >= date_trunc('day', now() at time zone 'UTC')`, [sellerId]),
+    q<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM order_items WHERE seller_id=$1`, [sellerId]),
   ]);
+  const sales = Number(lifetimeRow?.c ?? 0);
+  const tier = sales>=1000?"vip":sales>=250?"gold":sales>=50?"silver":sales>=1?"bronze":"none";
+  const NEXT: Record<string, { next: string | null; threshold: number | null }> = {
+    none:   { next: "bronze", threshold: 1 },
+    bronze: { next: "silver", threshold: 50 },
+    silver: { next: "gold",   threshold: 250 },
+    gold:   { next: "vip",    threshold: 1000 },
+    vip:    { next: null,     threshold: null },
+  };
   res.json({
     categories,
     my_accounts: myAccounts,
@@ -127,6 +138,10 @@ router.get("/overview", authRequired, requireRole("seller"), async (req: AuthedR
     replacements,
     daily_limit: Number(limitRow?.daily_limit ?? 0),
     used_today: usedRow?.c ?? 0,
+    tier,
+    sales_lifetime: sales,
+    tier_next: NEXT[tier].next,
+    tier_next_threshold: NEXT[tier].threshold,
   });
 });
 
@@ -344,7 +359,7 @@ router.get("/top", async (_req, res) => {
       ORDER BY sales_30d DESC, sales_lifetime DESC
       LIMIT 12`
   );
-  const tierFor = (n: number) => n>=1000?"platinum":n>=250?"gold":n>=50?"silver":n>=1?"bronze":"none";
+  const tierFor = (n: number) => n>=1000?"vip":n>=250?"gold":n>=50?"silver":n>=1?"bronze":"none";
   res.json({ sellers: rows.map((s:any)=>({ ...s, tier: tierFor(Number(s.sales_lifetime||0)) })) });
 });
 
@@ -371,7 +386,7 @@ router.get("/profile/:id", async (req, res) => {
   );
   if (!s) return res.status(404).json({ error: "not_found" });
   const sales = Number(s.sales_lifetime || 0);
-  const tier = sales>=1000?"platinum":sales>=250?"gold":sales>=50?"silver":sales>=1?"bronze":"none";
+  const tier = sales>=1000?"vip":sales>=250?"gold":sales>=50?"silver":sales>=1?"bronze":"none";
   const upheldRate = sales > 0 ? Number(s.replacements_upheld) / sales : 0;
   const reliability = Math.max(0, Math.min(100, Math.round((1 - upheldRate) * 100)));
   res.json({ seller: { ...s, tier, reliability_pct: reliability, is_banned: Boolean(s.is_banned) } });
