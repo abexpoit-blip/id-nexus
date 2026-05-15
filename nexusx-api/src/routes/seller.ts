@@ -49,50 +49,81 @@ router.post("/admin/applications-toggle", authRequired, requireRole("admin"), as
 
 // Apply to become a seller
 router.post("/apply", authRequired, async (req: AuthedReq, res) => {
-  if (!(await applicationsEnabled()))
+  if (!(await applicationsEnabled())) {
     return res.status(403).json({ error: "applications_disabled" });
+  }
+
   const schema = z.object({
-    display_name: z.string().min(1).max(120).nullish(),
-    full_name: z.string().min(2).max(120),
-    email: z.string().email().max(255),
-    phone: z.string().min(5).max(40),
-    telegram_username: z.string().min(3).max(120),
-    reason: z.string().max(2000).nullish(),
+    display_name: z.string().trim().min(1).max(120).nullish(),
+    full_name: z.string().trim().min(2).max(120),
+    email: z.string().trim().email().max(255),
+    phone: z.string().trim().regex(/^[+0-9 ()-]{5,40}$/),
+    telegram_username: z
+      .string()
+      .trim()
+      .min(3)
+      .max(33)
+      .transform((value) => value.replace(/^@/, "").toLowerCase())
+      .refine((value) => /^[a-z0-9_]{3,32}$/.test(value)),
+    reason: z.string().trim().max(2000).nullish(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
 
-  const existing = await q(
+  const data = {
+    email: parsed.data.email.toLowerCase(),
+    displayName: parsed.data.display_name || parsed.data.full_name,
+    fullName: parsed.data.full_name,
+    phone: parsed.data.phone,
+    telegramUsername: parsed.data.telegram_username,
+    reason: parsed.data.reason || null,
+  };
+
+  const [existing] = await q<{ id: string; status: string }>(
     `SELECT id, status FROM seller_applications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1`,
     [req.user!.id]
   );
-  if (existing[0] && existing[0].status === "pending")
-    return res.status(409).json({ error: "application_pending" });
 
-  // Upsert: re-applies after rejection update existing row (unique on user_id)
-  const [app] = await q(
-    `INSERT INTO seller_applications(user_id, email, display_name, telegram_username, full_name, phone, reason, status)
-     VALUES($1,$2,$3,$4,$5,$6,$7,'pending')
-     ON CONFLICT(user_id) DO UPDATE SET
-        telegram_username = EXCLUDED.telegram_username,
-        full_name = EXCLUDED.full_name,
-        phone = EXCLUDED.phone,
-        email = EXCLUDED.email,
-        reason = EXCLUDED.reason,
-        display_name = COALESCE(EXCLUDED.display_name, seller_applications.display_name),
-        status = 'pending', admin_note = NULL, reviewed_at = NULL, reviewed_by = NULL,
-        updated_at = now()
-     RETURNING *`,
-    [
-      req.user!.id,
-      parsed.data.email,
-      parsed.data.display_name || parsed.data.full_name,
-      parsed.data.telegram_username,
-      parsed.data.full_name,
-      parsed.data.phone,
-      parsed.data.reason || null,
-    ]
-  );
+  if (existing?.status === "pending") {
+    const [app] = await q(`SELECT * FROM seller_applications WHERE id=$1`, [existing.id]);
+    return res.status(409).json({ error: "application_pending", application: app || null });
+  }
+
+  const params = [
+    req.user!.id,
+    data.email,
+    data.displayName,
+    data.telegramUsername,
+    data.fullName,
+    data.phone,
+    data.reason,
+  ];
+
+  const [app] = existing
+    ? await q(
+        `UPDATE seller_applications
+            SET email=$2,
+                display_name=$3,
+                telegram_username=$4,
+                full_name=$5,
+                phone=$6,
+                reason=$7,
+                status='pending',
+                admin_note=NULL,
+                reviewed_at=NULL,
+                reviewed_by=NULL,
+                updated_at=now()
+          WHERE id=$8 AND user_id=$1
+          RETURNING *`,
+        [...params, existing.id]
+      )
+    : await q(
+        `INSERT INTO seller_applications(user_id, email, display_name, telegram_username, full_name, phone, reason, status)
+         VALUES($1,$2,$3,$4,$5,$6,$7,'pending')
+         RETURNING *`,
+        params
+      );
+
   res.json({ application: app });
 });
 

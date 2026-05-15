@@ -16,7 +16,6 @@ import NotFound from "./pages/NotFound.tsx";
 
 // Lazy — heavier authenticated routes; split into separate chunks
 const Login = lazy(() => import("./pages/Login.tsx"));
-const Register = lazy(() => import("./pages/Register.tsx"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin.tsx"));
 const SellerLogin = lazy(() => import("./pages/SellerLogin.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
@@ -87,7 +86,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route path="/register" element={<Navigate to="/apply-seller" replace />} />
             <Route path="/auth" element={<Navigate to="/login" replace />} />
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/seller-login" element={<SellerLogin />} />
