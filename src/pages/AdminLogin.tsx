@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { authApi } from "@/lib/api";
@@ -20,18 +20,50 @@ const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [wiping, setWiping] = useState(false);
+  const wipedRef = useRef(false);
+
+  // Hard wipe of every browser-side session artifact (cookies, storage, caches).
+  const hardWipe = async () => {
+    try { await authApi.logout(); } catch { /* ignore */ }
+    try { await signOut(); } catch { /* ignore */ }
+    try {
+      // Best-effort cookie clear for non-httpOnly cookies on this host.
+      document.cookie.split(";").forEach((c) => {
+        const name = c.split("=")[0]?.trim();
+        if (!name) return;
+        const host = window.location.hostname;
+        const variants = [host, `.${host}`, host.split(".").slice(-2).join("."), `.${host.split(".").slice(-2).join(".")}`];
+        for (const d of variants) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${d}`;
+        }
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+      });
+    } catch { /* ignore */ }
+    try { localStorage.clear(); } catch { /* ignore */ }
+    try { sessionStorage.clear(); } catch { /* ignore */ }
+    try {
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     if (authLoading || !user) return;
     if (roles.includes("admin")) {
       navigate("/admin", { replace: true });
-    } else if (roles.length > 0) {
-      // Logged in but not admin — sign them out so they can enter admin creds
-      signOut().finally(() => {
-        toast.message("Signed out non-admin session. Please sign in with your admin account.");
+    } else if (!wipedRef.current) {
+      // Logged in but not admin — wipe everything so admin creds can be used.
+      wipedRef.current = true;
+      setWiping(true);
+      hardWipe().finally(() => {
+        setWiping(false);
+        toast.message("Non-admin session cleared. Please sign in with your admin account.");
       });
     }
-  }, [user, roles, authLoading, navigate, signOut]);
+  }, [user, roles, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +117,11 @@ const AdminLogin = () => {
           </div>
         </div>
         <Card className="border-border/60 bg-gradient-card p-6 shadow-card">
+          {wiping && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Clearing previous non-admin session…
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="admin-email">Admin email</Label>
