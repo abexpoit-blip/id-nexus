@@ -2,21 +2,21 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
-import { Crown, Trophy, Medal, Award } from "lucide-react";
+import { Gem, Crown, Medal, Award } from "lucide-react";
 
 interface TopSeller {
   seller_id: string;
   name: string;
   sales_lifetime: number;
   sales_30d: number;
-  tier: "platinum" | "gold" | "silver" | "bronze" | "none";
+  tier: "vip" | "gold" | "silver" | "bronze" | "none";
 }
 
 const tierMeta: Record<string, { icon: any; label: string; cls: string }> = {
-  platinum: { icon: Crown,  label: "Platinum", cls: "text-primary" },
-  gold:     { icon: Trophy, label: "Gold",     cls: "text-warning" },
-  silver:   { icon: Medal,  label: "Silver",   cls: "text-muted-foreground" },
-  bronze:   { icon: Award,  label: "Bronze",   cls: "text-accent" },
+  vip:    { icon: Gem,    label: "VIP",    cls: "text-primary" },
+  gold:   { icon: Crown,  label: "Gold",   cls: "text-warning" },
+  silver: { icon: Medal,  label: "Silver", cls: "text-muted-foreground" },
+  bronze: { icon: Award,  label: "Bronze", cls: "text-accent" },
 };
 
 export const TopSellersBadge = () => {
