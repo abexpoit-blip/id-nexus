@@ -29,6 +29,8 @@ interface Application {
   user_id: string;
   email: string;
   display_name: string | null;
+  full_name: string | null;
+  phone: string | null;
   telegram_username: string | null;
   reason: string | null;
   status: "pending" | "approved" | "rejected";
@@ -189,11 +191,12 @@ export const SellerApplicationsManager = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium">{a.display_name ?? a.email.split("@")[0]}</div>
+                    <div className="font-medium">{a.full_name ?? a.display_name ?? a.email.split("@")[0]}</div>
                     <div className="text-xs text-muted-foreground">{a.email}</div>
                   </TableCell>
                   <TableCell className="font-mono text-xs">
-                    {a.telegram_username ? `@${a.telegram_username}` : "—"}
+                    <div>{a.telegram_username ? `@${a.telegram_username}` : "—"}</div>
+                    <div className="mt-1 text-muted-foreground">{a.phone || "No phone"}</div>
                   </TableCell>
                   <TableCell className="max-w-xs">
                     <p className="line-clamp-2 text-sm text-muted-foreground">
@@ -242,13 +245,16 @@ export const SellerApplicationsManager = () => {
                       <div className="grid gap-4 p-5 sm:grid-cols-2">
                         <div>
                           <div className="text-xs uppercase tracking-widest text-muted-foreground">Applicant</div>
-                          <div className="mt-1 font-medium">{a.display_name ?? "—"}</div>
+                          <div className="mt-1 font-medium">{a.full_name ?? a.display_name ?? "—"}</div>
                           <div className="text-sm text-muted-foreground">{a.email}</div>
                         </div>
                         <div>
                           <div className="text-xs uppercase tracking-widest text-muted-foreground">Contact</div>
                           <div className="mt-1 font-mono text-sm">
                             {a.telegram_username ? `@${a.telegram_username}` : "—"}
+                          </div>
+                          <div className="mt-1 font-mono text-sm text-muted-foreground">
+                            {a.phone || "—"}
                           </div>
                         </div>
                         <div className="sm:col-span-2">
